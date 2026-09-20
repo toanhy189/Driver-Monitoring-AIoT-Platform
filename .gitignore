@@ -1,1 +1,23 @@
 README-Driver-Monitoring-AIoT-FINAL-NO-ESP-NOW.md
+# Node.js / React / Vite
+node_modules/
+dist/
+.vite/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
