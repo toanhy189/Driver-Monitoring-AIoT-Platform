@@ -1,25 +1,28 @@
-function DriverStatusCard({
-  state
-}) {
-  const normalizedState =
-    state || "UNKNOWN";
+function DriverStatusCard({ state }) {
+    // hiển thị tiếng việt
+  const stateText = {
+    ATTENTIVE: "TỈNH TÁO",
+    DISTRACTED: "MẤT TẬP TRUNG",
+    DROWSY: "BUỒN NGỦ",
+    UNKNOWN: "KHÔNG XÁC ĐỊNH"
+  };
 
   return (
-    <section className="driver-status-card">
+    <article className="driver-status-card">
       <div className="card-header">
-        <h2>Driver State</h2>
+        <h2>Trạng thái tài xế</h2>
 
         <span
-          className={`driver-state driver-state--${normalizedState.toLowerCase()}`}
+          className={`driver-state driver-state--${state.toLowerCase()}`}
         >
-          {normalizedState}
+          {stateText[state] || "KHÔNG XÁC ĐỊNH"}
         </span>
       </div>
 
       <p className="driver-status-description">
-        Current driver monitoring state
+        Trạng thái hiện tại của tài xế
       </p>
-    </section>
+    </article>
   );
 }
 

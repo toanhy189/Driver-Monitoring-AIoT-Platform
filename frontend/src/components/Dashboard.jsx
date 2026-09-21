@@ -1,4 +1,5 @@
-// !!! lưu ý dòng 50+, về giá trị PERCLOS
+// !!! Lưu ý xử lý PERCLOS:
+// Backend gửi perclos = 0.12 -> UI hiển thị 12%
 
 import { useEffect, useState } from "react";
 
@@ -8,21 +9,20 @@ import MetricCard from "./MetricCard.jsx";
 
 import { createTelemetrySocket } from "../services/websocket.js";
 
-function Dashboard() {
-    // Bước 1 – Tạo state, là dữ liệu mà giao diện đang sử dụng.
+function Dashboard({ onLogout }) {
+  // Dữ liệu mẫu ban đầu để test giao diện.
+  // Sau này WebSocket nhận dữ liệu thật thì telemetry sẽ được cập nhật.
   const [telemetry, setTelemetry] = useState({
     device_id: "vision-01",
-    ear: 0,
-    perclos: 0,
-    driver_state: "UNKNOWN"
+    ear: 0.28,
+    perclos: 0.12,
+    driver_state: "ATTENTIVE"
   });
 
-    // Bước 2 – Kết nối WebSocket
-    // Bước 3 – Backend gửi dữ liệu
-    // Bước 4 – React tự render lại
-  const [connected, setConnected] =
-    useState(false);
-    // useEffect(..., []) nghĩa là effect này chạy khi Dashboard được tạo.
+  // Trạng thái kết nối WebSocket
+  const [connected, setConnected] = useState(false);
+
+  // Kết nối WebSocket
   useEffect(() => {
     const socket = createTelemetrySocket({
       onOpen: () => {
@@ -47,8 +47,8 @@ function Dashboard() {
     };
   }, []);
 
-    // !xử lý Perclos dựa trên ví dụ ở file hướng dẫn perclos=0.12 -> UI=12%
-    // nếu sau này thống nhất APT gửi json "perclos"=12 -> phải sửa frontend 
+  // Backend gửi perclos = 0.12
+  // UI hiển thị 12%
   const perclosPercent =
     Number(telemetry.perclos || 0) * 100;
 
@@ -57,24 +57,33 @@ function Dashboard() {
       <header className="dashboard-header">
         <div>
           <p className="dashboard-label">
-            AIoT DRIVER MONITORING
+            GIÁM SÁT TÀI XẾ AIoT
           </p>
 
           <h1>
-            Driver Monitoring Dashboard
+            Hệ thống giám sát tài xế
           </h1>
         </div>
 
-        <div
-          className={
-            connected
-              ? "connection-status connection-status--online"
-              : "connection-status connection-status--offline"
-          }
-        >
-          {connected
-            ? "Backend Connected"
-            : "Backend Disconnected"}
+        <div className="dashboard-header-actions">
+          <div
+            className={
+              connected
+                ? "connection-status connection-status--online"
+                : "connection-status connection-status--offline"
+            }
+          >
+            {connected
+              ? "Đã kết nối máy chủ"
+              : "Mất kết nối máy chủ"}
+          </div>
+
+          <button
+            className="logout-button"
+            onClick={onLogout}
+          >
+            Đăng xuất
+          </button>
         </div>
       </header>
 
@@ -91,14 +100,14 @@ function Dashboard() {
         <MetricCard
           title="EAR"
           value={Number(telemetry.ear).toFixed(2)}
-          description="Eye Aspect Ratio"
+          description="Tỷ lệ khép mắt"
         />
 
         <MetricCard
           title="PERCLOS"
           value={perclosPercent.toFixed(0)}
           unit="%"
-          description="Percentage of Eye Closure"
+          description="Tỷ lệ nhắm mắt"
         />
       </section>
     </main>

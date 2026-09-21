@@ -4,12 +4,14 @@
 
 body {
   margin: 0;
+
   font-family:
     Arial,
     Helvetica,
     sans-serif;
-  background: #f4f6f8;
-  color: #1f2937;
+
+  background: #312C51;
+  color: white;
 }
 
 button,
@@ -17,10 +19,19 @@ input {
   font: inherit;
 }
 
+/* =========================
+   DASHBOARD
+   ========================= */
+
 .dashboard {
   min-height: 100vh;
   padding: 32px;
+  background: #312C51;
 }
+
+/* =========================
+   HEADER
+   ========================= */
 
 .dashboard-header {
   display: flex;
@@ -36,13 +47,26 @@ input {
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 1px;
+
+  color: #F1AA9B;
 }
 
 .dashboard-header h1 {
   margin: 0;
 
   font-size: 30px;
+  color: #F0C38E;
 }
+
+.dashboard-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* =========================
+   CONNECTION STATUS
+   ========================= */
 
 .connection-status {
   padding: 10px 16px;
@@ -63,6 +87,37 @@ input {
   color: #991b1b;
 }
 
+/* =========================
+   LOGOUT BUTTON
+   ========================= */
+
+.logout-button {
+  padding: 10px 16px;
+
+  border: 1px solid #F1AA9B;
+  border-radius: 8px;
+
+  background: transparent;
+  color: #F1AA9B;
+
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+.logout-button:hover {
+  background: #F1AA9B;
+  color: #312C51;
+}
+
+/* =========================
+   DASHBOARD GRID
+   ========================= */
+
 .dashboard-grid {
   display: grid;
 
@@ -72,20 +127,28 @@ input {
   gap: 20px;
 }
 
+/* =========================
+   CARDS
+   ========================= */
+
 .status-card,
 .driver-status-card,
 .metric-card {
-  background: white;
+  background: #48426D;
 
-  border: 1px solid #e5e7eb;
+  border: 1px solid rgba(240, 195, 142, 0.15);
   border-radius: 16px;
 
   padding: 24px;
 
   box-shadow:
-    0 4px 12px
-    rgba(0, 0, 0, 0.05);
+    0 8px 20px
+    rgba(0, 0, 0, 0.2);
 }
+
+/* =========================
+   CARD HEADER
+   ========================= */
 
 .card-header {
   display: flex;
@@ -99,7 +162,12 @@ input {
   margin: 0;
 
   font-size: 18px;
+  color: #F0C38E;
 }
+
+/* =========================
+   DEVICE STATUS
+   ========================= */
 
 .status-badge {
   padding: 6px 12px;
@@ -126,32 +194,50 @@ input {
 
   padding-top: 14px;
 
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+
+  color: #ffffff;
 }
+
+/* =========================
+   METRIC CARD
+   ========================= */
 
 .metric-card__title {
   margin-bottom: 12px;
 
   font-size: 14px;
   font-weight: 600;
+
+  color: #F1AA9B;
 }
 
 .metric-card__value {
   font-size: 36px;
   font-weight: 700;
+
+  color: #F0C38E;
 }
 
 .metric-card__unit {
   margin-left: 4px;
 
   font-size: 20px;
+
+  color: #F0C38E;
 }
 
 .metric-card__description {
   margin-top: 8px;
 
   font-size: 13px;
+
+  color: rgba(255, 255, 255, 0.7);
 }
+
+/* =========================
+   DRIVER STATUS
+   ========================= */
 
 .driver-state {
   padding: 8px 14px;
@@ -186,7 +272,13 @@ input {
   margin: 0;
 
   font-size: 14px;
+
+  color: rgba(255, 255, 255, 0.8);
 }
+
+/* =========================
+   RESPONSIVE
+   ========================= */
 
 @media (max-width: 768px) {
   .dashboard {
@@ -197,6 +289,11 @@ input {
     align-items: flex-start;
     flex-direction: column;
     gap: 16px;
+  }
+
+  .dashboard-header-actions {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .dashboard-grid {
