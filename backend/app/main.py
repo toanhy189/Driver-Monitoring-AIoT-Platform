@@ -7,8 +7,8 @@ from starlette.middleware.cors import CORSMiddleware
 from app.api.main import api_router
 from app.core.config import settings
 
-FRONTEND_DIR = Path(__file__).parent / "frontend"
-
+#Tương đối với backend/
+FRONTEND_DIR = Path("../frontend")
 
 def custom_generate_unique_id(route: APIRoute) -> str:
     return f"{route.tags[0]}-{route.name}"

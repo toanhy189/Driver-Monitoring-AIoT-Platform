@@ -5,9 +5,8 @@ from app.core.config import settings
 
 engine = create_engine(
     str(settings.DATABASE_URL),
-    pool_pre_ping=True,
+    echo=True
 )
-
 
 def get_session():
     with Session(engine) as session:
