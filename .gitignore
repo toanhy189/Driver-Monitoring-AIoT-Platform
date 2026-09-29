@@ -1,1 +1,20 @@
 README-Driver-Monitoring-AIoT-FINAL-NO-ESP-NOW.md
+Huong-dan-chi-tiet-TUAN-1-FASTAPI-Driver-Monitoring-AIoT.md
+/firmware/esp32-alert-node/src/Driver Monitoring AIoT Platform.code-workspace
+Huong-dan-TV1-tuan-1-ESP32-cho-nguoi-moi.md
+
+# Local IDE configuration and generated PlatformIO files
+.vscode/
+.pio/
+compile_commands.json
+*.code-workspace
+
+# Machine-specific credentials
+.env
+.env.*
+!.env.example
+
+# Unchanged placeholder files created by PlatformIO
+/firmware/esp32-alert-node/include/README
+/firmware/esp32-alert-node/lib/README
+/firmware/esp32-alert-node/test/README
