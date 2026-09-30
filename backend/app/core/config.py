@@ -25,5 +25,7 @@ class Settings(BaseSettings):
 
     FRONTEND_HOST: str = "http://localhost:5173"
 
+    ESP32_HOST: str = "" # TODO
+
 
 settings = Settings()
