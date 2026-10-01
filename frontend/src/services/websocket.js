@@ -1,7 +1,11 @@
-// chịu trách nhiệm về kết nối.
+// Chịu trách nhiệm về kết nối WebSocket.
 
-const WS_URL = import.meta.env.VITE_WS_URL || "ws://localhost:8000/ws/telemetry";
-//Nếu có biến môi trường: VITE_WS_URL thì dùng nó. Nếu chưa có thì dùng: ws://localhost:8000/ws/telemetry
+const WS_URL =
+    import.meta.env.VITE_WS_URL ||
+    "ws://localhost:8000/ws/telemetry";
+
+// Nếu có biến môi trường VITE_WS_URL thì dùng nó.
+// Nếu chưa có thì dùng ws://localhost:8000/ws/telemetry.
 
 export function createTelemetrySocket({
     onMessage,
@@ -9,40 +13,49 @@ export function createTelemetrySocket({
     onClose,
     onError
 } = {}) {
+
     const socket = new WebSocket(WS_URL);
+
     socket.onopen = () => {
         console.log("[WebSocket] connected");
 
-        if(onOpen){
+        if (onOpen) {
             onOpen();
         }
     };
 
     socket.onmessage = (event) => {
-        try{
+        try {
             const data = JSON.parse(event.data);
+
             console.log("[WebSocket] telemetry:", data);
 
-            if(onMessage){
-                onMessage();
+            if (onMessage) {
+                onMessage(data);
             }
-        } catch (error){
-            console.error("[WebSocket] Invalid JSON:", error);
+
+        } catch (error) {
+            console.error(
+                "[WebSocket] Invalid JSON:",
+                error
+            );
         }
     };
 
     socket.onerror = (error) => {
         console.error("[WebSocket] Error:", error);
-        if(onError){
+
+        if (onError) {
             onError();
         }
     };
 
-    socket.onClose = () => {
+    socket.onclose = () => {
         console.log("[WebSocket] Disconnected");
 
-        if(onClose)
+        if (onClose) {
             onClose();
+        }
     };
 
     return socket;
