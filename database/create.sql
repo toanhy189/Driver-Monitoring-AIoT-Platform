@@ -1,7 +1,7 @@
 DROP SCHEMA public CASCADE;
 CREATE SCHEMA public;
 
--- TODOS: thêm confidence
+-- TODO: thêm confidence
 
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,

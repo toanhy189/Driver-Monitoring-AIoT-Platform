@@ -7,15 +7,20 @@ from starlette.middleware.cors import CORSMiddleware
 from app.api.main import api_router
 from app.core.config import settings
 
-#Tương đối với backend/
-FRONTEND_DIR = Path("../frontend")
+from app.services.mqtt_service import start_mqtt_consumer
+from contextlib import asynccontextmanager
+from threading import Thread
 
-def custom_generate_unique_id(route: APIRoute) -> str:
-    return f"{route.tags[0]}-{route.name}"
+#Tương đối với backend/
+FRONTEND_DIR = Path("frontend")
+
+def custom_generate_unique_id(route):
+    tag = route.tags[0] if route.tags else "default"
+    return f"{tag}-{route.name}"
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    openapi_url=f"{settings.API_STR}/openapi.json",
     generate_unique_id_function=custom_generate_unique_id,
 )
 
@@ -27,5 +32,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(api_router, prefix=settings.API_V1_STR)
+app.include_router(api_router, prefix=settings.API_STR)
 app.frontend("/", directory=FRONTEND_DIR)
+
+@asynccontextmanager
+async def lifespan(app):
+    Thread(
+        target=start_mqtt_consumer,
+        daemon=True
+    ).start()
+
+    yield

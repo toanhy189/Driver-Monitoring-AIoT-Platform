@@ -319,3 +319,13 @@ Physical Layer
 ---
 
 > **Trạng thái README hiện tại:** mới hoàn thiện phần **Giới thiệu** và **Kiến trúc hệ thống**. Các phần hướng dẫn cài đặt, chạy hệ thống, API, MQTT payload, database, security, testing và deployment sẽ bổ sung sau.
+# 3. Cách chạy hệ thống
+Chạy backend
+Tạo terminal 1
+```bash
+uvicorn --app-dir backend app.main:app --reload
+```
+Chạy frontend
+```bash
+npm --prefix frontend run dev
+```

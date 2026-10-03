@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file="../.env",
+        env_file=".env",
         env_ignore_empty=True,
         extra="ignore",
     )
@@ -15,7 +15,7 @@ class Settings(BaseSettings):
 
     FASTAPI_ENV: Literal["development", "production"] = "development"
 
-    API_V1_STR: str = "/api/v1"
+    API_STR: str = "/api"
 
     DATABASE_URL: PostgresDsn
 
@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     FRONTEND_HOST: str = "http://localhost:5173"
 
     ESP32_HOST: str = "" # TODO
+
+    MQTT_HOST: str = "localhost"
+    MQTT_PORT: int = "1883"
 
 
 settings = Settings()
