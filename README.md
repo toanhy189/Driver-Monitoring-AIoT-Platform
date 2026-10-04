@@ -320,20 +320,17 @@ Physical Layer
 
 > **Trạng thái README hiện tại:** mới hoàn thiện phần **Giới thiệu** và **Kiến trúc hệ thống**. Các phần hướng dẫn cài đặt, chạy hệ thống, API, MQTT payload, database, security, testing và deployment sẽ bổ sung sau.
 # 3. Cách chạy hệ thống
-Chạy backend
-Tạo terminal 1
+Chạy Backend: Tạo terminal 1
 ```bash
 uvicorn --app-dir backend app.main:app --reload
 ```
 
-Chạy frontend
-Tạo terminal 2
+Chạy Frontend: Tạo terminal 2
 ```bash
 npm --prefix frontend run dev
 ```
 
-Tạo kết nối MQTT
-Tạo terminal 3
+Tạo kết nối MQTT: Tạo terminal 3
 ```bash
 set PYTHONPATH=backend
 python -m mqtt.consumer

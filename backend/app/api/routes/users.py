@@ -2,6 +2,7 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
+from app.core.config import settings
 import app.core.security as acs
 from app.core.db import get_session
 from app.models.user import User
@@ -30,8 +31,8 @@ def login(data: LoginRequest, session: Session = Depends(get_session)):
             detail="Incorrect username or password",
         )
     access_token = acs.create_access_token(
-        subject=str(user.id),
-        expires_delta=timedelta(minutes=30),
+        subject = str(user.id),
+        expires_delta = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
     )
 
     return LoginResponse(

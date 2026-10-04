@@ -1,6 +1,9 @@
   import { useState } from "react";
   import "../styles/login.css";
 
+  const BACKEND_HOST = import.meta.env.VITE_BACKEND_HOST;
+  const API_STR = import.meta.env.VITE_API_STR;
+
   function Login({ onLogin }) {
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
@@ -8,7 +11,7 @@
     const handleSubmit = async (event) => {
       event.preventDefault();
 
-      const response = await fetch("http://localhost:8000/api/users/login", {
+      const response = await fetch(`${BACKEND_HOST}${API_STR}/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

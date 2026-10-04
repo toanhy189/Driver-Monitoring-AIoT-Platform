@@ -3,7 +3,7 @@ from sqlmodel import Field, SQLModel
 
 class UserDevice(SQLModel, table=True):
     
-    __tablename__ = "telemetry"
+    __tablename__ = "user_devices"
 
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="users.id")

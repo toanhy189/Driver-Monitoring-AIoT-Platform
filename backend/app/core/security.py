@@ -57,7 +57,7 @@ def get_password_hash(password: str) -> str:
 
 
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/users/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/login")
 
 def get_current_user_id(
     token: str = Depends(oauth2_scheme),
@@ -72,7 +72,10 @@ def get_current_user_id(
         )
     return user_id
 
-def get_current_user_info(session: Session = Depends(get_session)):
+def get_current_user_info(
+    session: Session = Depends(get_session),
+    user_id: int = Depends(get_current_user_id),
+):
     user_id = get_current_user_id()
 
     user = session.exec(
