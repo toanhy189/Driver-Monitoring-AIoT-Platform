@@ -59,3 +59,18 @@ dist/
 # Logs
 *.log
 
+
+# Local project guides
+Huong-dan-chi-tiet-TUAN-1-FASTAPI-Driver-Monitoring-AIoT.md
+Huong-dan-TV1-tuan-1-ESP32-cho-nguoi-moi.md
+
+# Local workspace and generated PlatformIO files
+/firmware/esp32-alert-node/src/Driver Monitoring AIoT Platform.code-workspace
+.pio/
+compile_commands.json
+*.code-workspace
+
+# Unchanged placeholder files created by PlatformIO
+/firmware/esp32-alert-node/include/README
+/firmware/esp32-alert-node/lib/README
+/firmware/esp32-alert-node/test/README
