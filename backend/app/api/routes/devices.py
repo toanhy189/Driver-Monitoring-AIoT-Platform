@@ -30,6 +30,13 @@ def get_all_device(
     print(devices)
     return devices
 
+## API đang sử dụng database ID. 
+'''Nếu muốn frontend cũng hoàn toàn dùng device_code, tốt hơn là sau này thiết kế:
+GET /api/devices/{device_code}/telemetry
+
+Ví dụ:
+GET /api/devices/DM-000001/telemetry
+'''
 @router.get("/{device_id}/telemetry", response_model= TelemetryResponse)
 def get_current_telemetry(
     device_id: int,
