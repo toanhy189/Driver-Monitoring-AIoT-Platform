@@ -331,3 +331,14 @@ Tạo terminal 2
 ```bash
 npm --prefix frontend run dev
 ```
+
+Tạo kết nối MQTT
+Tạo terminal 3
+```bash
+set PYTHONPATH=backend
+python -m mqtt.consumer
+```
+Nếu muốn gửi thử payload ảo, thì tạo terminal 4 chạy
+```bash
+python -m mqtt.publish_test
+```

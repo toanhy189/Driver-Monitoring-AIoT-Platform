@@ -31,7 +31,7 @@ def on_message(client, userdata, msg):
 
         if message_type == "telemetry":
             save_telemetry(payload)
-            
+
 
     except json.JSONDecodeError:
         print("JSON không hợp lệ:", msg.payload.decode())
@@ -48,7 +48,7 @@ def start_mqtt_consumer():
     client.loop_forever()
 
 # lệnh chạy
-# Terminal 1: set PYTHONPATH=backend sau đó python -m mqtt.consumer
-# Terminal 2: python -m mqtt.publish_test
+# set PYTHONPATH=backend
+# python -m mqtt.consumer
 if __name__ == "__main__":
     start_mqtt_consumer()
