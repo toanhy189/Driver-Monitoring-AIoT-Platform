@@ -6,7 +6,7 @@ from backend.app.services.telemetry_service import save_telemetry
 
 MQTT_HOST = settings.MQTT_HOST
 MQTT_PORT = settings.MQTT_PORT
-MQTT_TOPICS = ["driver/+/telemetry"]
+MQTT_TOPICS = ["driver/+/telemetry", "driver/+/response"]
 
 def on_connect(client, userdata, flags, rc, properties):
     if rc == 0:
@@ -27,10 +27,13 @@ def on_message(client, userdata, msg):
         print("Data:", payload)
 
         parts = msg.topic.split("/")
+        device_code = parts[1]
         message_type = parts[-1]
 
         if message_type == "telemetry":
-            save_telemetry(payload)
+            save_telemetry(device_code, payload)
+        elif message_type == "response":
+            print(payload)
 
 
     except json.JSONDecodeError:

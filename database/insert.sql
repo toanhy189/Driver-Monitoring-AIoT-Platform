@@ -2,7 +2,7 @@ INSERT INTO users (fullname, username, hash_password, email, phone)
 VALUES ('Nguyễn Văn An', 'nguyenan', '$argon2id$v=19$m=65536,t=3,p=4$DdvWdfr4/V2LHpZkN9zhGg$fdDtduGG/5ATl28e6nqTXN1RKAhgOrMQVI0TFlweTyk', 'an@example.com', '0901234567');
 
 INSERT INTO devices (device_code, model, name, status, ip_address)
-VALUES ('DM-000001', 'Laptop-Cam-V1', 'Laptop của An', 'ONLINE', '192.168.1.10'),
+VALUES ('alert-01', 'Thiết bị cảnh báo V1', 'V1-A01 của An', 'ONLINE', '192.168.1.10'),
        ('DM-000002', 'External-Cam-V1', 'Camera phụ', 'OFFLINE', '192.168.1.11');
 
 INSERT INTO user_devices (user_id, device_id, assigned_at, unassigned_at)
@@ -99,10 +99,14 @@ VALUES (5, 'DROWSINESS', 'WARNING', '2026-09-21 08:30:12', '2026-09-21 08:30:20'
        (9, 'DISTRACTION', 'WARNING', '2026-09-21 08:50:25', NULL);
 
 INSERT INTO command_types (code, name, description)
-VALUES ('BUZZER_ON', 'Bật còi', 'Bật còi cảnh báo'),
-	   ('VIBRATION_ON', 'Bật rung', 'Bật motor rung cảnh báo'),
-	   ('LED_ON', 'Bật đèn', 'Bật đèn cảnh báo'),
-	   ('CAMERA_CHECK', 'Kiểm tra camera', 'Yêu cầu thiết bị kiểm tra trạng thái camera');
+VALUES
+    ('BUZZER_ON', 'Bật còi', 'Bật còi cảnh báo'),
+    ('VIBRATION_ON', 'Bật rung', 'Bật motor rung cảnh báo'),
+    ('LED_ON', 'Bật đèn', 'Bật đèn cảnh báo'),
+    ('CAMERA_CHECK', 'Kiểm tra camera', 'Yêu cầu thiết bị kiểm tra trạng thái camera')
+    ('BUZZER_OFF', 'Tắt còi', 'Tắt còi cảnh báo'),
+    ('VIBRATION_OFF', 'Tắt rung', 'Tắt motor rung cảnh báo'),
+    ('LED_OFF', 'Tắt đèn', 'Tắt đèn cảnh báo');
 
 INSERT INTO commands (alert_id, device_id, command_type_id, status, created_at, executed_at)
 VALUES (1, 1, 1, 'EXECUTED', '2026-09-21 08:30:12', '2026-09-21 08:30:12'),
