@@ -1,8 +1,6 @@
 DROP SCHEMA public CASCADE;
 CREATE SCHEMA public;
 
--- TODO: thêm confidence
-
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
 	fullname VARCHAR(255) NOT NULL,
@@ -34,6 +32,20 @@ CREATE TABLE user_devices (
     unassigned_at TIMESTAMP
 );
 
+CREATE TABLE telemetry(
+    id SERIAL PRIMARY KEY,
+    device_id INT NOT NULL REFERENCES devices(id),
+    recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ear FLOAT,
+    perclos FLOAT,
+
+    angle_x FLOAT,
+    angle_y FLOAT,
+    angle_z FLOAT,
+
+    confidence FLOAT
+);
+
 CREATE TABLE event_types (
     id SERIAL PRIMARY KEY,
     code VARCHAR(50) UNIQUE NOT NULL,
@@ -50,12 +62,9 @@ CREATE TABLE events (
     ended_at TIMESTAMP,
     duration_seconds FLOAT,
 
-    angle_x FLOAT,
-    angle_y FLOAT,
-    angle_z FLOAT,
-
     warning_triggered BOOLEAN DEFAULT FALSE,
-    warning_at TIMESTAMP
+    warning_at TIMESTAMP,
+    confidence FLOAT
 );
 
 CREATE TABLE alerts (

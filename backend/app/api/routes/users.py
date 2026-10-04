@@ -5,15 +5,15 @@ from sqlmodel import Session, select
 import app.core.security as acs
 from app.core.db import get_session
 from app.models.user import User
-from app.schemas.user import LoginRequest
+from app.schemas.user import LoginRequest, LoginResponse, UserResponse
 
 router = APIRouter(
-    prefix="/users",
+    prefix="",
     tags=["users"],
 )
 
 
-@router.get("/")
+@router.post("/users")
 def get_users(session: Session = Depends(get_session)):
     return session.exec(select(User)).all()
 
@@ -30,8 +30,17 @@ def login(data: LoginRequest, session: Session = Depends(get_session)):
             detail="Incorrect username or password",
         )
     access_token = acs.create_access_token(
-    subject=str(user.id),
-    expires_delta=timedelta(minutes=30),
+        subject=str(user.id),
+        expires_delta=timedelta(minutes=30),
     )
 
-    return {"access_token": access_token, "token_type": "bearer"}
+    return LoginResponse(
+        access_token=access_token,
+        token_type="bearer",
+    )
+
+@router.get("/me", response_model=UserResponse)
+def get_me(
+    current_user: User = Depends(acs.get_current_user_info)
+):
+    return current_user

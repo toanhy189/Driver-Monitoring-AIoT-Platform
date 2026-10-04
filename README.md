@@ -325,7 +325,9 @@ Tạo terminal 1
 ```bash
 uvicorn --app-dir backend app.main:app --reload
 ```
+
 Chạy frontend
+Tạo terminal 2
 ```bash
 npm --prefix frontend run dev
 ```
