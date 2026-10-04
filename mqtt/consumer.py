@@ -1,8 +1,16 @@
 import json
 import paho.mqtt.client as mqtt
 
-from backend.app.core.config import settings
-from backend.app.services.telemetry_service import save_telemetry
+# from backend.app.core.config import settings
+# from backend.app.services.telemetry_service import save_telemetry
+
+# lệnh chạy
+# set PYTHONPATH=backend      -> nhưng khi chạy mqtt.consumer, phải bảo đảm Python biết backend là module path.
+# python -m mqtt.consumer
+# vì đang chạy backend từ thư mục gốc bằng: python -m uvicorn app.main:app --reload --app-dir backend
+from app.core.config import settings
+from app.services.telemetry_service import save_telemetry
+from app.services.websocket_manager import manager
 
 MQTT_HOST = settings.MQTT_HOST
 MQTT_PORT = settings.MQTT_PORT
@@ -47,8 +55,6 @@ def start_mqtt_consumer():
 
     client.loop_forever()
 
-# lệnh chạy
-# set PYTHONPATH=backend
-# python -m mqtt.consumer
+
 if __name__ == "__main__":
     start_mqtt_consumer()
