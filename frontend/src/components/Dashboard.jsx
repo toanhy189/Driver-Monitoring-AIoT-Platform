@@ -13,7 +13,7 @@ function Dashboard({ onLogout }) {
   // Dữ liệu mẫu ban đầu để test giao diện.
   // Sau này WebSocket nhận dữ liệu thật thì telemetry sẽ được cập nhật.
   const [telemetry, setTelemetry] = useState({
-    device_id: "vision-01",
+    device_code: "vision-01",
     ear: 0.28,
     perclos: 0.12,
     driver_state: "ATTENTIVE"
@@ -89,7 +89,7 @@ function Dashboard({ onLogout }) {
 
       <section className="dashboard-grid">
         <DeviceStatusCard
-          deviceId={telemetry.device_id}
+          deviceId={telemetry.device_code}
           connected={connected}
         />
 
