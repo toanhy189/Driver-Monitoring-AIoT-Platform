@@ -13,8 +13,8 @@ CREATE TABLE users (
 );
 
 CREATE TABLE devices (
-    id SERIAL PRIMARY KEY,
-    device_code VARCHAR(100) UNIQUE NOT NULL,
+    id SERIAL PRIMARY KEY, -- PK nội bộ
+    device_code VARCHAR(100) UNIQUE NOT NULL,   -- mã thiết bị nghiệp vụ
     model VARCHAR(100) NOT NULL,
     name VARCHAR(255),
     status VARCHAR(30) DEFAULT 'OFFLINE',
