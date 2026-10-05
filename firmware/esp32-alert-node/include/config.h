@@ -11,7 +11,7 @@ enum class TestMode
   Mqtt    // Mục 8: nhận/in lệnh, gửi ONLINE.
 };
 
-constexpr TestMode TEST_MODE = TestMode::Wifi;
+constexpr TestMode TEST_MODE = TestMode::Button;
 
 constexpr int LED_PIN = 26;
 constexpr int BUTTON_PIN = 27;

@@ -92,7 +92,7 @@ function Dashboard({ onLogout }) {
         if (message.type === "telemetry.updated" || message.type == null) {
           const data = message.type === "telemetry.updated" ? message.data : message;
           try {
-            // Mỗi tin là số đo mới, có ID số và mã hiển thị tách biệt.
+            // Mỗi tin là số đo mới; mã thiết bị không bị đổi thành ID số.
             setTelemetry(normalizeTelemetry(data));
             setTelemetryError("");
           } catch (error) {

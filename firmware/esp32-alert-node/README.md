@@ -101,3 +101,14 @@ pio run -d firmware/esp32-alert-node -t compiledb
 Để kiểm tra MQTT, TV2 subscribe topic status trước khi ESP32 kết nối, sau đó
 publish BUZZER_TEST lên topic command. Serial cần có IP, connected,
 subscribe=OK, publish=OK và đúng tin nhận. Buzzer/motor tiếp tục tắt trong bài MQTT.
+
+
+# TUẦN 2
+ - file pin_config chứa config thời gian đèn/buzzer/motor chạy
+ - Flow chạy lệnh:
+    build(1) -> cắm esp32 vào -> upload(2) -> -> mở monitor(3) -> chạy file mqtt.consumer.py để bắt subcribe ack -> chạy file mqtt.esp_test.py để gửi command
+    ```powershell
+        pio run -d firmware/esp32-alert-node -e development
+        pio run -d firmware/esp32-alert-node -e development -t upload
+        pio device monitor -d firmware/esp32-alert-node
+    ```

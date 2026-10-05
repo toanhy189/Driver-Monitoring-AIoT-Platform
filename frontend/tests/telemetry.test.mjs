@@ -25,6 +25,25 @@ test("không dùng mã thiết bị hoặc chuỗi số thay ID DB", () => {
   }
 });
 
+test("nhận payload chỉ có device_code theo tài liệu bàn giao trên main", () => {
+  for (const device_id of [undefined, null]) {
+    const result = normalizeTelemetry({
+      device_id, device_code: "DM-000001", ear: 0.21, perclos: 0.35, driver_state: "DROWSY",
+    });
+    assert.deepEqual(result, {
+      device_id: null, device_code: "DM-000001", ear: 0.21, perclos: 0.35, driver_state: "DROWSY",
+    });
+  }
+});
+
+test("có mã hợp lệ vẫn không chấp nhận ID sai kiểu; thiếu cả ID và mã thì từ chối", () => {
+  for (const device_id of ["42", "vision-01", 0, -1, 1.5, NaN, Infinity]) {
+    assert.throws(() => normalizeTelemetry({ device_id, device_code: "DM-000001" }));
+  }
+  assert.throws(() => normalizeTelemetry({ ear: 0.21 }));
+  assert.throws(() => normalizeTelemetry({ device_id: null, device_code: null }));
+});
+
 test("không suy ra driver_state từ EAR/PERCLOS khi BE chưa cung cấp", () => {
   const result = normalizeTelemetry({ device_id: 1, ear: 0.01, perclos: 0.99 });
   assert.equal(result.driver_state, "UNKNOWN");

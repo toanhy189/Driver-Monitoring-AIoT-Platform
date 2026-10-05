@@ -1,12 +1,20 @@
 import json
 import paho.mqtt.client as mqtt
 
-from backend.app.core.config import settings
-from backend.app.services.telemetry_service import save_telemetry
+# from backend.app.core.config import settings
+# from backend.app.services.telemetry_service import save_telemetry
+
+# lệnh chạy
+# set PYTHONPATH=backend      -> nhưng khi chạy mqtt.consumer, phải bảo đảm Python biết backend là module path.
+# python -m mqtt.consumer
+# vì đang chạy backend từ thư mục gốc bằng: python -m uvicorn app.main:app --reload --app-dir backend
+from app.core.config import settings
+from app.services.telemetry_service import save_telemetry
+from app.services.websocket_manager import manager
 
 MQTT_HOST = settings.MQTT_HOST
 MQTT_PORT = settings.MQTT_PORT
-MQTT_TOPICS = ["driver/+/telemetry"]
+MQTT_TOPICS = ["driver/+/telemetry", "driver/+/response"]
 
 def on_connect(client, userdata, flags, rc, properties):
     if rc == 0:
@@ -27,10 +35,13 @@ def on_message(client, userdata, msg):
         print("Data:", payload)
 
         parts = msg.topic.split("/")
+        device_code = parts[1]
         message_type = parts[-1]
 
         if message_type == "telemetry":
-            save_telemetry(payload)
+            save_telemetry(device_code, payload)
+        elif message_type == "response":
+            print(payload)
 
 
     except json.JSONDecodeError:
@@ -47,8 +58,6 @@ def start_mqtt_consumer():
 
     client.loop_forever()
 
-# lệnh chạy
-# set PYTHONPATH=backend
-# python -m mqtt.consumer
+
 if __name__ == "__main__":
     start_mqtt_consumer()

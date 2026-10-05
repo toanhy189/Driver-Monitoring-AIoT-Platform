@@ -1,0 +1,56 @@
+services:
+
+  backend:
+    build:
+      context: ..
+      dockerfile: deployment/backend/Dockerfile
+    env_file:
+      - ../.env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - mosquitto
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: deployment/frontend/Dockerfile
+    env_file:
+    - ../.env
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+    - postgres_data:/var/lib/postgresql/data
+    - ../database/create.sql:/docker-entrypoint-initdb.d/01-create.sql
+    - ../database/insert.sql:/docker-entrypoint-initdb.d/02-insert.sql
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+  
+  mqtt-consumer:
+    build:
+      context: ..
+      dockerfile: deployment/mqtt/Dockerfile
+    env_file:
+      - ../.env
+    depends_on:
+      - mosquitto
+      - postgres
+
+volumes:
+  postgres_data:

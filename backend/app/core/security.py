@@ -76,7 +76,7 @@ def get_current_user_info(
     session: Session = Depends(get_session),
     user_id: int = Depends(get_current_user_id),
 ):
-    user_id = get_current_user_id()
+  #thừa  user_id = get_current_user_id()
 
     user = session.exec(
         select(User).where(User.id == int(user_id))
