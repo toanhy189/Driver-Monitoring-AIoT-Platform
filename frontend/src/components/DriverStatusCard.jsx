@@ -1,10 +1,12 @@
 function DriverStatusCard({ state }) {
-    // hiển thị tiếng việt
+  const allowedStates = ["ATTENTIVE", "DISTRACTED", "DROWSY"];
+  const safeState = allowedStates.includes(state) ? state : "UNKNOWN";
+  // Hiển thị tiếng Việt; giá trị thiếu hoặc không hợp lệ không phải ATTENTIVE.
   const stateText = {
     ATTENTIVE: "TỈNH TÁO",
     DISTRACTED: "MẤT TẬP TRUNG",
     DROWSY: "BUỒN NGỦ",
-    UNKNOWN: "KHÔNG XÁC ĐỊNH"
+    UNKNOWN: "CHƯA XÁC ĐỊNH"
   };
 
   return (
@@ -13,14 +15,16 @@ function DriverStatusCard({ state }) {
         <h2>Trạng thái tài xế</h2>
 
         <span
-          className={`driver-state driver-state--${state.toLowerCase()}`}
+          className={`driver-state driver-state--${safeState.toLowerCase()}`}
         >
-          {stateText[state] || "KHÔNG XÁC ĐỊNH"}
+          {stateText[safeState]}
         </span>
       </div>
 
       <p className="driver-status-description">
-        Trạng thái hiện tại của tài xế
+        {safeState === "UNKNOWN"
+          ? "Chưa có trạng thái tài xế hợp lệ"
+          : "Trạng thái hiện tại của tài xế"}
       </p>
     </article>
   );
