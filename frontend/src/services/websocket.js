@@ -24,7 +24,7 @@ export function createTelemetrySocket({
             console.log("[WebSocket] telemetry:", data);
 
             if(onMessage){
-                onMessage();
+                onMessage(data);
             }
         } catch (error){
             console.error("[WebSocket] Invalid JSON:", error);
@@ -38,7 +38,7 @@ export function createTelemetrySocket({
         }
     };
 
-    socket.onClose = () => {
+    socket.onclose = () => {
         console.log("[WebSocket] Disconnected");
 
         if(onClose)

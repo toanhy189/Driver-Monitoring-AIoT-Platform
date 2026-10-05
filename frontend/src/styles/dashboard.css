@@ -188,9 +188,36 @@ input {
   color: #991b1b;
 }
 
+.status-badge--unknown {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.dashboard-devices {
+  margin-bottom: 24px;
+}
+
+.dashboard-devices > h2 {
+  color: #F0C38E;
+  font-size: 20px;
+}
+
+.device-status-note,
+.device-status-error {
+  color: #F1AA9B;
+  line-height: 1.5;
+}
+
+.device-status-note {
+  margin-bottom: 0;
+  font-size: 13px;
+}
+
 .device-info {
   display: flex;
   justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
 
   padding-top: 14px;
 

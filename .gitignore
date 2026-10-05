@@ -63,6 +63,8 @@ dist/
 # Local project guides
 Huong-dan-chi-tiet-TUAN-1-FASTAPI-Driver-Monitoring-AIoT.md
 Huong-dan-TV1-tuan-1-ESP32-cho-nguoi-moi.md
+/Huong-dan-FE-tuan-2-va-hoan-thien-tuan-1.md
+/Huong-dan-chi-tiet-TUAN-2-4-thanh-vien-Driver-Monitoring-AIoT.md
 
 # Local workspace and generated PlatformIO files
 /firmware/esp32-alert-node/src/Driver Monitoring AIoT Platform.code-workspace
