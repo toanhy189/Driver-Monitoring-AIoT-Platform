@@ -19,7 +19,7 @@
 */
 
 function DeviceStatusCard({
-  deviceId,
+  deviceCode,
   connected
 }) {
   return (
@@ -44,7 +44,7 @@ function DeviceStatusCard({
         <span>Mã thiết bị</span>
 
         <strong>
-          {deviceId || "Không xác định"}
+          {deviceCode || "Không xác định"}
         </strong>
       </div>
     </section>

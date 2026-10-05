@@ -16,3 +16,5 @@ class Telemetry(SQLModel, table=True):
     angle_z: float | None = None
 
     confidence: float | None = None
+
+    driver_state: str | None = None  # thêm trạng thái tài xế

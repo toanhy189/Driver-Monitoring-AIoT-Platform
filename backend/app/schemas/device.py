@@ -5,9 +5,9 @@ class DeviceResponse(BaseModel):
     id: int
     device_code: str
     model: str
-    name: str
+    name: str | None = None
     status: str
-    ip_address: str
-    mac_address: str
-    last_seen: datetime
+    ip_address: str | None = None
+    mac_address: str | None = None
+    last_seen: datetime | None = None
     created_at: datetime

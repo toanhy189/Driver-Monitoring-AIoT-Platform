@@ -10,6 +10,7 @@ class TelemetryResponse(BaseModel):
 
     ear: float | None = None
     perclos: float | None = None
+    driver_state: str | None = None   # thêm trạng thái tài xế
 
     angle_x: float | None = None
     angle_y: float | None = None

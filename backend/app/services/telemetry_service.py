@@ -22,6 +22,7 @@ def save_telemetry(device_code: str, data: dict):
             device_id=device.id,
             ear=data.get("ear"),
             perclos=data.get("perclos"),
+            driver_state=data.get("driver_state"),  #trạng thái tài xê
             angle_x=data.get("angle_x"),
             angle_y=data.get("angle_y"),
             angle_z=data.get("angle_z"),
