@@ -103,7 +103,7 @@ VALUES
     ('BUZZER_ON', 'Bật còi', 'Bật còi cảnh báo'),
     ('VIBRATION_ON', 'Bật rung', 'Bật motor rung cảnh báo'),
     ('LED_ON', 'Bật đèn', 'Bật đèn cảnh báo'),
-    ('CAMERA_CHECK', 'Kiểm tra camera', 'Yêu cầu thiết bị kiểm tra trạng thái camera')
+    ('CAMERA_CHECK', 'Kiểm tra camera', 'Yêu cầu thiết bị kiểm tra trạng thái camera'),
     ('BUZZER_OFF', 'Tắt còi', 'Tắt còi cảnh báo'),
     ('VIBRATION_OFF', 'Tắt rung', 'Tắt motor rung cảnh báo'),
     ('LED_OFF', 'Tắt đèn', 'Tắt đèn cảnh báo');
