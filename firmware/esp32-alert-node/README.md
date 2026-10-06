@@ -107,8 +107,19 @@ subscribe=OK, publish=OK và đúng tin nhận. Buzzer/motor tiếp tục tắt 
  - file pin_config chứa config thời gian đèn/buzzer/motor chạy
  - Flow chạy lệnh:
     build(1) -> cắm esp32 vào -> upload(2) -> -> mở monitor(3) -> chạy file mqtt.consumer.py để bắt subcribe ack -> chạy file mqtt.esp_test.py để gửi command
+ - Dùng 3 Terminal tất cả:
+ - Build device
     ```powershell
         pio run -d firmware/esp32-alert-node -e development
         pio run -d firmware/esp32-alert-node -e development -t upload
         pio device monitor -d firmware/esp32-alert-node
+    ```
+- Tạo kết nối MQTT:
+    ```bash
+        set PYTHONPATH=backend
+        python -m mqtt.consumer
+    ```
+- Gửi thử payload ảo
+    ```bash
+        python -m mqtt.esp_test
     ```

@@ -164,8 +164,8 @@ void runMqtt()
             Serial.print("[MQTT] connecting...");
             // Hỗ trợ broker có hoặc không có tài khoản của TV2.
             bool connected = MQTT_USER[0] != '\0'
-                                 ? mqtt.connect(DEVICE_ID, MQTT_USER, MQTT_PASSWORD)
-                                 : mqtt.connect(DEVICE_ID);
+                                 ? mqtt.connect(DEVICE_CODE, MQTT_USER, MQTT_PASSWORD)
+                                 : mqtt.connect(DEVICE_CODE);
             // connect có thể chờ mạng: tính lần thử sau từ lúc connect kết thúc.
             lastMqttAttempt = millis();
             if (connected)

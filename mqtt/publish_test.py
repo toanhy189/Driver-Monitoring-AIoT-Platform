@@ -6,12 +6,7 @@ from backend.app.core.config import settings
 MQTT_HOST = settings.MQTT_HOST
 MQTT_PORT = settings.MQTT_PORT
 
-if __name__ == "__main__":
-    print("Thử publish topic với payload")
-
-    device = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-    device.connect(MQTT_HOST, MQTT_PORT, 60)
-
+def publish_telemetry():
     device.publish(
         topic='driver/device_01/telemetry',
         payload=json.dumps({
@@ -24,3 +19,13 @@ if __name__ == "__main__":
             "confidence": 0.67
         })
     )
+
+
+
+if __name__ == "__main__":
+    device = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    device.connect(MQTT_HOST, MQTT_PORT, 60)
+
+    publish_telemetry()
+
+    

@@ -14,7 +14,7 @@ from app.services.websocket_manager import manager
 
 MQTT_HOST = settings.MQTT_HOST
 MQTT_PORT = settings.MQTT_PORT
-MQTT_TOPICS = ["driver/+/telemetry", "driver/+/response"]
+MQTT_TOPICS = ["driver/+/telemetry", "driver/+/ack", "driver/+/status"]
 
 def on_connect(client, userdata, flags, rc, properties):
     if rc == 0:
@@ -30,22 +30,27 @@ def on_message(client, userdata, msg):
     try:
         payload = json.loads(msg.payload.decode())
 
-        print("Nhận được telemetry:")
-        print("Topic:", msg.topic)
-        print("Data:", payload)
+        print("======Nhận được message=======")
 
         parts = msg.topic.split("/")
         device_code = parts[1]
         message_type = parts[-1]
 
         if message_type == "telemetry":
+            print("Topic:", msg.topic)
+            print("Data:", payload)
             save_telemetry(device_code, payload)
-        elif message_type == "response":
+        elif message_type == "ack":
+            print("==============ACK============")
+            print("==================================")
+            print("Topic:", msg.topic)
+            print("Data:", payload)
+        elif message_type == "status":
             print(payload)
 
-
+        print()
     except json.JSONDecodeError:
-        print("JSON không hợp lệ:", msg.payload.decode())
+        print("INVALID JSON:", msg.payload.decode())
 
 
 def start_mqtt_consumer():

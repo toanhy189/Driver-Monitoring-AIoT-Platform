@@ -1,11 +1,12 @@
-#ifndef PIN_CONFIG_H
-#define PIN_CONFIG_H
+#pragma once
+
+void setupPins();
 
 struct DeviceConfig
 {
     int pin;
-    int weak_s, medium_s, strong_s;
-    int weak_e, medium_e, strong_e;
+    int weak_s, medium_s, strong_s, constant_s;
+    int weak_e, medium_e, strong_e, constant_e;
     int offset;
 };
 
@@ -21,6 +22,3 @@ extern DeviceConfig motorConfig;
 
 Intensity getIntensity(DeviceConfig config, const char* intensity);
 
-void switch_Device(DeviceConfig config, int duration, const char* intensity);
-
-#endif
