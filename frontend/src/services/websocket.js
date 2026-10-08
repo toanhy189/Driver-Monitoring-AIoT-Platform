@@ -21,8 +21,6 @@ export function createTelemetrySocket({
     socket.onmessage = (event) => {
         try{
             const data = JSON.parse(event.data);
-            console.log("[WebSocket] telemetry:", data);
-
             if(onMessage){
                 onMessage(data);
             }

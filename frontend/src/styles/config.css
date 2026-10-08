@@ -1,0 +1,44 @@
+.config-page-heading { margin: 0 0 24px; }
+.config-page-heading h1 { margin: 0 0 8px; color: #0d2547; font-size: clamp(28px, 3vw, 38px); }
+.config-page-heading > div { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; color: #647891; font-size: 14px; }
+.config-layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(360px, 1fr); align-items: start; gap: 16px; }
+.config-form, .config-status-panel { min-width: 0; padding: 24px; }
+.config-form h2, .config-status-panel h2 { margin: 0 0 12px; color: #0e294b; font-size: 21px; }
+.config-form > p, .config-status-panel > p { color: #687b95; font-size: 13px; line-height: 1.5; }
+.config-levels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: hidden; margin: 20px 0 12px; border: 1px solid #cbd9e8; border-radius: 8px; }
+.config-levels button { min-height: 45px; border: 0; border-right: 1px solid #dce6ef; background: #fff; color: #173353; font-weight: 700; }
+.config-levels button:last-child { border-right: 0; }
+.config-levels button.selected { background: #078fbc; color: #fff; }
+.config-level-note { display: flex; align-items: center; gap: 7px; padding: 10px 12px; border-radius: 7px; background: #f1f6fa; color: #637992; font-size: 12px; }
+.config-readonly { padding: 10px 14px; border-radius: 8px; background: #f2f6fa; }
+.config-draft-note { padding: 10px 14px; border: 1px solid #bddff1; border-radius: 8px; background: #eff9fe; color: #1c6f9a !important; }
+.config-output-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 20px 0 16px; }
+.config-output { min-width: 0; padding: 15px; border: 1px solid #dce6f0; border-radius: 9px; background: #fbfdff; }
+.config-output h3 { margin: 0 0 13px; color: #173352; font-size: 15px; }
+.config-fields { display: grid; gap: 12px; }
+.config-fields label { display: grid; gap: 6px; color: #415b77; font-size: 12px; font-weight: 700; }
+.config-fields input { width: 100%; min-width: 0; min-height: 42px; padding: 9px 11px; border: 1px solid #cbd7e5; border-radius: 7px; background: #fff; color: #18314f; font-size: 15px; font-weight: 600; }
+.config-fields input:read-only { background: #f3f6fa; color: #53657d; }
+.config-unit-note { margin: 0 0 20px; }
+.config-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; padding-top: 16px; border-top: 1px solid #e3eaf2; }
+.config-status-banner { display: flex; align-items: center; gap: 10px; padding: 13px 14px; border: 1px solid #d9e4f0; border-radius: 9px; background: #f4f8fc; color: #39617e; }
+.config-status-banner--pending { border-color: #f4dfa6; background: #fff9eb; color: #b26d08; }
+.config-status-banner--applied { border-color: #bfead1; background: #effbf4; color: #138255; }
+.config-status-banner strong { font-size: 14px; }
+.config-load-error { margin: 0; }
+.config-snapshot { overflow: hidden; margin-top: 15px; border: 1px solid #dbe6f0; border-radius: 9px; background: #fbfdff; }
+.config-snapshot-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 7px; padding: 12px 14px; border-bottom: 1px solid #e1eaf2; background: #f7fafc; color: #183452; font-size: 13px; }
+.config-snapshot-heading span { padding: 5px 9px; border-radius: 999px; background: #eaf0f6; color: #5b6e86; font-size: 11px; font-weight: 700; }
+.config-snapshot > p { margin: 12px 14px 5px; color: #6b7d94; font-size: 12px; }
+.config-snapshot .config-summary-empty { margin: 12px 14px; color: #6b7d94; font-size: 18px; }
+.config-summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 7px 9px 13px; }
+.config-summary-grid > div { min-width: 0; padding: 0 8px; border-right: 1px solid #dfe8f1; }
+.config-summary-grid > div:last-child { border-right: 0; }
+.config-summary-grid span, .config-summary-grid strong, .config-summary-grid small { display: block; overflow-wrap: anywhere; }
+.config-summary-grid span { margin-bottom: 5px; color: #7889a0; font-size: 11px; }
+.config-summary-grid strong { color: #19304e; font-size: 12px; }
+.config-summary-grid small { margin-top: 3px; color: #647992; font-size: 11px; }
+.config-refresh { justify-content: center; width: 100%; margin-top: 15px; }
+@media (max-width: 1150px) { .config-layout { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .config-output-grid { grid-template-columns: 1fr; } .config-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 500px) { .config-form, .config-status-panel { padding: 16px; } .config-fields { grid-template-columns: 1fr; } .config-summary-grid { grid-template-columns: 1fr; gap: 10px; } .config-summary-grid > div { border-right: 0; border-bottom: 1px solid #e4eaf1; padding-bottom: 8px; } .config-summary-grid > div:last-child { border-bottom: 0; } }

@@ -86,3 +86,17 @@ test("từ chối payload hoặc mã thiết bị sai định dạng", () => {
     assert.throws(() => normalizeTelemetry({ device_id: 1, device_code }));
   }
 });
+
+test("face_detected=false không hiện tỉnh táo; confidence null không thành phần trăm", () => {
+  const result = normalizeTelemetry({
+    device_id: 1, face_detected: false, driver_state: "ATTENTIVE",
+    angle_x: 12.5, angle_y: null, confidence: null,
+    recorded_at: "2026-10-08T08:00:00Z",
+  });
+  assert.equal(result.driver_state, "UNKNOWN");
+  assert.equal(result.face_detected, false);
+  assert.equal(result.angle_x, 12.5);
+  assert.equal(result.angle_y, null);
+  assert.equal(result.confidence, null);
+  assert.equal(result.recorded_at, "2026-10-08T08:00:00Z");
+});

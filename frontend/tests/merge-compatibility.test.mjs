@@ -49,6 +49,15 @@ test("thẻ thiết bị dùng status của BE dù WebSocket đang kết nối",
   assert.match(unknown, /CHƯA XÁC ĐỊNH/);
 });
 
+test("không thấy mặt thì thẻ tài xế không hiện tỉnh táo", async () => {
+  const { default: Card } = await loadModule("../src/components/DriverStatusCard.jsx");
+  const html = renderToStaticMarkup(React.createElement(Card, {
+    state: "ATTENTIVE", faceDetected: false,
+  }));
+  assert.match(html, /Không thấy mặt/);
+  assert.doesNotMatch(html, /TỈNH TÁO/);
+});
+
 test("thẻ giữ trạng thái gần nhất kèm ghi chú khi dữ liệu cũ", async () => {
   const { default: Card } = await loadModule("../src/components/DeviceStatusCard.jsx");
   const html = renderToStaticMarkup(React.createElement(Card, {

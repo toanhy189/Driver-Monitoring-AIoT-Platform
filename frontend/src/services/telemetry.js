@@ -1,5 +1,9 @@
 const DRIVER_STATES = ["ATTENTIVE", "DISTRACTED", "DROWSY"];
 
+function validTimestamp(value) {
+  return typeof value === "string" && Number.isFinite(Date.parse(value)) ? value : null;
+}
+
 // API dùng ID số; telemetry có thể chỉ có mã thiết bị theo tài liệu bàn giao.
 export function normalizeTelemetry(data) {
   if (!data || typeof data !== "object" || Array.isArray(data)) {
@@ -17,12 +21,26 @@ export function normalizeTelemetry(data) {
     throw new Error("Telemetry cần device_id số hoặc device_code để xác định nguồn số đo.");
   }
 
-  return {
+  const faceDetected = typeof data.face_detected === "boolean" ? data.face_detected : null;
+  const result = {
     device_id: data.device_id ?? null,
     device_code: data.device_code ?? null,
     ear: Number.isFinite(data.ear) ? data.ear : null,
     perclos: Number.isFinite(data.perclos) ? data.perclos : null,
     // Không tính trạng thái tài xế từ số đo hoặc giữ kết luận của tin trước.
-    driver_state: DRIVER_STATES.includes(data.driver_state) ? data.driver_state : "UNKNOWN",
+    driver_state: faceDetected === false ? "UNKNOWN" :
+      DRIVER_STATES.includes(data.driver_state) ? data.driver_state : "UNKNOWN",
   };
+  if (Object.hasOwn(data, "face_detected")) result.face_detected = faceDetected;
+  for (const field of ["angle_x", "angle_y", "angle_z"]) {
+    if (Object.hasOwn(data, field)) result[field] = Number.isFinite(data[field]) ? data[field] : null;
+  }
+  if (Object.hasOwn(data, "confidence")) {
+    result.confidence = Number.isFinite(data.confidence) && data.confidence >= 0 &&
+      data.confidence <= 1 ? data.confidence : null;
+  }
+  if (Object.hasOwn(data, "recorded_at") || Object.hasOwn(data, "timestamp")) {
+    result.recorded_at = validTimestamp(data.recorded_at ?? data.timestamp);
+  }
+  return result;
 }
