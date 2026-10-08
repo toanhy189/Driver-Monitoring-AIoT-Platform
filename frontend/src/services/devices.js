@@ -1,23 +1,22 @@
-const BACKEND_HOST = import.meta.env.VITE_BACKEND_HOST || "http://localhost:8000";
-const API_STR = import.meta.env.VITE_API_STR || "/api";
+import { apiRequest } from "./api.js";
+
+function requireToken() {
+  const token = localStorage.getItem("access_token");
+  if (!token) {
+    throw Object.assign(new Error("Bạn cần đăng nhập để xem thiết bị."), { status: 401 });
+  }
+  return token;
+}
+
+function devicePath(id) {
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    throw new Error("ID thiết bị không hợp lệ.");
+  }
+  return `/devices/${id}`;
+}
 
 export async function getDevices({ signal } = {}) {
-  const token = localStorage.getItem("access_token");
-  if (!token) throw new Error("Bạn cần đăng nhập để xem trạng thái thiết bị.");
-
-  const response = await fetch(`${BACKEND_HOST}${API_STR}/devices`, {
-    headers: { Authorization: `Bearer ${token}` },
-    signal,
-  });
-
-  if (!response.ok) {
-    if (response.status === 401) {
-      throw new Error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
-    }
-    throw new Error(`Không tải được trạng thái thiết bị (HTTP ${response.status}).`);
-  }
-
-  const devices = await response.json();
+  const devices = await apiRequest("/devices", { token: requireToken(), signal });
   if (!Array.isArray(devices) || devices.some(device =>
     !device || !Number.isSafeInteger(device.id) || device.id <= 0 ||
     typeof device.device_code !== "string" || device.device_code.trim() === ""
@@ -28,9 +27,43 @@ export async function getDevices({ signal } = {}) {
   return devices.map(device => ({ ...device, isStale: false }));
 }
 
-// Chỉ cập nhật thiết bị đã được API trả về, không lấy online từ WebSocket.
+// Các URL sau là hợp đồng tạm của FE; TV2 hiện chưa triển khai chúng.
+export async function getDeviceDetail(id, { signal } = {}) {
+  const device = await apiRequest(devicePath(id), { token: requireToken(), signal });
+  if (!device || device.id !== id || typeof device.device_code !== "string" ||
+      !device.device_code.trim()) {
+    throw new Error("Chi tiết thiết bị từ máy chủ không đúng định dạng.");
+  }
+  return device;
+}
+
+export function registerDevice({ device_code, name, model }, { signal } = {}) {
+  return apiRequest("/devices", {
+    method: "POST",
+    token: requireToken(),
+    body: { device_code: device_code.trim(), name: name.trim(), model: model.trim() },
+    signal,
+  });
+}
+
+const LIFECYCLE_ACTIONS = ["provision", "activate", "maintenance", "decommission"];
+
+export function runDeviceAction(id, action, { signal } = {}) {
+  if (!LIFECYCLE_ACTIONS.includes(action)) {
+    throw new Error("Thao tác thiết bị không hợp lệ.");
+  }
+  return apiRequest(`${devicePath(id)}/${action}`, {
+    method: "POST",
+    token: requireToken(),
+    signal,
+  });
+}
+
+// Chỉ sửa record đã có cùng ID/mã; tin WebSocket không tự thêm thiết bị mới.
 export function applyDeviceUpdate(devices, update) {
-  if (!update || typeof update !== "object" || !Object.hasOwn(update, "status")) {
+  const fields = ["status", "last_seen", "lifecycle_state", "name", "model", "firmware_version"];
+  if (!update || typeof update !== "object" ||
+      !fields.some(field => Object.hasOwn(update, field))) {
     return devices;
   }
   const id = update.id ?? update.device_id;
@@ -47,12 +80,9 @@ export function applyDeviceUpdate(devices, update) {
     const matchesCode = code == null || device.device_code === code;
     if (!matchesId || !matchesCode) return device;
 
-    return {
-      ...device,
-      status: update.status,
-      last_seen: Object.hasOwn(update, "last_seen") ? update.last_seen : device.last_seen,
-      isStale: false,
-    };
+    const changes = Object.fromEntries(fields.filter(field => Object.hasOwn(update, field))
+      .map(field => [field, update[field]]));
+    return { ...device, ...changes, isStale: false };
   });
 }
 

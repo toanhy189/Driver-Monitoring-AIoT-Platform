@@ -318,24 +318,41 @@ Physical Layer
 
 ---
 
-> **Trạng thái README hiện tại:** mới hoàn thiện phần **Giới thiệu** và **Kiến trúc hệ thống**. Các phần hướng dẫn cài đặt, chạy hệ thống, API, MQTT payload, database, security, testing và deployment sẽ bổ sung sau.
-# 3. Cách chạy hệ thống
-Chạy Backend: Tạo terminal 1
-```bash
-uvicorn --app-dir backend app.main:app --reload
+> Các mục giới thiệu và kiến trúc mô tả mục tiêu của hệ thống. Hướng dẫn dưới đây
+> chạy bản phát triển hiện tại: PostgreSQL trong Docker, còn FastAPI và React trên máy.
+
+# 3. Chạy nhanh trên Windows
+
+Mở PowerShell tại **thư mục gốc dự án**. Cần Docker Desktop, Python và Node.js.
+Lần đầu, sao chép `.env.example` thành `.env` nếu chưa có; đặt `POSTGRES_PASSWORD`
+không rỗng, dùng cùng mật khẩu trong `DATABASE_URL`, và đặt `SECRET_KEY` riêng.
+Khi BE chạy trên máy, `DATABASE_URL` dùng `localhost:5432`.
+
+**1. PostgreSQL** — mở Docker Desktop, rồi chạy:
+
+```powershell
+docker compose --env-file .env -f deployment/docker-compose.yml up -d postgres
 ```
 
-Chạy Frontend: Tạo terminal 2
-```bash
+**2. Backend** — mở terminal mới:
+
+```powershell
+python -m pip install -r backend/requirements.txt  # chỉ cần lần đầu
+python -m uvicorn --app-dir backend app.main:app --reload
+```
+
+**3. Frontend** — mở terminal mới:
+
+```powershell
+npm --prefix frontend ci  # chỉ cần lần đầu
 npm --prefix frontend run dev
 ```
 
-Tạo kết nối MQTT: Tạo terminal 3
-```bash
-set PYTHONPATH=backend
-python -m mqtt.consumer
-```
-Nếu muốn gửi thử payload ảo, thì tạo terminal 4 chạy
-```bash
-python -m mqtt.publish_test
-```
+Mở `http://localhost:5173`, đăng nhập, rồi chọn **Thiết bị**. Nếu đăng nhập
+cứ hiện “Đang đăng nhập…”, kiểm tra container bằng
+`docker compose --env-file .env -f deployment/docker-compose.yml ps postgres`;
+container đúng là `deployment-postgres-1`. Nút **Run** trên image `postgres:16`
+tạo container riêng, có thể báo thiếu `POSTGRES_PASSWORD`.
+
+Muốn thử MQTT, bật broker bằng
+`docker compose --env-file .env -f deployment/docker-compose.yml up -d mosquitto`.

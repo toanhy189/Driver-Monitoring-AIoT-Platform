@@ -65,7 +65,11 @@ def get_current_user_id(
 ):
     user_id = decode_access_token(token)
     
-    if not user_id:
+    try:
+        user_id = int(user_id)
+        if user_id <= 0:
+            raise ValueError("Invalid user ID")
+    except (TypeError, ValueError):
         raise HTTPException(
             status_code=401,
             detail="Invalid token"

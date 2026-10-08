@@ -107,6 +107,41 @@
   background: #F1AA9B;
 }
 
+.login-button:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.login-error {
+  margin: 8px 0 0;
+  color: #ffe0e0;
+  font-size: 14px;
+}
+
+.login-secondary-button {
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px 16px;
+  border: 1px solid #F1AA9B;
+  border-radius: 8px;
+  background: transparent;
+  color: #F1AA9B;
+  cursor: pointer;
+}
+
 .login-button:active {
   transform: translateY(1px);
 }
+
+/* Match the signed-in pages without changing the login flow. */
+.login-page { background: radial-gradient(circle at 18% 15%, #e6f6fc, transparent 36%), #f4f7fb; color: #142541; }
+.login-card { border: 1px solid #dce7f0; background: #fff; box-shadow: 0 20px 50px rgba(24, 49, 87, .1); }
+.login-title { color: #0d213e; }
+.login-subtitle { color: #71809a; }
+.login-form input { border-color: #cbd7e5; background: #fff; color: #142541; }
+.login-form input::placeholder { color: #8d9bb0; }
+.login-form input:focus { border-color: #0788b1; }
+.login-button { background: #0788b1; color: #fff; }
+.login-button:hover { background: #036c91; }
+.login-error { color: #a82d3b; }
+.login-secondary-button { border-color: #0788b1; color: #0788b1; }
