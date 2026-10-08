@@ -9,4 +9,4 @@ class User(SQLModel, table=True):
     hash_password: str
     email: str
     phone: str
-    role: str = "Customer"
+    role: str = "VIEWER"

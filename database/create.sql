@@ -11,7 +11,7 @@ CREATE TABLE users (
     email VARCHAR(255) UNIQUE NOT NULL,
     phone VARCHAR(20) UNIQUE NOT NULL,
 	role VARCHAR(20) NOT NULL DEFAULT 'Customer'
-        CHECK (role IN ('Admin', 'Employee', 'Customer'))
+        CHECK (role IN ('ADMIN', 'OPERATOR', 'VIEWER'))
 );
 
 CREATE TABLE devices (
@@ -23,7 +23,9 @@ CREATE TABLE devices (
     ip_address INET,
     mac_address MACADDR,
     last_seen TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    mqtt_username VARCHAR(255),
+    mqtt_password VARCHAR(255)
 );
 
 CREATE TABLE user_devices (
@@ -60,9 +62,12 @@ CREATE TABLE events (
 
 CREATE TABLE alerts (
     id SERIAL PRIMARY KEY,
-    event_id INT NOT NULL REFERENCES events(id),
-    type VARCHAR(50) NOT NULL,
+    event_id INT REFERENCES events(id),
+    device_id INT NOT NULL REFERENCES devices(id),
+    alert_type VARCHAR(50) NOT NULL,
+    description VARCHAR(255),
     severity VARCHAR(20),
+    status VARCHAR(30) DEFAULT 'NEW',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     resolved_at TIMESTAMP
 );
@@ -100,4 +105,22 @@ CREATE TABLE captures(
     user_id INT NOT NULL REFERENCES users(id),
 	device_id INT NOT NULL REFERENCES devices(id),
     video_path VARCHAR(255)
-)
+);
+
+CREATE TABLE configs (
+    id SERIAL PRIMARY KEY,
+    device_id INT UNIQUE NOT NULL REFERENCES devices(id),
+    desired_config JSON,
+    applied_config JSON,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE audit_logs (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(id),
+    action VARCHAR(100) NOT NULL,
+    entity_type VARCHAR(100),
+    entity_id VARCHAR(100),
+    details JSON,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

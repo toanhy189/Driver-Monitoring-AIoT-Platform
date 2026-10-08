@@ -1,12 +1,16 @@
+from pathlib import Path
 from typing import Literal
 
 from pydantic import PostgresDsn
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+BASE_DIR = Path(__file__).resolve().parents[3]
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=BASE_DIR / ".env",
         env_ignore_empty=True,
         extra="ignore",
     )
@@ -25,10 +29,10 @@ class Settings(BaseSettings):
 
     FRONTEND_HOST: str = "http://localhost:5173"
 
-    ESP32_HOST: str = "" # TODO
+    ESP32_HOST: str = ""
 
     MQTT_HOST: str = "localhost"
-    MQTT_PORT: int = "1883"
+    MQTT_PORT: int = 1883
 
 
 settings = Settings()
