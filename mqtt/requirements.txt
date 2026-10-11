@@ -6,3 +6,5 @@ pydantic-settings
 pyjwt
 pwdlib
 paho-mqtt
+python-jose[cryptography]
+pwdlib[argon2]

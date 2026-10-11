@@ -1,8 +1,6 @@
 DROP SCHEMA public CASCADE;
 CREATE SCHEMA public;
 
--- TODO: thêm confidence
-
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
 	fullname VARCHAR(255) NOT NULL,
@@ -11,12 +9,12 @@ CREATE TABLE users (
     email VARCHAR(255) UNIQUE NOT NULL,
     phone VARCHAR(20) UNIQUE NOT NULL,
 	role VARCHAR(20) NOT NULL DEFAULT 'Customer'
-        CHECK (role IN ('ADMIN', 'OPERATOR', 'VIEWER'))
+        CHECK (role IN ('Admin', 'Employee', 'Customer', 'ADMIN', 'OPERATOR', 'VIEWER'))
 );
 
 CREATE TABLE devices (
-    id SERIAL PRIMARY KEY,
-    device_code VARCHAR(100) UNIQUE NOT NULL,
+    id SERIAL PRIMARY KEY, -- PK nội bộ
+    device_code VARCHAR(100) UNIQUE NOT NULL,   -- mã thiết bị nghiệp vụ
     model VARCHAR(100) NOT NULL,
     name VARCHAR(255),
     status VARCHAR(30) DEFAULT 'OFFLINE',
@@ -36,6 +34,20 @@ CREATE TABLE user_devices (
     unassigned_at TIMESTAMP
 );
 
+CREATE TABLE telemetry(
+    id SERIAL PRIMARY KEY,
+    device_id INT NOT NULL REFERENCES devices(id),
+    recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ear FLOAT,
+    perclos FLOAT,
+
+    angle_x FLOAT,
+    angle_y FLOAT,
+    angle_z FLOAT,
+
+    confidence FLOAT
+);
+
 CREATE TABLE event_types (
     id SERIAL PRIMARY KEY,
     code VARCHAR(50) UNIQUE NOT NULL,
@@ -52,12 +64,9 @@ CREATE TABLE events (
     ended_at TIMESTAMP,
     duration_seconds FLOAT,
 
-    angle_x FLOAT,
-    angle_y FLOAT,
-    angle_z FLOAT,
-
     warning_triggered BOOLEAN DEFAULT FALSE,
-    warning_at TIMESTAMP
+    warning_at TIMESTAMP,
+    confidence FLOAT
 );
 
 CREATE TABLE alerts (

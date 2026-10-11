@@ -25,7 +25,7 @@ class Settings(BaseSettings):
 
     SECRET_KEY: str
 
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
     FRONTEND_HOST: str = "http://localhost:5173"
 
@@ -33,6 +33,5 @@ class Settings(BaseSettings):
 
     MQTT_HOST: str = "localhost"
     MQTT_PORT: int = 1883
-
 
 settings = Settings()

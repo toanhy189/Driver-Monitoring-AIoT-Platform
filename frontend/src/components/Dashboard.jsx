@@ -1,117 +1,133 @@
-// !!! Lưu ý xử lý PERCLOS:
-// Backend gửi perclos = 0.12 -> UI hiển thị 12%
+import { useEffect, useRef, useState } from "react";
+import DashboardView from "./DashboardView.jsx";
+import { getDevices, applyDeviceUpdate, markDevicesStale } from "../services/devices.js";
+import { normalizeTelemetry } from "../services/telemetry.js";
+import { getLatestTelemetry } from "../services/telemetryApi.js";
+import { matchesDevice } from "../services/realtime.js";
 
-import { useEffect, useState } from "react";
+const DEVICE_REFRESH_MS = 10000;
+const NO_REALTIME = { connected: false, generation: 0, events: [] };
 
-import DeviceStatusCard from "./DeviceStatusCard.jsx";
-import DriverStatusCard from "./DriverStatusCard.jsx";
-import MetricCard from "./MetricCard.jsx";
+function Dashboard({ user, realtime = NO_REALTIME, onLogout, onUnauthorized, onOpenDevices, onOpenCommands, onOpenAlerts }) {
+  const [devices, setDevices] = useState([]);
+  const [devicesLoading, setDevicesLoading] = useState(true);
+  const [devicesError, setDevicesError] = useState("");
+  const [selectedDeviceId, setSelectedDeviceId] = useState(null);
+  const [telemetry, setTelemetry] = useState(null);
+  const [telemetrySource, setTelemetrySource] = useState(null);
+  const [telemetryError, setTelemetryError] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
+  const pendingDeviceUpdates = useRef([]);
+  const deviceRequestInFlight = useRef(false);
+  const lastEventSequence = useRef(realtime.events.at(-1)?.sequence ?? 0);
+  const telemetryArrival = useRef(0);
+  const connectedRef = useRef(realtime.connected);
+  connectedRef.current = realtime.connected;
 
-import { createTelemetrySocket } from "../services/websocket.js";
-
-function Dashboard({ onLogout }) {
-  // Dữ liệu mẫu ban đầu để test giao diện.
-  // Sau này WebSocket nhận dữ liệu thật thì telemetry sẽ được cập nhật.
-  const [telemetry, setTelemetry] = useState({
-    device_id: "vision-01",
-    ear: 0.28,
-    perclos: 0.12,
-    driver_state: "ATTENTIVE"
-  });
-
-  // Trạng thái kết nối WebSocket
-  const [connected, setConnected] = useState(false);
-
-  // Kết nối WebSocket
   useEffect(() => {
-    const socket = createTelemetrySocket({
-      onOpen: () => {
-        setConnected(true);
-      },
+    let active = true;
+    let timer;
+    const controller = new AbortController();
+    pendingDeviceUpdates.current = [];
+    deviceRequestInFlight.current = true;
+    getDevices({ signal: controller.signal })
+      .then(snapshot => {
+        if (!active) return;
+        const initial = connectedRef.current ? snapshot : markDevicesStale(snapshot);
+        setDevices(pendingDeviceUpdates.current.reduce(applyDeviceUpdate, initial));
+        setDevicesError("");
+      })
+      .catch(error => {
+        if (!active || error.name === "AbortError") return;
+        if (error.status === 401) onUnauthorized();
+        else setDevicesError(error.message || "Không tải được trạng thái thiết bị.");
+        setDevices(markDevicesStale);
+      })
+      .finally(() => {
+        if (!active) return;
+        deviceRequestInFlight.current = false;
+        setDevicesLoading(false);
+        timer = setTimeout(() => setReloadKey(value => value + 1), DEVICE_REFRESH_MS);
+      });
+    return () => { active = false; clearTimeout(timer); controller.abort(); deviceRequestInFlight.current = false; };
+  }, [reloadKey, realtime.generation, onUnauthorized]);
 
-      onMessage: (data) => {
-        setTelemetry(data);
-      },
+  useEffect(() => {
+    if (!realtime.connected) {
+      pendingDeviceUpdates.current = [];
+      setDevices(markDevicesStale);
+    }
+  }, [realtime.connected]);
 
-      onClose: () => {
-        setConnected(false);
-      },
+  useEffect(() => {
+    if (devices.length === 1 && selectedDeviceId == null) setSelectedDeviceId(devices[0].id);
+    if (selectedDeviceId != null && !devices.some(device => device.id === selectedDeviceId)) {
+      setSelectedDeviceId(null);
+    }
+  }, [devices, selectedDeviceId]);
 
-      onError: () => {
-        setConnected(false);
+  const selectedDevice = devices.find(device => device.id === selectedDeviceId);
+  useEffect(() => {
+    setTelemetry(null);
+    setTelemetrySource(null);
+    setTelemetryError("");
+  }, [selectedDeviceId]);
+
+  useEffect(() => {
+    for (const event of realtime.events) {
+      if (event.sequence <= lastEventSequence.current) continue;
+      lastEventSequence.current = event.sequence;
+      if (event.type === "device.updated") {
+        if (deviceRequestInFlight.current) pendingDeviceUpdates.current.push(event.data);
+        setDevices(current => applyDeviceUpdate(current, event.data));
+      } else if (event.type === "telemetry.updated" && selectedDevice &&
+          matchesDevice(event.data, selectedDevice.id, selectedDevice.device_code)) {
+        try {
+          const normalized = normalizeTelemetry(event.data);
+          telemetryArrival.current += 1;
+          setTelemetry({ ...normalized, received_at: new Date().toISOString() });
+          setTelemetrySource("realtime");
+          setTelemetryError("");
+        } catch {
+          setTelemetry(null);
+          setTelemetryError("Dữ liệu số đo không đúng định dạng.");
+        }
       }
-    });
+    }
+  }, [realtime.events, selectedDevice]);
 
-    return () => {
-      socket.close();
-    };
-  }, []);
+  useEffect(() => {
+    if (selectedDeviceId == null) return;
+    let active = true;
+    const controller = new AbortController();
+    const arrivalAtStart = telemetryArrival.current;
+    getLatestTelemetry(selectedDeviceId, { signal: controller.signal })
+      .then(result => {
+        if (!active || arrivalAtStart !== telemetryArrival.current) return;
+        setTelemetry(result);
+        setTelemetrySource(result ? "snapshot" : null);
+      })
+      .catch(error => {
+        if (!active || error.name === "AbortError" || arrivalAtStart !== telemetryArrival.current) return;
+        if (error.status === 401) onUnauthorized();
+        else if (error.status !== 404) setTelemetryError(error.message || "Không tải được số đo gần nhất.");
+      });
+    return () => { active = false; controller.abort(); };
+  }, [selectedDeviceId, realtime.generation, onUnauthorized]);
 
-  // Backend gửi perclos = 0.12
-  // UI hiển thị 12%
-  const perclosPercent =
-    Number(telemetry.perclos || 0) * 100;
+  const hasEar = Number.isFinite(telemetry?.ear);
+  const hasPerclos = Number.isFinite(telemetry?.perclos);
+  const earText = hasEar ? telemetry.ear.toFixed(2) : "—";
+  const perclosText = hasPerclos ? (telemetry.perclos * 100).toFixed(0) : "—";
 
-  return (
-    <main className="dashboard">
-      <header className="dashboard-header">
-        <div>
-          <p className="dashboard-label">
-            GIÁM SÁT TÀI XẾ AIoT
-          </p>
-
-          <h1>
-            Hệ thống giám sát tài xế
-          </h1>
-        </div>
-
-        <div className="dashboard-header-actions">
-          <div
-            className={
-              connected
-                ? "connection-status connection-status--online"
-                : "connection-status connection-status--offline"
-            }
-          >
-            {connected
-              ? "Đã kết nối máy chủ"
-              : "Mất kết nối máy chủ"}
-          </div>
-
-          <button
-            className="logout-button"
-            onClick={onLogout}
-          >
-            Đăng xuất
-          </button>
-        </div>
-      </header>
-
-      <section className="dashboard-grid">
-        <DeviceStatusCard
-          deviceId={telemetry.device_id}
-          connected={connected}
-        />
-
-        <DriverStatusCard
-          state={telemetry.driver_state}
-        />
-
-        <MetricCard
-          title="EAR"
-          value={Number(telemetry.ear).toFixed(2)}
-          description="Tỷ lệ khép mắt"
-        />
-
-        <MetricCard
-          title="PERCLOS"
-          value={perclosPercent.toFixed(0)}
-          unit="%"
-          description="Tỷ lệ nhắm mắt"
-        />
-      </section>
-    </main>
-  );
+  return <DashboardView
+    user={user} onLogout={onLogout} onOpenDevices={onOpenDevices} onOpenCommands={onOpenCommands} onOpenAlerts={onOpenAlerts}
+    wsConnected={realtime.connected} devices={devices} devicesLoading={devicesLoading}
+    devicesError={devicesError} selectedDeviceId={selectedDeviceId} onSelectDevice={setSelectedDeviceId}
+    telemetry={telemetry} telemetrySource={telemetrySource} telemetryStale={!realtime.connected}
+    telemetryError={telemetryError} earText={earText} perclosText={perclosText}
+    hasEar={hasEar} hasPerclos={hasPerclos}
+  />;
 }
 
 export default Dashboard;

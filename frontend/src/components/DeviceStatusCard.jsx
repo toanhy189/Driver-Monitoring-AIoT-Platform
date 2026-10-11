@@ -1,50 +1,51 @@
-/*
-  DeviceStatusCard là một mảnh giao diện có thể tái sử dụng.
-
-  Nhận:
-    { deviceId, connected }
-
-  Ví dụ Dashboard truyền:
-    <DeviceStatusCard
-      deviceId="vision-01"
-      connected={true}
-    />
-
-  Giao diện hiển thị:
-    Vision Node                ĐANG HOẠT ĐỘNG
-    Mã thiết bị                vision-01
-
-  Nếu connected={false}:
-    Vision Node                NGOẠI TUYẾN
-*/
-
+// status và lastSeen lấy từ backend, độc lập với kết nối của Dashboard.
 function DeviceStatusCard({
-  deviceId,
-  connected
+  deviceCode,
+  name = "Thiết bị",
+  status,
+  lastSeen,
+  isStale = false,
 }) {
+  const state = status === "ONLINE" ? "online" :
+    status === "OFFLINE" ? "offline" : "unknown";
+  const statusText = {
+    online: "ONLINE",
+    offline: "OFFLINE",
+    unknown: "CHƯA XÁC ĐỊNH",
+  }[state];
+  const date = lastSeen ? new Date(lastSeen) : null;
+  const lastSeenText = date && !Number.isNaN(date.getTime())
+    ? date.toLocaleString("vi-VN")
+    : "Chưa ghi nhận";
+
   return (
     <section className="status-card">
       <div className="card-header">
-        <h2>Vision Node</h2>
+        <h2>{name}</h2>
 
         <span
-          className={
-            connected
-              ? "status-badge status-badge--online"
-              : "status-badge status-badge--offline"
-          }
+          className={`status-badge status-badge--${isStale ? "unknown" : state}`}
         >
-          {connected
-            ? "ĐANG HOẠT ĐỘNG"
-            : "NGOẠI TUYẾN"}
+          {statusText}{isStale && state !== "unknown" ? " (gần nhất)" : ""}
         </span>
       </div>
+
+      <div className="device-info">
+        <span>Lần hoạt động cuối</span>
+        <strong>{lastSeenText}</strong>
+      </div>
+
+      {isStale && (
+        <p className="device-status-note" role="status">
+          Dữ liệu cũ — chưa cập nhật. Chưa xác nhận được trạng thái hiện tại.
+        </p>
+      )}
 
       <div className="device-info">
         <span>Mã thiết bị</span>
 
         <strong>
-          {deviceId || "Không xác định"}
+          {deviceCode || "Không xác định"}
         </strong>
       </div>
     </section>

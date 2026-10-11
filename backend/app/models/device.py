@@ -31,7 +31,7 @@ class Device(SQLModel, table=True):
 
     last_seen: datetime | None = None
 
-    created_at: datetime | None = Field(
+    created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
     mqtt_username: str | None = None

@@ -14,7 +14,7 @@ from app.models.user import User
 
 
 reusable_oauth2 = OAuth2PasswordBearer(
-    tokenUrl=f"{settings.API_STR}/users/login"
+    tokenUrl=f"{settings.API_STR}/login"
 )
 
 
@@ -52,7 +52,17 @@ def get_current_user(
             detail="Invalid or expired token",
         )
 
-    user = session.get(User, int(user_id))
+    try:
+        user_id = int(user_id)
+        if user_id <= 0:
+            raise ValueError("Invalid user ID")
+    except (TypeError, ValueError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+        )
+
+    user = session.get(User, user_id)
 
     if user is None:
         raise HTTPException(
@@ -68,7 +78,10 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 
 def require_role(*allowed_roles: str):
     def role_checker(current_user: CurrentUser) -> User:
-        if current_user.role not in allowed_roles:
+        role = {"Admin": "ADMIN", "Employee": "OPERATOR", "Customer": "VIEWER"}.get(
+            current_user.role, current_user.role
+        )
+        if role not in allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not enough permissions",

@@ -1,0 +1,9 @@
+fastapi
+sqlmodel
+psycopg[binary]
+pydantic-settings
+pyjwt
+python-jose[cryptography]
+pwdlib[argon2]
+uvicorn[standard]
+paho-mqtt
