@@ -2,6 +2,19 @@ from datetime import datetime
 from ipaddress import IPv4Address, IPv4Interface, IPv6Address, IPv6Interface
 from pydantic import BaseModel, field_validator
 
+
+class DeviceRegisterRequest(BaseModel):
+    device_code: str
+    model: str
+    name: str | None = None
+    ip_address: str | None = None
+    mac_address: str | None = None
+
+
+class DeviceStatusRequest(BaseModel):
+    status: str
+
+
 class DeviceResponse(BaseModel):
     id: int
     device_code: str

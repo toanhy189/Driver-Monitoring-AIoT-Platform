@@ -16,3 +16,11 @@ class UserResponse(BaseModel):
     email: str
     phone: str
     role: str
+
+
+class RegisterRequest(BaseModel):
+    fullname: str
+    username: str
+    password: str
+    email: str
+    phone: str
