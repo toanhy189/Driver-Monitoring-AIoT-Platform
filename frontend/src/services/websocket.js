@@ -1,47 +1,31 @@
-// chịu trách nhiệm về kết nối.
+import { authenticatedRequest } from "./api.js";
 
-const WS_URL = import.meta.env.VITE_WS_URL || "ws://localhost:8000/ws/telemetry";
-//Nếu có biến môi trường: VITE_WS_URL thì dùng nó. Nếu chưa có thì dùng: ws://localhost:8000/ws/telemetry
+const WS_URL = import.meta.env?.VITE_WS_URL || "ws://localhost:8000/ws/telemetry";
 
-export function createTelemetrySocket({
-    onMessage,
-    onOpen,
-    onClose,
-    onError
-} = {}) {
-    const socket = new WebSocket(WS_URL);
-    socket.onopen = () => {
-        console.log("[WebSocket] connected");
+export async function requestSocketTicket({ signal } = {}) {
+  const response = await authenticatedRequest("/ws-ticket", { method: "POST", missingMessage: "Chưa đăng nhập.", signal });
+  if (typeof response?.ticket !== "string" || !response.ticket) {
+    throw new Error("Máy chủ chưa cấp vé kết nối trực tiếp.");
+  }
+  return response.ticket;
+}
 
-        if(onOpen){
-            onOpen();
-        }
-    };
-
-    socket.onmessage = (event) => {
-        try{
-            const data = JSON.parse(event.data);
-            if(onMessage){
-                onMessage(data);
-            }
-        } catch (error){
-            console.error("[WebSocket] Invalid JSON:", error);
-        }
-    };
-
-    socket.onerror = (error) => {
-        console.error("[WebSocket] Error:", error);
-        if(onError){
-            onError();
-        }
-    };
-
-    socket.onclose = () => {
-        console.log("[WebSocket] Disconnected");
-
-        if(onClose)
-            onClose();
-    };
-
-    return socket;
+export function createTelemetrySocket({ ticket, onMessage, onOpen, onClose, onError } = {}) {
+  if (typeof ticket !== "string" || !ticket) {
+    throw new Error("Thiếu vé kết nối trực tiếp.");
+  }
+  const url = new URL(WS_URL);
+  url.searchParams.set("ticket", ticket);
+  const socket = new WebSocket(url.toString());
+  socket.onopen = () => onOpen?.();
+  socket.onmessage = event => {
+    try {
+      onMessage?.(JSON.parse(event.data));
+    } catch (error) {
+      console.error("[WebSocket] Invalid JSON:", error);
+    }
+  };
+  socket.onerror = () => onError?.();
+  socket.onclose = () => onClose?.();
+  return socket;
 }

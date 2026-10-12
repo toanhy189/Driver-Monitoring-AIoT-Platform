@@ -331,7 +331,8 @@ Khi BE chạy trên máy, `DATABASE_URL` dùng `localhost:5432`.
 **1. PostgreSQL** — mở Docker Desktop, rồi chạy:
 
 ```powershell
-docker compose --env-file .env -f deployment/docker-compose.yml up -d postgres
+docker compose --env-file .env -f deployment/docker-compose.yml up -d postgres mosquitto
+docker compose --env-file .env -f deployment/docker-compose.yml run --rm migrate
 ```
 
 **2. Backend** — mở terminal mới:
@@ -354,5 +355,6 @@ cứ hiện “Đang đăng nhập…”, kiểm tra container bằng
 container đúng là `deployment-postgres-1`. Nút **Run** trên image `postgres:16`
 tạo container riêng, có thể báo thiếu `POSTGRES_PASSWORD`.
 
-Muốn thử MQTT, bật broker bằng
-`docker compose --env-file .env -f deployment/docker-compose.yml up -d mosquitto`.
+Nếu muốn chạy cả FE và BE trong Docker, dùng
+`docker compose --env-file .env -f deployment/docker-compose.yml up -d --build`.
+Migration tuần 2 tự chạy trước BE; không xóa volume PostgreSQL cũ.

@@ -27,5 +27,9 @@
 .history-table td { color: #263a56; }
 .history-table tr:last-child td { border-bottom: 0; }
 .history-panel .section-heading { align-items: flex-start; }
+.alert-state { display: inline-flex; align-items: center; padding: 5px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+.alert-state--new { background: #fff2dc; color: #9b6100; }
+.alert-state--seen { background: #e7f5ed; color: #18764d; }
+.alert-action-done { color: #348568; font-weight: 600; }
 @media (max-width: 760px) { .test-alert-fields { grid-template-columns: 1fr; } }
 @media (max-width: 600px) { .test-alert-panel, .history-panel { padding: 16px; } .history-panel .section-heading { align-items: flex-start; flex-direction: column; } }

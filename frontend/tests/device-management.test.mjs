@@ -38,7 +38,7 @@ test("API chi tiết và đăng ký dùng ID DB, Bearer token và JSON", async (
       calls.push({ url, options });
       return url.endsWith("/devices/2")
         ? response(200, { id: 2, device_code: "alert-01", status: "OFFLINE" })
-        : response(201, { id: 3, device_code: "vision-01" });
+        : response(201, { message: "Device registered", device: { id: 3, device_code: "vision-01", lifecycle_state: "REGISTERED" } });
     },
   });
 
@@ -73,9 +73,22 @@ test("bốn thao tác vòng đời gọi đúng URL; lỗi không tạo trạng 
     "http://localhost:8000/api/devices/2/decommission",
   ]);
   assert.ok(calls.every(call => call.options.method === "POST"));
-  assert.throws(() => service.runDeviceAction(0, "activate"), /ID thiết bị/);
-  assert.throws(() => service.runDeviceAction(2, "delete"), /Thao tác thiết bị/);
+  await assert.rejects(service.runDeviceAction(0, "activate"), /ID thiết bị/);
+  await assert.rejects(service.runDeviceAction(2, "delete"), /Thao tác thiết bị/);
   assert.equal(calls.length, 4);
+});
+
+test("response 2xx phải chứa đúng thiết bị trước khi FE báo đăng ký hoặc đổi trạng thái thành công", async () => {
+  const service = await loadModule("../src/services/devices.js", {
+    localStorage: { getItem: () => "token" },
+    fetch: async (url) => url.endsWith("/devices") ?
+      response(201, { device: { id: 3, device_code: "other-device" } }) :
+      response(200, { id: 3, device_code: "alert-03", lifecycle_state: "ACTIVE" }),
+  });
+  await assert.rejects(service.registerDevice({
+    device_code: "alert-02", name: "Alert", model: "Alert Node",
+  }), /đúng thiết bị vừa đăng ký/);
+  await assert.rejects(service.runDeviceAction(2, "activate"), /trạng thái hợp lệ/);
 });
 
 test("tin cập nhật thay record cùng ID, không thêm dòng mới", async () => {
@@ -88,6 +101,19 @@ test("tin cập nhật thay record cùng ID, không thêm dòng mới", async ()
   assert.equal(updated[0].lifecycle_state, "MAINTENANCE");
   assert.equal(updated[0].status, "OFFLINE");
   assert.equal(applyDeviceUpdate(updated, { id: 3, status: "ONLINE" }).length, 1);
+});
+
+test("nút vòng đời chỉ mở ở trạng thái BE cho phép", async () => {
+  const { deviceActionBlockReason } = await loadModule("../src/services/deviceModel.js");
+  const reason = (state, action) => deviceActionBlockReason({ lifecycle_state: state }, action);
+  assert.equal(reason("REGISTERED", "provision"), "");
+  assert.notEqual(reason("REGISTERED", "activate"), "");
+  assert.equal(reason("PROVISIONED", "activate"), "");
+  assert.equal(reason("MAINTENANCE", "activate"), "");
+  assert.equal(reason("ACTIVE", "maintenance"), "");
+  assert.notEqual(reason("PROVISIONED", "maintenance"), "");
+  assert.equal(reason("REGISTERED", "decommission"), "");
+  assert.notEqual(reason("DECOMMISSIONED", "decommission"), "");
 });
 
 test("trang chi tiết dùng dữ liệu có thật và ẩn thao tác với Customer", async () => {

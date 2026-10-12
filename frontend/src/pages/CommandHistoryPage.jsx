@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import AppShell, { Icon } from "../components/AppShell.jsx";
-import { collapseCommands, commandBelongsToDevice, getCommands, keepNewerCommand, normalizeCommand } from "../services/commands.js";
-import { commandStatus, commandTime, commandValue } from "../services/commandDisplay.js";
+import { getCommands } from "../services/commands.js";
+import { collapseCommands, commandBelongsToDevice, keepNewerCommand, normalizeCommand } from "../services/commandModel.js";
+import { commandAckLabel, commandActionLabel, commandStatus, commandTime, commandValue } from "../services/commandDisplay.js";
 import "../styles/commands.css";
 
 const REFRESH_MS = 10000;
@@ -37,7 +38,7 @@ function CommandHistoryPage({ user, realtime = NO_REALTIME, deviceId, deviceCode
         if (!active || requestError.name === "AbortError") return;
         if (requestError.status === 401) onUnauthorized();
         else setError(requestError.status === 404 ?
-          "BE chưa có API lịch sử lệnh. Chưa thể lấy kết quả lệnh đã lưu." :
+          "Không tìm thấy dữ liệu lịch sử lệnh (HTTP 404)." :
           requestError.message || "Không tải được lịch sử lệnh.");
       })
       .finally(() => {
@@ -77,10 +78,10 @@ function CommandHistoryPage({ user, realtime = NO_REALTIME, deviceId, deviceCode
       {loading && <p role="status">Đang tải lịch sử lệnh…</p>}
       {error && <p className="notice-error" role="alert">{error}</p>}
       {!loading && !error && commands.length === 0 && <p>Chưa có lệnh nào.</p>}
-      {commands.length > 0 && <div className="history-table-wrap"><table className="history-table"><thead><tr><th>Mã lệnh</th><th>Thiết bị</th><th>Action</th><th>Người gửi</th><th>Thời gian</th><th>Kết quả</th><th>ACK</th><th>Lỗi</th><th>Độ trễ</th></tr></thead><tbody>{commands.map(command => {
+      {commands.length > 0 && <div className="history-table-wrap"><table className="history-table"><thead><tr><th>Thiết bị</th><th>Thao tác</th><th>Người gửi</th><th>Thời gian</th><th>Kết quả</th><th>Phản hồi từ thiết bị</th><th>Lỗi</th><th>Độ trễ</th></tr></thead><tbody>{commands.map(command => {
         const state = commandStatus(command);
         const latency = Number.isFinite(command.latency_ms) && command.latency_ms >= 0 ? `${command.latency_ms} ms` : "—";
-        return <tr key={command.request_id}><td><strong>{command.request_id}</strong></td><td>{commandValue(command.device_code ?? command.device_id)}</td><td>{commandValue(command.action)}</td><td>{commandValue(command.created_by_name ?? command.created_by)}</td><td>{commandTime(command.created_at)}</td><td><span className={`command-state command-state--${state.tone}`}>{state.label}</span></td><td>{commandValue(command.ack_status)}</td><td>{commandValue(command.error_message ?? command.error_code)}</td><td>{latency}</td></tr>;
+        return <tr key={command.request_id}><td>{commandValue(command.device_code ?? command.device_id)}</td><td>{commandActionLabel(command.action)}</td><td>{commandValue(command.created_by_name ?? command.created_by)}</td><td>{commandTime(command.created_at)}</td><td><span className={`command-state command-state--${state.tone}`}>{state.label}</span></td><td>{commandAckLabel(command.ack_status)}</td><td>{command.error_message || command.error_code || "Không có"}</td><td>{latency}</td></tr>;
       })}</tbody></table></div>}
     </section>
   </AppShell>;

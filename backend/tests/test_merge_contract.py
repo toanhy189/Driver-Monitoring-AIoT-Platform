@@ -39,12 +39,13 @@ class Result:
 class FakeSession:
     def __init__(self, value, device=None):
         self.value = value
+        self.results = list(value) if isinstance(value, tuple) else None
         self.device = device
         self.statement = None
 
     def exec(self, statement):
         self.statement = statement
-        return Result(self.value)
+        return Result(self.results.pop(0) if self.results is not None else self.value)
 
     def get(self, model, device_id):
         return self.device
@@ -87,7 +88,9 @@ class MergeContractTests(unittest.TestCase):
 
     def test_device_list_filters_by_user_and_active_assignment(self):
         session = FakeSession([])
-        self.assertEqual(get_all_device(session=session, user_id=7), [])
+        user = User(id=7, fullname="A", username="a", hash_password="x",
+                    email="a@example.test", phone="1", role="Customer")
+        self.assertEqual(get_all_device(session=session, current_user=user), [])
         sql = str(session.statement.compile(compile_kwargs={"literal_binds": True}))
         self.assertIn("user_devices.user_id = 7", sql)
         self.assertIn("user_devices.unassigned_at IS NULL", sql)
@@ -95,11 +98,13 @@ class MergeContractTests(unittest.TestCase):
     def test_telemetry_is_serializable_or_explicitly_missing(self):
         device = Device(id=1, device_code="vision-01", model="Vision V1")
         telemetry = Telemetry(device_id=1, ear=0.25, perclos=0.18)
-        result = get_current_telemetry(1, 7, FakeSession(telemetry, device))
+        user = User(id=7, fullname="A", username="a", hash_password="x",
+                    email="a@example.test", phone="1", role="Customer")
+        result = get_current_telemetry(1, user, FakeSession((device, telemetry)))
         self.assertEqual(result.device_code, "vision-01")
         self.assertEqual(result.ear, 0.25)
         with self.assertRaises(HTTPException) as missing:
-            get_current_telemetry(1, 7, FakeSession(None, device))
+            get_current_telemetry(1, user, FakeSession((device, None)))
         self.assertEqual(missing.exception.status_code, 404)
 
     def test_device_response_does_not_expose_mqtt_password(self):

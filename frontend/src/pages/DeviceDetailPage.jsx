@@ -1,13 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 import DeviceDetailView from "./DeviceDetailView.jsx";
+import FeedbackDialog from "../components/FeedbackDialog.jsx";
 
-import { applyDeviceUpdate, getDeviceDetail, markDevicesStale, runDeviceAction } from "../services/devices.js";
+import { getDeviceDetail, runDeviceAction } from "../services/devices.js";
+import { applyDeviceUpdate, deviceActionBlockReason, markDevicesStale } from "../services/deviceModel.js";
 import { matchesDevice } from "../services/realtime.js";
 import { hasPermission } from "../services/permissions.js";
 import { deviceApiError } from "../services/deviceDisplay.js";
 import "../styles/devices.css";
 
 const NO_REALTIME = { connected: false, generation: 0, events: [] };
+const ACTION_LABELS = {
+  provision: "Cấp thông tin kết nối",
+  activate: "Kích hoạt",
+  maintenance: "Chuyển sang bảo trì",
+  decommission: "Ngừng sử dụng",
+};
 
 function DeviceDetailPage({ user, realtime = NO_REALTIME, deviceId, summary, onBack, onDashboard, onOpenHistory, onOpenConfig, onOpenCommands, onOpenAlerts, onLogout, onUnauthorized }) {
   const [device, setDevice] = useState(summary || null);
@@ -17,6 +25,7 @@ function DeviceDetailPage({ user, realtime = NO_REALTIME, deviceId, summary, onB
   const [actionError, setActionError] = useState("");
   const [actionNotice, setActionNotice] = useState("");
   const [busyAction, setBusyAction] = useState(null);
+  const [feedback, setFeedback] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const actionController = useRef(null);
   const pendingUpdates = useRef([]);
@@ -86,6 +95,7 @@ function DeviceDetailPage({ user, realtime = NO_REALTIME, deviceId, summary, onB
   const performAction = async action => {
     const permission = action === "decommission" ? "device:decommission" : "device:manage";
     if (!hasPermission(user?.role, permission) || busyAction) return;
+    if (deviceActionBlockReason(device, action)) return;
     if (action === "decommission" && !window.confirm(
       `Ngừng sử dụng thiết bị ${device?.device_code || deviceId}? Hãy kiểm tra đúng thiết bị trước khi tiếp tục.`
     )) return;
@@ -99,25 +109,30 @@ function DeviceDetailPage({ user, realtime = NO_REALTIME, deviceId, summary, onB
       await runDeviceAction(deviceId, action, { signal: controller.signal });
       if (controller.signal.aborted) return;
       setActionNotice("BE đã xác nhận yêu cầu. Đang lấy lại trạng thái thiết bị.");
+      setFeedback({ tone: "success", title: `${ACTION_LABELS[action] || "Thao tác"} thành công`, message: `Đã nhận kết quả cho thiết bị ${device?.name || device?.device_code || "đã chọn"}. Đang tải lại trạng thái mới.` });
       setLoading(true);
       setReloadKey(value => value + 1);
     } catch (error) {
       if (error.name === "AbortError") return;
       if (error.status === 401) onUnauthorized();
-      else setActionError(deviceApiError(error));
+      else {
+        const message = deviceApiError(error);
+        setActionError(message);
+        setFeedback({ tone: "error", title: "Thao tác chưa thành công", message });
+      }
     } finally {
       actionController.current = null;
       setBusyAction(null);
     }
   };
 
-  return <DeviceDetailView
+  return <><DeviceDetailView
     user={user} realtime={realtime} deviceId={deviceId} device={device} detailSource={detailSource}
     loading={loading} detailError={detailError} actionError={actionError}
     actionNotice={actionNotice} busyAction={busyAction} retry={retry}
     performAction={performAction} onBack={onBack} onDashboard={onDashboard}
     onOpenHistory={onOpenHistory} onOpenConfig={onOpenConfig} onOpenCommands={onOpenCommands} onOpenAlerts={onOpenAlerts} onUnauthorized={onUnauthorized} onLogout={onLogout}
-  />;
+  /><FeedbackDialog feedback={feedback} onClose={() => setFeedback(null)} /></>;
 }
 
 export default DeviceDetailPage;

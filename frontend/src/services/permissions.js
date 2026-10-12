@@ -12,7 +12,10 @@ const ROLE_PERMISSIONS = Object.freeze({
   Customer: Object.freeze(["dashboard:view", "command:view", "config:view", "alert:view"]),
 });
 
+const ROLE_ALIASES = Object.freeze({ ADMIN: "Admin", OPERATOR: "Employee", VIEWER: "Customer" });
+
 export function hasPermission(role, permission) {
-  return typeof role === "string" && Object.hasOwn(ROLE_PERMISSIONS, role) &&
-    ROLE_PERMISSIONS[role].includes(permission);
+  const normalized = ROLE_ALIASES[role] || role;
+  return typeof normalized === "string" && Object.hasOwn(ROLE_PERMISSIONS, normalized) &&
+    ROLE_PERMISSIONS[normalized].includes(permission);
 }

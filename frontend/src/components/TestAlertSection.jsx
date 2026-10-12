@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "./AppShell.jsx";
-import { commandStatus, commandValue } from "../services/commandDisplay.js";
-import { TEST_ALERT_BODY, commandBelongsToDevice, commandFinished, getCommand, keepNewerCommand, normalizeCommand, sendTestAlert, testAlertBlockReason, validateTestAlertParameters } from "../services/commands.js";
+import FeedbackDialog from "./FeedbackDialog.jsx";
+import { commandAckLabel, commandStatus, commandValue } from "../services/commandDisplay.js";
+import { getCommand, sendTestAlert } from "../services/commands.js";
+import { TEST_ALERT_BODY, commandBelongsToDevice, commandFinished, keepNewerCommand, normalizeCommand, testAlertBlockReason, validateTestAlertParameters } from "../services/commandModel.js";
 import "../styles/commands.css";
 
 const RESULT_REFRESH_MS = 5000;
@@ -19,6 +21,7 @@ function TestAlertSection({ user, realtime = NO_REALTIME, device, deviceId, onUn
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [resultError, setResultError] = useState("");
+  const [feedback, setFeedback] = useState(null);
   const submitController = useRef(null);
   const resultController = useRef(null);
   const lastEventSequence = useRef(realtime.events.at(-1)?.sequence ?? 0);
@@ -64,7 +67,7 @@ function TestAlertSection({ user, realtime = NO_REALTIME, device, deviceId, onUn
       if (error.name === "AbortError") return false;
       if (error.status === 401) onUnauthorized();
       else setResultError(error.status === 404 ?
-        "BE chưa có API xem kết quả lệnh. Chưa thể xác nhận ESP32 đã hoàn tất." :
+        "Không tìm thấy kết quả lệnh này (HTTP 404). Chưa thể xác nhận ESP32 đã hoàn tất." :
         `${error.message || "Không lấy được kết quả lệnh."} Chưa thể xác nhận ESP32 đã hoàn tất.`);
       return false;
     } finally {
@@ -83,6 +86,10 @@ function TestAlertSection({ user, realtime = NO_REALTIME, device, deviceId, onUn
     timer = setTimeout(poll, RESULT_REFRESH_MS);
     return () => { active = false; clearTimeout(timer); };
   }, [command?.request_id, command?.status, command?.ack_status, resultError]);
+
+  useEffect(() => {
+    if (command?.request_id && realtime.generation) refreshResult();
+  }, [realtime.generation]);
 
   const submit = async event => {
     event.preventDefault();
@@ -104,11 +111,21 @@ function TestAlertSection({ user, realtime = NO_REALTIME, device, deviceId, onUn
       if (!commandBelongsToDevice(response, deviceId, device?.device_code)) {
         throw new Error("BE trả lệnh của thiết bị khác.");
       }
-      setCommand(keepNewerCommand(response, pendingResults.current.get(response.request_id)));
+      const latest = keepNewerCommand(response, pendingResults.current.get(response.request_id));
+      setCommand(latest);
+      if (["FAILED", "TIMEOUT"].includes(latest.status) || latest.ack_status === "FAILED") {
+        setFeedback({ tone: "error", title: "Lệnh chưa thực hiện được", message: latest.error_message || commandStatus(latest).label });
+      } else {
+        setFeedback({ tone: "success", title: "BE đã ghi nhận lệnh", message: "Hãy theo dõi phản hồi của thiết bị ở bên dưới." });
+      }
     } catch (error) {
       if (error.name === "AbortError") return;
       if (error.status === 401) onUnauthorized();
-      else setSubmitError(`${error.message || "Không gửi được yêu cầu."} Nếu kết nối bị gián đoạn, hãy kiểm tra lịch sử trước khi gửi lại.`);
+      else {
+        const message = `${error.message || "Không gửi được yêu cầu."} Nếu kết nối bị gián đoạn, hãy kiểm tra lịch sử trước khi gửi lại.`;
+        setSubmitError(message);
+        setFeedback({ tone: "error", title: "Chưa xác nhận được lệnh", message });
+      }
     } finally {
       if (submitController.current === controller) submitController.current = null;
       setIsSubmitting(false);
@@ -127,11 +144,11 @@ function TestAlertSection({ user, realtime = NO_REALTIME, device, deviceId, onUn
       <p>Thử LED, còi và motor trong một lệnh. Lệnh này không chọn mức cảnh báo và không đổi cấu hình mặc định. Chỉ xác nhận hoàn tất khi BE nhận ACK từ ESP32.</p>
       <form onSubmit={submit} noValidate>
         <div className="test-alert-fields">
-          <label>Thời lượng còi (ms)<input type="number" min="0" max="10000" step="1" inputMode="numeric" value={form.buzzer_ms} onChange={event => updateForm("buzzer_ms", event.target.value)} disabled={isSubmitting} /></label>
-          <label>Thời lượng rung (ms)<input type="number" min="0" max="10000" step="1" inputMode="numeric" value={form.vibration_ms} onChange={event => updateForm("vibration_ms", event.target.value)} disabled={isSubmitting} /></label>
+          <label>Thời lượng còi (ms)<input type="number" min="1" max="10000" step="1" inputMode="numeric" value={form.buzzer_ms} onChange={event => updateForm("buzzer_ms", event.target.value)} disabled={isSubmitting} /></label>
+          <label>Thời lượng rung (ms)<input type="number" min="1" max="10000" step="1" inputMode="numeric" value={form.vibration_ms} onChange={event => updateForm("vibration_ms", event.target.value)} disabled={isSubmitting} /></label>
           <label>Chế độ LED<select value={form.led_mode} onChange={event => updateForm("led_mode", event.target.value)} disabled={isSubmitting}><option value="ON">Sáng liên tục</option><option value="FLASH">Nhấp nháy</option></select></label>
         </div>
-        <p className="test-alert-help">1000 ms = 1 giây. Thời lượng cho phép: 0–10000 ms.</p>
+        <p className="test-alert-help">1000 ms = 1 giây. Thời lượng cho phép: 1–10000 ms.</p>
         {reason && <p className="action-reason" role="status">{reason}</p>}
         {submitError && <p className="notice-error" role="alert">{submitError}</p>}
         <div className="test-alert-actions">
@@ -139,9 +156,10 @@ function TestAlertSection({ user, realtime = NO_REALTIME, device, deviceId, onUn
           <button className="outline-button" type="button" onClick={onOpenHistory}>Xem lịch sử lệnh <Icon name="arrow" size={16} /></button>
         </div>
       </form>
-      {command && <div className="current-command" aria-live="polite"><div><strong>Lệnh {command.request_id}</strong><span className={`command-state command-state--${state.tone}`}>{state.label}</span></div><p>Trạng thái BE: {commandValue(command.status)} · ACK: {commandValue(command.ack_status)}</p>{(command.error_code || command.error_message) && <p>Lỗi: {commandValue(command.error_message || command.error_code)}</p>}{!commandFinished(command) && <button className="text-link" type="button" onClick={refreshResult}>Kiểm tra kết quả</button>}</div>}
+      {command && <div className="current-command" aria-live="polite"><div><strong>Lệnh kiểm tra gần nhất</strong><span className={`command-state command-state--${state.tone}`}>{state.label}</span></div><p>Phản hồi từ thiết bị: {commandAckLabel(command.ack_status)}</p>{(command.error_code || command.error_message) && <p>Lỗi: {commandValue(command.error_message || command.error_code)}</p>}{!commandFinished(command) && <button className="text-link" type="button" onClick={refreshResult}>Kiểm tra kết quả</button>}</div>}
       {resultError && <p className="notice-error" role="alert">{resultError}</p>}
     </section>}
+    <FeedbackDialog feedback={feedback} onClose={() => setFeedback(null)} />
   </>;
 }
 

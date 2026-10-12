@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from sqlalchemy import Column, JSON
+from pydantic import NaiveDatetime
 from sqlmodel import Field, SQLModel
 
 class Config(SQLModel, table=True):
@@ -15,6 +16,6 @@ class Config(SQLModel, table=True):
     desired_config: dict | None = Field(default=None, sa_column=Column(JSON))
     applied_config: dict | None = Field(default=None, sa_column=Column(JSON))
 
-    updated_at: datetime | None = Field(
-        default_factory=lambda: datetime.now(timezone.utc)
+    updated_at: NaiveDatetime | None = Field(
+        default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
     )

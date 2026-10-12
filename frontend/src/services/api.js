@@ -47,3 +47,9 @@ export async function apiRequest(path, { method = "GET", body, token, signal } =
 
   return data;
 }
+
+export function authenticatedRequest(path, { missingMessage = "Bạn cần đăng nhập để tiếp tục.", ...options } = {}) {
+  const token = localStorage.getItem("access_token");
+  if (!token) throw Object.assign(new Error(missingMessage), { status: 401 });
+  return apiRequest(path, { ...options, token });
+}

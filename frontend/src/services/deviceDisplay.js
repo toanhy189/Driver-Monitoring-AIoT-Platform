@@ -15,7 +15,7 @@ export function connectionText(status) {
 }
 
 export function deviceApiError(error) {
-  if (error.status === 404) return "API này chưa có trên BE hoặc thiết bị không tồn tại (HTTP 404).";
+  if (error.status === 404) return "Không tìm thấy thiết bị hoặc bạn chưa được gán thiết bị này (HTTP 404).";
   if (error.status === 405) return "BE chưa hỗ trợ thao tác này (HTTP 405).";
   if (error.status === 403) return "Tài khoản không có quyền thực hiện thao tác này (HTTP 403).";
   return error.message || "Không thể hoàn thành yêu cầu. Vui lòng thử lại.";

@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from sqlalchemy import Column, JSON
+from pydantic import NaiveDatetime
 from sqlmodel import Field, SQLModel
 
 class AuditLog(SQLModel, table=True):
@@ -17,6 +18,6 @@ class AuditLog(SQLModel, table=True):
     
     details: dict | None = Field(default=None, sa_column=Column(JSON))
 
-    created_at: datetime | None = Field(
-        default_factory=lambda: datetime.now(timezone.utc)
+    created_at: NaiveDatetime | None = Field(
+        default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
     )

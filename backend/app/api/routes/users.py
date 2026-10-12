@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
 import app.core.security as acs
-from app.api.deps import require_admin
+from app.api.deps import get_current_user, require_admin
 from app.core.config import settings
 from app.core.db import get_session
 from app.models.user import User
@@ -39,7 +39,7 @@ def login(data: LoginRequest, session: Session = Depends(get_session)):
 
 
 @router.get("/me", response_model=UserResponse)
-def get_me(current_user: User = Depends(acs.get_current_user_info)):
+def get_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 

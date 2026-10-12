@@ -35,6 +35,11 @@ export function normalizeTelemetry(data) {
   for (const field of ["angle_x", "angle_y", "angle_z"]) {
     if (Object.hasOwn(data, field)) result[field] = Number.isFinite(data[field]) ? data[field] : null;
   }
+  if (data.head_pose && typeof data.head_pose === "object" && !Array.isArray(data.head_pose)) {
+    result.head_pose = Object.fromEntries(["yaw", "pitch", "roll"].map(field => [
+      field, Number.isFinite(data.head_pose[field]) ? data.head_pose[field] : null,
+    ]));
+  }
   if (Object.hasOwn(data, "confidence")) {
     result.confidence = Number.isFinite(data.confidence) && data.confidence >= 0 &&
       data.confidence <= 1 ? data.confidence : null;

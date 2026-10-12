@@ -2,10 +2,16 @@ from pathlib import Path
 import re
 import subprocess
 
+from app.core.config import settings
 
-MOSQUITTO_PASSWD = Path(r"D:\Mosquitto\mosquitto_passwd.exe")
-PASSWD_FILE = Path(r"D:\Mosquitto\config\passwd")
-ACL_FILE = Path(r"D:\Mosquitto\config\acl")
+
+def _paths():
+    if not all((settings.MOSQUITTO_PASSWD_BIN, settings.MOSQUITTO_PASSWD_FILE,
+                settings.MOSQUITTO_ACL_FILE)):
+        raise RuntimeError("Broker credential management is not configured")
+    return (Path(settings.MOSQUITTO_PASSWD_BIN),
+            Path(settings.MOSQUITTO_PASSWD_FILE),
+            Path(settings.MOSQUITTO_ACL_FILE))
 
 
 def revoke_device(device_code: str) -> dict:
@@ -13,12 +19,13 @@ def revoke_device(device_code: str) -> dict:
     Xóa MQTT username/password và ACL của device.
     """
 
+    mosquitto_passwd, passwd_file, acl_file = _paths()
     # 1. Xóa user khỏi passwd
     result = subprocess.run(
         [
-            str(MOSQUITTO_PASSWD),
+            str(mosquitto_passwd),
             "-D",
-            str(PASSWD_FILE),
+            str(passwd_file),
             device_code,
         ],
         capture_output=True,
@@ -31,8 +38,8 @@ def revoke_device(device_code: str) -> dict:
         )
 
     # 2. Xóa ACL của device
-    if ACL_FILE.exists():
-        content = ACL_FILE.read_text(
+    if acl_file.exists():
+        content = acl_file.read_text(
             encoding="utf-8"
         )
 
@@ -49,7 +56,7 @@ def revoke_device(device_code: str) -> dict:
             content,
         )
 
-        ACL_FILE.write_text(
+        acl_file.write_text(
             new_content,
             encoding="utf-8",
         )

@@ -31,6 +31,10 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (realtime.unauthorized) handleLogout();
+  }, [realtime.unauthorized, handleLogout]);
+
+  useEffect(() => {
     if (session.status !== "checking") return;
 
     const token = localStorage.getItem("access_token");

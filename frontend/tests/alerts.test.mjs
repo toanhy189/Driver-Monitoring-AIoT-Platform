@@ -37,7 +37,7 @@ test("lịch sử cảnh báo GET và xác nhận đã xem POST đúng API, toke
       calls.push({ url, options });
       return options.method === "POST" ?
         response(200, { alert_id: 2, status: "ACKNOWLEDGED" }) :
-        response(200, [{ alert_id: 2, status: "OPEN" }]);
+        response(200, [{ alert_id: 2, status: "NEW" }]);
     },
   });
   const list = await alerts.getAlerts();
@@ -45,6 +45,7 @@ test("lịch sử cảnh báo GET và xác nhận đã xem POST đúng API, toke
   assert.equal(alerts.canAcknowledgeAlert(list[0]), true);
   const updated = await alerts.acknowledgeAlert("2");
   assert.equal(alerts.canAcknowledgeAlert(updated), false);
+  assert.equal(alerts.canAcknowledgeAlert({ alert_id: "3", status: "OPEN" }), false);
   assert.equal(calls[0].url, "http://localhost:8000/api/alerts");
   assert.equal(calls[1].url, "http://localhost:8000/api/alerts/2/acknowledge");
   assert.equal(calls[1].options.method, "POST");
@@ -69,4 +70,15 @@ test("trang cảnh báo có trạng thái tải và Customer không có nút xá
   assert.match(html, /Đang tải cảnh báo/);
   assert.match(html, /Cảnh báo/);
   assert.doesNotMatch(html, /<button[^>]*>Đã xem<\/button>/);
+});
+
+test("loại và trạng thái cảnh báo được diễn đạt bằng tiếng Việt", async () => {
+  const display = await loadModule("../src/services/alertDisplay.js");
+  assert.equal(display.alertTypeLabel("FACE_LOST"), "Không thấy khuôn mặt");
+  assert.equal(display.alertTypeLabel("HEAD_POSE"), "Tư thế đầu bất thường");
+  assert.equal(display.alertTypeLabel("DISTRACTION"), "Mất tập trung");
+  assert.equal(display.alertTypeLabel("DROWSINESS"), "Buồn ngủ");
+  assert.equal(display.alertStatusLabel({ status: "NEW" }), "Chưa xem");
+  assert.equal(display.alertStatusLabel({ status: "ACKNOWLEDGED" }), "Đã xem");
+  assert.equal(display.alertStatusLabel({ status: "RESOLVED", acknowledged_at: "2026-10-12T08:00:00Z" }), "Đã xử lý");
 });

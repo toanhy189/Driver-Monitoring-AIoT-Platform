@@ -11,6 +11,9 @@ function DeviceListView({ user, onBack, onOpenDevice, onOpenCommands, onOpenAler
   useEffect(() => {
     if (registerOpen) registerPanelRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
   }, [registerOpen]);
+  useEffect(() => {
+    if (registerNotice) setRegisterOpen(false);
+  }, [registerNotice]);
   const canManage = hasPermission(user?.role, "device:manage");
   const onlineCount = devices.filter(device => !device.isStale && device.status === "ONLINE").length;
   const visibleDevices = devices.filter(device => {

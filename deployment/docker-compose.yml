@@ -6,18 +6,25 @@ services:
       dockerfile: deployment/backend/Dockerfile
     env_file:
       - ../.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      MQTT_HOST: mosquitto
     ports:
       - "8000:8000"
     depends_on:
-      - postgres
-      - mosquitto
+      migrate:
+        condition: service_completed_successfully
+      mosquitto:
+        condition: service_started
 
   frontend:
     build:
       context: ..
       dockerfile: deployment/frontend/Dockerfile
-    env_file:
-    - ../.env
+      args:
+        VITE_BACKEND_HOST: http://localhost:8000
+        VITE_API_STR: /api
+        VITE_WS_URL: ws://localhost:8000/ws/telemetry
     ports:
       - "5173:80"
     depends_on:
@@ -32,25 +39,32 @@ services:
     ports:
       - "5432:5432"
     volumes:
-    - postgres_data:/var/lib/postgresql/data
-    - ../database/create.sql:/docker-entrypoint-initdb.d/01-create.sql
-    - ../database/insert.sql:/docker-entrypoint-initdb.d/02-insert.sql
+      - postgres_data:/var/lib/postgresql/data
+      - ../database/create.sql:/docker-entrypoint-initdb.d/01-create.sql:ro
+      - ../database/insert.sql:/docker-entrypoint-initdb.d/02-insert.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+
+  migrate:
+    image: postgres:16
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ../database/migration_fe_be_week2.sql:/migrations/week2.sql:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["psql", "-h", "postgres", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}", "-v", "ON_ERROR_STOP=1", "-f", "/migrations/week2.sql"]
 
   mosquitto:
     image: eclipse-mosquitto:2
+    volumes:
+      - ./mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
     ports:
       - "1883:1883"
-      - "9001:9001"
   
-  mqtt-consumer:
-    build:
-      context: ..
-      dockerfile: deployment/mqtt/Dockerfile
-    env_file:
-      - ../.env
-    depends_on:
-      - mosquitto
-      - postgres
-
 volumes:
   postgres_data:

@@ -75,6 +75,7 @@ test("WebSocket chuyển payload chỉ có mã và phát sự kiện đóng đú
   }
   const { createTelemetrySocket } = await loadModule("../src/services/websocket.js", {
     WebSocket: FakeSocket,
+    URL,
     console: { log() {}, error() {} },
   });
   const received = [];
@@ -82,10 +83,11 @@ test("WebSocket chuyển payload chỉ có mã và phát sự kiện đóng đú
   let closes = 0;
   let errors = 0;
   const socket = createTelemetrySocket({
+    ticket: "short-lived-ticket",
     onMessage: data => received.push(normalizeTelemetry(data)),
     onOpen: () => opens++, onClose: () => closes++, onError: () => errors++,
   });
-  assert.equal(socket.url, "ws://localhost:8000/ws/telemetry");
+  assert.equal(socket.url, "ws://localhost:8000/ws/telemetry?ticket=short-lived-ticket");
   socket.onopen();
   socket.onmessage({ data: JSON.stringify({
     device_code: "DM-000001", ear: 0.21, perclos: 0.35, driver_state: "DROWSY",

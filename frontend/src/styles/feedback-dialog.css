@@ -1,0 +1,8 @@
+.feedback-overlay { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 20px; background: rgba(12, 31, 55, .48); }
+.feedback-dialog { width: min(100%, 430px); padding: 30px 28px 26px; border: 1px solid #dae6f0; border-radius: 16px; background: #fff; box-shadow: 0 24px 70px rgba(13, 32, 58, .23); text-align: center; }
+.feedback-dialog-icon { display: grid; place-items: center; width: 58px; height: 58px; margin: 0 auto 16px; border-radius: 50%; font-size: 29px; font-weight: 800; }
+.feedback-dialog--success .feedback-dialog-icon { color: #0c8d62; background: #e2f7ec; }
+.feedback-dialog--error .feedback-dialog-icon { color: #bb2945; background: #ffebee; }
+.feedback-dialog h2 { margin: 0; color: #142541; font-size: 21px; line-height: 1.3; }
+.feedback-dialog p { margin: 11px 0 24px; color: #566980; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.feedback-dialog .primary-button { min-width: 130px; }

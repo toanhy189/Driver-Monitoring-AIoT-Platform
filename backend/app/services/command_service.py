@@ -1,42 +1,25 @@
 import json
-import paho.mqtt.publish as mqtt_publish
+
+import paho.mqtt.client as mqtt
 
 from app.core.config import settings
 
 
-def publish_command(
-    command_id: int,
-    device_code: str,
-    command: str,
-    mqtt_username: str,
-    mqtt_password: str,
-) -> bool:
-
-    topic = f"driver/{device_code}/command"
-
-    payload_dict = {
-        "request_id": command_id,
-        "command": command
-    }
-    payload = json.dumps(payload_dict)
-
+def publish_command(device_code: str, payload: dict) -> bool:
+    """Send one firmware command; false means publish was not confirmed by broker."""
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    if settings.MQTT_USERNAME:
+        client.username_pw_set(settings.MQTT_USERNAME, settings.MQTT_PASSWORD)
     try:
-        import paho.mqtt.client as mqtt
-        client = mqtt.Client()
         client.connect(settings.MQTT_HOST, settings.MQTT_PORT, 5)
-        client.publish(topic, payload)
-        client.disconnect()
-
-        print(
-            f"Published command: "
-            f"{topic} -> {command}"
+        client.loop_start()
+        result = client.publish(
+            f"driver/{device_code}/command", json.dumps(payload), qos=1
         )
-
-        return True
-
-    except Exception as e:
-        print(
-            f"MQTT publish failed: {e}"
-        )
-
+        result.wait_for_publish(timeout=5)
+        return result.is_published()
+    except (OSError, RuntimeError, ValueError):
         return False
+    finally:
+        client.disconnect()
+        client.loop_stop()

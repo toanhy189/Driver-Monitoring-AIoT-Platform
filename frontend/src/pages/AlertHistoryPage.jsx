@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import AppShell, { Icon } from "../components/AppShell.jsx";
-import { acknowledgeAlert, canAcknowledgeAlert, getAlerts, isAlertAcknowledged, mergeAlerts } from "../services/alerts.js";
+import FeedbackDialog from "../components/FeedbackDialog.jsx";
+import { acknowledgeAlert, getAlerts } from "../services/alerts.js";
+import { canAcknowledgeAlert, isAlertAcknowledged, mergeAlerts } from "../services/alertModel.js";
+import { alertStatusLabel, alertTypeLabel } from "../services/alertDisplay.js";
 import { commandTime, commandValue } from "../services/commandDisplay.js";
 import { hasPermission } from "../services/permissions.js";
 import "../styles/commands.css";
@@ -15,6 +18,7 @@ function AlertHistoryPage({ user, realtime = NO_REALTIME, onDashboard, onDevices
   const [notice, setNotice] = useState("");
   const [actionError, setActionError] = useState("");
   const [busyId, setBusyId] = useState(null);
+  const [feedback, setFeedback] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const lastEventSequence = useRef(realtime.events.at(-1)?.sequence ?? 0);
   const actionController = useRef(null);
@@ -35,7 +39,7 @@ function AlertHistoryPage({ user, realtime = NO_REALTIME, onDashboard, onDevices
         if (!active || requestError.name === "AbortError") return;
         if (requestError.status === 401) onUnauthorized();
         else setError(requestError.status === 404 ?
-          "BE chưa có API lịch sử cảnh báo (HTTP 404)." :
+          "Không tìm thấy dữ liệu lịch sử cảnh báo (HTTP 404)." :
           requestError.message || "Không tải được lịch sử cảnh báo.");
       })
       .finally(() => {
@@ -66,20 +70,28 @@ function AlertHistoryPage({ user, realtime = NO_REALTIME, onDashboard, onDevices
       if (controller.signal.aborted) return;
       if (result && isAlertAcknowledged(result)) {
         setAlerts(current => mergeAlerts(current, [result]));
-        setNotice(`Đã xác nhận cảnh báo ${alert.alert_id}.`);
+        setNotice("Đã đánh dấu cảnh báo là đã xem.");
+        setFeedback({ tone: "success", title: "Đã đánh dấu là đã xem", message: "Trạng thái cảnh báo đã được cập nhật." });
       } else {
         setNotice("BE đã nhận yêu cầu. Đang tải lại trạng thái cảnh báo.");
+        setFeedback({ tone: "success", title: "Đã nhận yêu cầu", message: "Đang tải lại trạng thái cảnh báo để kiểm tra kết quả." });
         setReloadKey(value => value + 1);
       }
     } catch (requestError) {
       if (requestError.name === "AbortError") return;
       if (requestError.status === 401) onUnauthorized();
-      else setActionError(requestError.message || "Không xác nhận được cảnh báo.");
+      else {
+        const message = requestError.message || "Không xác nhận được cảnh báo.";
+        setActionError(message);
+        setFeedback({ tone: "error", title: "Chưa đánh dấu được", message });
+      }
     } finally {
       if (actionController.current === controller) actionController.current = null;
       setBusyId(null);
     }
   };
+
+  const canManageAlerts = hasPermission(user?.role, "alert:acknowledge");
 
   return <AppShell user={user} activePage="alerts" serverConnected={realtime.connected}
     onDashboard={onDashboard} onDevices={onDevices} onCommands={() => onCommands()}
@@ -94,23 +106,23 @@ function AlertHistoryPage({ user, realtime = NO_REALTIME, onDashboard, onDevices
       {notice && <p className="notice-success" role="status">{notice}</p>}
       {!loading && !error && alerts.length === 0 && <p>Chưa có cảnh báo nào.</p>}
       {alerts.length > 0 && <div className="history-table-wrap"><table className="history-table"><thead><tr>
-        <th>Mã cảnh báo</th><th>Thiết bị</th><th>Loại</th><th>Mức</th><th>Thời gian</th><th>Trạng thái</th><th>Lệnh liên quan</th><th>Thao tác</th>
+        <th>Thiết bị</th><th>Loại cảnh báo</th><th>Mức</th><th>Thời gian</th><th>Trạng thái</th><th>Lệnh liên quan</th>{canManageAlerts && <th>Thao tác</th>}
       </tr></thead><tbody>{alerts.map(alert => <tr key={alert.alert_id}>
-        <td><strong>{alert.alert_id}</strong></td>
         <td>{commandValue(alert.device_code ?? alert.device_id)}</td>
-        <td>{commandValue(alert.alert_type ?? alert.type)}</td>
-        <td>{Number.isInteger(alert.severity) ? `Mức ${alert.severity}` : "—"}</td>
+        <td>{alertTypeLabel(alert.alert_type ?? alert.type)}</td>
+        <td>{Number.isInteger(alert.severity) ? `Mức ${alert.severity}` : "Chưa phân mức"}</td>
         <td>{commandTime(alert.created_at ?? alert.timestamp)}</td>
-        <td>{isAlertAcknowledged(alert) ? "Đã xem" : commandValue(alert.status)}</td>
+        <td><span className={`alert-state ${isAlertAcknowledged(alert) ? "alert-state--seen" : "alert-state--new"}`}>{alertStatusLabel(alert)}</span></td>
         <td>{alert.request_id && hasPermission(user?.role, "command:view") ?
-          <button className="text-link" type="button" onClick={() => onCommands(alert)}>{alert.request_id}</button> :
-          commandValue(alert.request_id)}</td>
-        <td>{hasPermission(user?.role, "alert:acknowledge") && canAcknowledgeAlert(alert) ?
+          <button className="text-link" type="button" onClick={() => onCommands(alert)}>Xem lệnh</button> :
+          "Không có"}</td>
+        {canManageAlerts && <td>{canAcknowledgeAlert(alert) ?
           <button className="outline-button" type="button" disabled={busyId !== null} onClick={() => acknowledge(alert)}>
-            {busyId === alert.alert_id ? "Đang gửi…" : "Đã xem"}
-          </button> : "—"}</td>
+            {busyId === alert.alert_id ? "Đang gửi…" : "Đánh dấu đã xem"}
+          </button> : <span className="alert-action-done">{isAlertAcknowledged(alert) ? "✓ Đã đánh dấu" : "Không thể đánh dấu"}</span>}</td>}
       </tr>)}</tbody></table></div>}
     </section>
+    <FeedbackDialog feedback={feedback} onClose={() => setFeedback(null)} />
   </AppShell>;
 }
 

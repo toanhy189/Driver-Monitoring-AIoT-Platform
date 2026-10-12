@@ -23,7 +23,10 @@ test("Customer chỉ xem; Employee gửi lệnh và sửa cấu hình; Admin qu�
 });
 
 test("role lạ hoặc thiếu role không được cấp quyền", () => {
-  for (const role of [undefined, "", "OPERATOR", "Viewer", "__proto__"]) {
+  assert.equal(hasPermission("ADMIN", "device:manage"), true);
+  assert.equal(hasPermission("OPERATOR", "command:send"), true);
+  assert.equal(hasPermission("VIEWER", "command:send"), false);
+  for (const role of [undefined, "", "Viewer", "__proto__"]) {
     assert.equal(hasPermission(role, "dashboard:view"), false);
     assert.equal(hasPermission(role, "command:send"), false);
   }

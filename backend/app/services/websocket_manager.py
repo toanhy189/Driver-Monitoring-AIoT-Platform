@@ -1,54 +1,48 @@
 import asyncio
+
 from fastapi import WebSocket
+from sqlmodel import Session, select
+
+from app.core.db import engine
+from app.models.user_device import UserDevice
 
 
 class ConnectionManager:
     def __init__(self):
-        self.active_connections: list[WebSocket] = []
+        self.connections: dict[WebSocket, int] = {}
         self.loop: asyncio.AbstractEventLoop | None = None
 
-    async def connect(self, websocket: WebSocket):
+    async def connect(self, websocket: WebSocket, user_id: int):
         await websocket.accept()
-
         self.loop = asyncio.get_running_loop()
-        self.active_connections.append(websocket)
-
-        print(
-            f"[WebSocket] Client connected. "
-            f"Total: {len(self.active_connections)}"
-        )
+        self.connections[websocket] = user_id
 
     def disconnect(self, websocket: WebSocket):
-        if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
+        self.connections.pop(websocket, None)
 
-        print(
-            f"[WebSocket] Client disconnected. "
-            f"Total: {len(self.active_connections)}"
-        )
-
-    async def broadcast(self, data: dict):
-        disconnected = []
-
-        for websocket in self.active_connections:
+    async def send_to_device_users(self, event: dict):
+        data = event.get("data")
+        device_id = data.get("device_id") if isinstance(data, dict) else None
+        if type(device_id) is not int or device_id <= 0:
+            return
+        with Session(engine) as session:
+            user_ids = set(session.exec(
+                select(UserDevice.user_id).where(
+                    UserDevice.device_id == device_id,
+                    UserDevice.unassigned_at.is_(None),
+                )
+            ).all())
+        for websocket, user_id in list(self.connections.items()):
+            if user_id not in user_ids:
+                continue
             try:
-                await websocket.send_json(data)
+                await websocket.send_json(event)
             except Exception:
-                disconnected.append(websocket)
+                self.disconnect(websocket)
 
-        for websocket in disconnected:
-            self.disconnect(websocket)
-
-    def broadcast_from_thread(self, data: dict):
-        """
-        MQTT chạy ở thread riêng nên không thể await trực tiếp.
-        Hàm này chuyển broadcast vào event loop của FastAPI.
-        """
+    def send_from_thread(self, event: dict):
         if self.loop is not None and self.loop.is_running():
-            asyncio.run_coroutine_threadsafe(
-                self.broadcast(data),
-                self.loop
-            )
+            asyncio.run_coroutine_threadsafe(self.send_to_device_users(event), self.loop)
 
 
 manager = ConnectionManager()

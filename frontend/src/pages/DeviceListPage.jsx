@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import DeviceListView from "./DeviceListView.jsx";
+import FeedbackDialog from "../components/FeedbackDialog.jsx";
 
-import { getDevices, applyDeviceUpdate, markDevicesStale, registerDevice } from "../services/devices.js";
+import { getDevices, registerDevice } from "../services/devices.js";
+import { applyDeviceUpdate, markDevicesStale } from "../services/deviceModel.js";
 import { hasPermission } from "../services/permissions.js";
 import { deviceApiError } from "../services/deviceDisplay.js";
 import "../styles/devices.css";
@@ -19,6 +21,7 @@ function DeviceListPage({ user, realtime = NO_REALTIME, onBack, onOpenDevice, on
   const [registerBusy, setRegisterBusy] = useState(false);
   const [registerError, setRegisterError] = useState("");
   const [registerNotice, setRegisterNotice] = useState("");
+  const [feedback, setFeedback] = useState(null);
   const pendingUpdates = useRef([]);
   const requestInFlight = useRef(false);
   const registerController = useRef(null);
@@ -106,26 +109,32 @@ function DeviceListPage({ user, realtime = NO_REALTIME, onBack, onOpenDevice, on
     try {
       await registerDevice(fields, { signal: controller.signal });
       if (controller.signal.aborted) return;
-      setRegisterNotice("BE đã chấp nhận yêu cầu đăng ký. Danh sách đang được tải lại.");
+      setRegisterNotice("Đăng ký thiết bị thành công.");
+      setFeedback({ tone: "success", title: "Đăng ký thiết bị thành công", message: `Thiết bị ${fields.name.trim()} đã được thêm. Danh sách đang được cập nhật.` });
       setFields({ device_code: "", name: "", model: "" });
       setReloadKey(value => value + 1);
     } catch (requestError) {
       if (requestError.name === "AbortError") return;
       if (requestError.status === 401) onUnauthorized();
-      else setRegisterError(deviceApiError(requestError));
+      else {
+        const message = requestError.status === 409 ?
+          "Mã thiết bị đã tồn tại. Hãy chọn mã khác." : deviceApiError(requestError);
+        setRegisterError(message);
+        setFeedback({ tone: "error", title: "Đăng ký chưa thành công", message });
+      }
     } finally {
       registerController.current = null;
       setRegisterBusy(false);
     }
   };
 
-  return <DeviceListView
+  return <><DeviceListView
     user={user} onBack={onBack} onOpenDevice={onOpenDevice} onOpenCommands={onOpenCommands} onOpenAlerts={onOpenAlerts} onLogout={onLogout}
     serverConnected={realtime.connected} devices={devices} loading={loading} error={error}
     retry={retry} fields={fields} setFields={setFields} registerBusy={registerBusy}
     registerError={registerError} registerNotice={registerNotice}
     submitRegistration={submitRegistration} resetRegistration={resetRegistration}
-  />;
+  /><FeedbackDialog feedback={feedback} onClose={() => setFeedback(null)} /></>;
 }
 
 export default DeviceListPage;

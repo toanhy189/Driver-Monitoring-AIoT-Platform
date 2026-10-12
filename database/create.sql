@@ -18,6 +18,9 @@ CREATE TABLE devices (
     model VARCHAR(100) NOT NULL,
     name VARCHAR(255),
     status VARCHAR(30) DEFAULT 'OFFLINE',
+    device_type VARCHAR(30),
+    lifecycle_state VARCHAR(30) NOT NULL DEFAULT 'REGISTERED',
+    firmware_version VARCHAR(80),
     ip_address INET,
     mac_address MACADDR,
     last_seen TIMESTAMP,
@@ -45,7 +48,11 @@ CREATE TABLE telemetry(
     angle_y FLOAT,
     angle_z FLOAT,
 
-    confidence FLOAT
+    confidence FLOAT,
+    driver_state VARCHAR(30),
+    face_detected BOOLEAN,
+    head_pose JSONB,
+    model_version VARCHAR(80)
 );
 
 CREATE TABLE event_types (
@@ -78,7 +85,8 @@ CREATE TABLE alerts (
     severity VARCHAR(20),
     status VARCHAR(30) DEFAULT 'NEW',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    resolved_at TIMESTAMP
+    resolved_at TIMESTAMP,
+    source_event_id VARCHAR(80) UNIQUE
 );
 
 CREATE TABLE command_types (
@@ -96,7 +104,13 @@ CREATE TABLE commands (
 
     status VARCHAR(30),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    executed_at TIMESTAMP
+    executed_at TIMESTAMP,
+    request_id VARCHAR(80) UNIQUE,
+    action VARCHAR(40),
+    created_by_user_id INT REFERENCES users(id),
+    ack_status VARCHAR(30),
+    error_message TEXT,
+    dispatches JSONB
 );
 
 CREATE TABLE command_acks (

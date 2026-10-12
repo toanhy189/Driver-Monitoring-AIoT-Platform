@@ -33,7 +33,7 @@ test("Test Alert chỉ POST khi gọi hàm, dùng ID DB, token và body tạm đ
     localStorage: { getItem: () => "token" },
     fetch: async (url, options) => {
       calls.push({ url, options });
-      return response(202, { request_id: "cmd-001", status: "SENT" });
+      return response(202, { request_id: "cmd-001", device_id: 2, action: "TEST_ALERT", status: "SENT" });
     },
   });
   assert.equal(calls.length, 0);
@@ -55,7 +55,7 @@ test("form kiểm tra gửi đúng thông số đã nhập và chặn giá trị
     localStorage: { getItem: () => "token" },
     fetch: async (_url, options) => {
       calls.push(JSON.parse(options.body));
-      return response(202, { request_id: "cmd-002", status: "SENT" });
+      return response(202, { request_id: "cmd-002", device_id: 2, action: "TEST_ALERT", status: "SENT" });
     },
   });
   await service.sendTestAlert(2, { parameters: {
@@ -69,6 +69,9 @@ test("form kiểm tra gửi đúng thông số đã nhập và chặn giá trị
   } }), /Chế độ LED/);
   await assert.rejects(service.sendTestAlert(2, { parameters: {
     buzzer_ms: "10001", vibration_ms: "1000", led_mode: "FLASH",
+  } }), /Thời lượng còi/);
+  await assert.rejects(service.sendTestAlert(2, { parameters: {
+    buzzer_ms: "0", vibration_ms: "1000", led_mode: "FLASH",
   } }), /Thời lượng còi/);
   assert.equal(calls.length, 1);
 });
@@ -107,14 +110,39 @@ test("chỉ ACK COMPLETED mới hiện hoàn tất; ACCEPTED và SENT vẫn đan
   assert.equal(service.commandFinished(completed), true);
   assert.equal(service.keepNewerCommand(completed, sent).ack_status, "COMPLETED");
   assert.equal(service.keepNewerCommand(accepted, sent).ack_status, "ACCEPTED");
+  assert.equal(service.keepNewerCommand(completed, { ...completed, status: "FAILED", ack_status: "FAILED" }).ack_status, "COMPLETED");
+  const timedOut = { request_id: "cmd-001", status: "TIMEOUT" };
+  assert.equal(service.keepNewerCommand(timedOut, completed).ack_status, "COMPLETED");
+  assert.equal(service.keepNewerCommand(completed, timedOut).ack_status, "COMPLETED");
   assert.equal(service.collapseCommands([completed, sent, accepted]).length, 1);
   assert.equal(service.collapseCommands([completed, sent, accepted])[0].ack_status, "COMPLETED");
   assert.equal(commandStatus({ status: "EXECUTED" }).tone, "unknown");
 });
 
+test("HTTP thành công vẫn giữ trạng thái FAILED do BE trả và từ chối response sai thiết bị", async () => {
+  const service = await loadModule("../src/services/commands.js", {
+    localStorage: { getItem: () => "token" },
+    fetch: async () => response(201, {
+      request_id: "cmd-003", device_id: 2, action: "TEST_ALERT", status: "FAILED",
+      error_message: "MQTT publish failed",
+    }),
+  });
+  const command = await service.sendTestAlert(2);
+  assert.equal(command.status, "FAILED");
+  assert.equal(service.commandFinished(command), true);
+
+  const wrongDevice = await loadModule("../src/services/commands.js", {
+    localStorage: { getItem: () => "token" },
+    fetch: async () => response(201, {
+      request_id: "cmd-004", device_id: 3, action: "TEST_ALERT", status: "SENT",
+    }),
+  });
+  await assert.rejects(wrongDevice.sendTestAlert(2), /trạng thái hợp lệ/);
+});
+
 test("FE khóa Test Alert khi không có quyền, sai loại, bảo trì, offline hoặc thiếu trạng thái", async () => {
   const { testAlertBlockReason } = await loadModule("../src/services/commands.js");
-  const device = { type: "ALERT_NODE", lifecycle_state: "ACTIVE", status: "ONLINE", last_seen: "2026-10-07T10:00:00" };
+  const device = { type: "ALERT_NODE", lifecycle_state: "ACTIVE", status: "ONLINE", last_seen: new Date().toISOString() };
   const reason = (role, changes = {}) => testAlertBlockReason({ user: { role }, device: { ...device, ...changes } });
   assert.match(reason("Customer"), /chỉ có quyền xem/);
   assert.match(reason("Admin", { type: "VISION_NODE" }), /thiết bị cảnh báo/);
@@ -122,6 +150,7 @@ test("FE khóa Test Alert khi không có quyền, sai loại, bảo trì, offlin
   assert.match(reason("Admin", { lifecycle_state: "MAINTENANCE" }), /bảo trì/);
   assert.match(reason("Admin", { status: "OFFLINE" }), /offline/);
   assert.match(reason("Admin", { last_seen: null }), /hoạt động gần đây/);
+  assert.match(reason("Admin", { last_seen: "2026-10-07T10:00:00Z" }), /hoạt động gần đây/);
   assert.equal(reason("Admin"), "");
   assert.equal(reason("Employee"), "");
 });

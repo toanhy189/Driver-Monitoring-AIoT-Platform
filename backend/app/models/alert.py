@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from pydantic import NaiveDatetime
 from sqlmodel import Field, SQLModel
 
 class Alert(SQLModel, table=True):
@@ -17,6 +18,8 @@ class Alert(SQLModel, table=True):
     # Status can be NEW, ACKNOWLEDGED, RESOLVED
     status: str = "NEW"
 
-    created_at: datetime | None = Field(
-        default_factory=lambda: datetime.now(timezone.utc)
+    created_at: NaiveDatetime | None = Field(
+        default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
     )
+    severity: str | None = None
+    source_event_id: str | None = None

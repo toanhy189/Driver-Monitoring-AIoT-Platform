@@ -1,12 +1,5 @@
-import { apiRequest } from "./api.js";
-
-function requireToken() {
-  const token = localStorage.getItem("access_token");
-  if (!token) {
-    throw Object.assign(new Error("Bạn cần đăng nhập để xem thiết bị."), { status: 401 });
-  }
-  return token;
-}
+import { authenticatedRequest } from "./api.js";
+export { applyDeviceUpdate, markDevicesStale } from "./deviceModel.js";
 
 function devicePath(id) {
   if (!Number.isSafeInteger(id) || id <= 0) {
@@ -16,7 +9,7 @@ function devicePath(id) {
 }
 
 export async function getDevices({ signal } = {}) {
-  const devices = await apiRequest("/devices", { token: requireToken(), signal });
+  const devices = await authenticatedRequest("/devices", { missingMessage: "Bạn cần đăng nhập để xem thiết bị.", signal });
   if (!Array.isArray(devices) || devices.some(device =>
     !device || !Number.isSafeInteger(device.id) || device.id <= 0 ||
     typeof device.device_code !== "string" || device.device_code.trim() === ""
@@ -27,9 +20,9 @@ export async function getDevices({ signal } = {}) {
   return devices.map(device => ({ ...device, isStale: false }));
 }
 
-// Các URL sau là hợp đồng tạm của FE; TV2 hiện chưa triển khai chúng.
+// API chi tiết thiết bị dùng cùng ID số như danh sách.
 export async function getDeviceDetail(id, { signal } = {}) {
-  const device = await apiRequest(devicePath(id), { token: requireToken(), signal });
+  const device = await authenticatedRequest(devicePath(id), { missingMessage: "Bạn cần đăng nhập để xem thiết bị.", signal });
   if (!device || device.id !== id || typeof device.device_code !== "string" ||
       !device.device_code.trim()) {
     throw new Error("Chi tiết thiết bị từ máy chủ không đúng định dạng.");
@@ -37,55 +30,35 @@ export async function getDeviceDetail(id, { signal } = {}) {
   return device;
 }
 
-export function registerDevice({ device_code, name, model }, { signal } = {}) {
-  return apiRequest("/devices", {
+export async function registerDevice({ device_code, name, model }, { signal } = {}) {
+  const normalizedCode = device_code.trim();
+  const result = await authenticatedRequest("/devices", {
     method: "POST",
-    token: requireToken(),
-    body: { device_code: device_code.trim(), name: name.trim(), model: model.trim() },
+    missingMessage: "Bạn cần đăng nhập để xem thiết bị.",
+    body: { device_code: normalizedCode, name: name.trim(), model: model.trim() },
     signal,
   });
+  if (!result?.device || !Number.isSafeInteger(result.device.id) ||
+      result.device.id <= 0 || result.device.device_code !== normalizedCode) {
+    throw new Error("BE chưa trả đúng thiết bị vừa đăng ký.");
+  }
+  return result;
 }
 
 const LIFECYCLE_ACTIONS = ["provision", "activate", "maintenance", "decommission"];
 
-export function runDeviceAction(id, action, { signal } = {}) {
+export async function runDeviceAction(id, action, { signal } = {}) {
   if (!LIFECYCLE_ACTIONS.includes(action)) {
     throw new Error("Thao tác thiết bị không hợp lệ.");
   }
-  return apiRequest(`${devicePath(id)}/${action}`, {
+  const result = await authenticatedRequest(`${devicePath(id)}/${action}`, {
     method: "POST",
-    token: requireToken(),
+    missingMessage: "Bạn cần đăng nhập để xem thiết bị.",
     signal,
   });
-}
-
-// Chỉ sửa record đã có cùng ID/mã; tin WebSocket không tự thêm thiết bị mới.
-export function applyDeviceUpdate(devices, update) {
-  const fields = ["status", "last_seen", "lifecycle_state", "name", "model", "firmware_version"];
-  if (!update || typeof update !== "object" ||
-      !fields.some(field => Object.hasOwn(update, field))) {
-    return devices;
+  if (!result || result.id !== id || typeof result.device_code !== "string" ||
+      typeof result.lifecycle_state !== "string") {
+    throw new Error("BE chưa trả trạng thái hợp lệ của thiết bị vừa thao tác.");
   }
-  const id = update.id ?? update.device_id;
-  const code = update.device_code;
-  if (id == null && code == null) return devices;
-  if (id != null && (!Number.isSafeInteger(id) || id <= 0)) return devices;
-  if (code != null && (typeof code !== "string" || code.trim() === "")) return devices;
-  if (update.id != null && update.device_id != null && update.id !== update.device_id) {
-    return devices;
-  }
-
-  return devices.map(device => {
-    const matchesId = id == null || device.id === id;
-    const matchesCode = code == null || device.device_code === code;
-    if (!matchesId || !matchesCode) return device;
-
-    const changes = Object.fromEntries(fields.filter(field => Object.hasOwn(update, field))
-      .map(field => [field, update[field]]));
-    return { ...device, ...changes, isStale: false };
-  });
-}
-
-export function markDevicesStale(devices) {
-  return devices.map(device => ({ ...device, isStale: true }));
+  return result;
 }

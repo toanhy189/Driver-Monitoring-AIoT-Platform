@@ -1,15 +1,11 @@
-'''Đây là endpoint không xác thực:
-ws://localhost:8000/ws/telemetry
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
+from sqlmodel import Session
 
-Không có:
-Depends(acs.get_current_user_id)
-
-và cũng không kiểm tra JWT.
-'''
-
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-
+from app.core.config import settings
+from app.core.db import engine
+from app.models.user import User
 from app.services.websocket_manager import manager
+from app.services.ws_tickets import consume_ticket
 
 
 router = APIRouter(tags=["websocket"])
@@ -17,17 +13,22 @@ router = APIRouter(tags=["websocket"])
 
 @router.websocket("/ws/telemetry")
 async def telemetry_websocket(websocket: WebSocket):
-    await manager.connect(websocket)
-
+    ticket = websocket.query_params.get("ticket", "")
+    user_id = consume_ticket(ticket)
+    origin = websocket.headers.get("origin")
+    if user_id is None or (origin and origin != settings.FRONTEND_HOST):
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+    with Session(engine) as session:
+        user = session.get(User, user_id)
+    if user is None:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+    await manager.connect(websocket, user_id)
     try:
         while True:
-            # Giữ connection sống.
-            # Client hiện tại không cần gửi dữ liệu.
             await websocket.receive_text()
-
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
-
-    except Exception as e:
-        print(f"[WebSocket] Error: {e}")
+        pass
+    finally:
         manager.disconnect(websocket)

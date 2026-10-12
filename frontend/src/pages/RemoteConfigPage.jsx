@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import AppShell, { ConnectionBadge, Icon } from "../components/AppShell.jsx";
-import { CONFIG_LEVELS, CONFIG_OUTPUTS, MAX_TIMING_MS, configStatus, draftFromTimings, emptyDraft, getDeviceConfig, timingsFromDraft, updateDeviceConfig } from "../services/config.js";
+import FeedbackDialog from "../components/FeedbackDialog.jsx";
+import { getDeviceConfig, updateDeviceConfig } from "../services/config.js";
+import { CONFIG_LEVELS, CONFIG_OUTPUTS, MAX_TIMING_MS, configStatus, draftFromTimings, emptyDraft, timingsFromDraft } from "../services/configModel.js";
 import { deviceApiError } from "../services/deviceDisplay.js";
 import { hasPermission } from "../services/permissions.js";
 import { matchesDevice } from "../services/realtime.js";
@@ -31,6 +33,7 @@ function RemoteConfigPage({ user, realtime = NO_REALTIME, deviceId, deviceCode, 
   const [saveError, setSaveError] = useState("");
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const dirtyRef = useRef(false);
   const submittedIdRef = useRef(null);
@@ -63,7 +66,7 @@ function RemoteConfigPage({ user, realtime = NO_REALTIME, deviceId, deviceCode, 
         if (!active || error.name === "AbortError") return;
         if (error.status === 401) onUnauthorized();
         else setLoadError(error.status === 404 ?
-          "BE chưa có API cấu hình cho thiết bị này, hoặc thiết bị không tồn tại (HTTP 404)." :
+          "Không tìm thấy thiết bị hoặc bạn chưa được gán thiết bị này (HTTP 404)." :
           deviceApiError(error));
       })
       .finally(() => { if (active) setLoading(false); });
@@ -146,11 +149,16 @@ function RemoteConfigPage({ user, realtime = NO_REALTIME, deviceId, deviceCode, 
       dirtyRef.current = false;
       setDirty(false);
       setNotice("BE đã nhận cấu hình. Đang chờ thiết bị xác nhận áp dụng.");
+      setFeedback({ tone: "success", title: "Đã lưu cấu hình", message: "Cấu hình mong muốn đã được lưu. Hệ thống đang chờ thiết bị xác nhận áp dụng." });
       setReloadKey(value => value + 1);
     } catch (error) {
       if (error.name === "AbortError") return;
       if (error.status === 401) onUnauthorized();
-      else setSaveError(`${deviceApiError(error)} Hãy tải lại cấu hình trước khi thử gửi lần nữa.`);
+      else {
+        const message = `${deviceApiError(error)} Hãy tải lại cấu hình trước khi thử gửi lần nữa.`;
+        setSaveError(message);
+        setFeedback({ tone: "error", title: "Chưa lưu được cấu hình", message });
+      }
     } finally {
       if (saveController.current === controller) saveController.current = null;
       setSaving(false);
@@ -206,6 +214,7 @@ function RemoteConfigPage({ user, realtime = NO_REALTIME, deviceId, deviceCode, 
         <button className="outline-button config-refresh" type="button" onClick={refresh} disabled={loading}><Icon name="refresh" size={17} /> Kiểm tra lại</button>
       </aside>
     </div>
+    <FeedbackDialog feedback={feedback} onClose={() => setFeedback(null)} />
   </AppShell>;
 }
 

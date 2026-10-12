@@ -59,7 +59,8 @@ test("không báo đã áp dụng trước khi config_id khớp; sai schema ho�
   const current = config.normalizeConfig({ config_id: "cfg-002", applied_config_id: "cfg-001",
     desired: { timings: timings() }, applied: null });
   assert.equal(config.configStatus(current).kind, "pending");
-  assert.equal(config.configStatus({ ...current, appliedId: "cfg-002" }).kind, "applied");
+  assert.equal(config.configStatus({ ...current, appliedId: "cfg-002" }).kind, "pending");
+  assert.equal(config.configStatus({ ...current, appliedId: "cfg-002", applied: timings() }).kind, "applied");
   assert.equal(config.configStatus({ ...current, desiredId: null }).kind, "unknown");
   assert.throws(() => config.normalizeConfig({ severity: 2, buzzer_ms: 1000 }), /desired/);
   const draft = config.draftFromTimings(timings());

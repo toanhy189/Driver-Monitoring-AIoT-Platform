@@ -24,3 +24,31 @@ export function commandValue(value) {
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
   return "Chưa cung cấp";
 }
+
+const ACTION_LABELS = {
+  TEST_ALERT: "Kiểm tra cảnh báo",
+  CAMERA_CHECK: "Kiểm tra camera",
+  BUZZER_ON: "Bật còi",
+  BUZZER_OFF: "Tắt còi",
+  VIBRATION_ON: "Bật motor rung",
+  VIBRATION_OFF: "Tắt motor rung",
+  LED_ON: "Bật đèn LED",
+  LED_OFF: "Tắt đèn LED",
+};
+
+export function commandActionLabel(value) {
+  if (typeof value !== "string" || !value.trim()) return "Chưa cung cấp";
+  return ACTION_LABELS[value.trim().toUpperCase()] ?? value;
+}
+
+export function commandAckLabel(value) {
+  if (typeof value !== "string" || !value.trim()) return "Chưa có phản hồi";
+  return {
+    ACCEPTED: "Thiết bị đã nhận",
+    ACKNOWLEDGED: "Thiết bị đã nhận",
+    STARTED: "Đang thực hiện",
+    COMPLETED: "Đã hoàn tất",
+    FAILED: "Thiết bị báo lỗi",
+    INTERRUPTED: "Đã bị gián đoạn",
+  }[value.trim().toUpperCase()] ?? "Chưa xác định";
+}

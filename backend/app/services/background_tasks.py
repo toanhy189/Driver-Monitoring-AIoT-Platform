@@ -1,53 +1,62 @@
+import logging
 import time
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
+
 from sqlmodel import Session, select
 
 from app.core.db import engine
 from app.models.command import Command
 from app.models.device import Device
+from app.services.websocket_manager import manager
 
+
+logger = logging.getLogger(__name__)
 COMMAND_TIMEOUT_SECONDS = 30
 HEARTBEAT_TIMEOUT_SECONDS = 60
+
 
 def run_background_tasks():
     while True:
         try:
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
             with Session(engine) as session:
-                now = datetime.now(timezone.utc)
-                
-                # TV2-13: Handle Command Timeout
-                timeout_threshold = now - timedelta(seconds=COMMAND_TIMEOUT_SECONDS)
-                
-                commands_to_timeout = session.exec(
+                commands = session.exec(
                     select(Command).where(
-                        Command.status.in_(["PENDING", "SENT"]),
-                        Command.created_at <= timeout_threshold
+                        Command.status.in_(["PENDING", "SENT", "ACKNOWLEDGED"]),
+                        Command.created_at <= now - timedelta(seconds=COMMAND_TIMEOUT_SECONDS),
                     )
                 ).all()
-                
-                for command in commands_to_timeout:
+                for command in commands:
+                    if command.ack_status == "COMPLETED":
+                        continue
                     command.status = "TIMEOUT"
+                    command.error_message = "No completed ACK before timeout"
                     session.add(command)
-                    print(f"Command {command.id} marked as TIMEOUT")
-                    
-                # TV2-15: Handle Device Offline Status due to missed heartbeat
-                heartbeat_threshold = now - timedelta(seconds=HEARTBEAT_TIMEOUT_SECONDS)
-                
-                devices_to_offline = session.exec(
+                devices = session.exec(
                     select(Device).where(
                         Device.status == "ONLINE",
-                        Device.last_seen <= heartbeat_threshold
+                        Device.last_seen <= now - timedelta(seconds=HEARTBEAT_TIMEOUT_SECONDS),
                     )
                 ).all()
-                
-                for device in devices_to_offline:
+                for device in devices:
                     device.status = "OFFLINE"
                     session.add(device)
-                    print(f"Device {device.device_code} marked as OFFLINE (missed heartbeat)")
-                    
                 session.commit()
-                
-        except Exception as e:
-            print(f"Background task error: {e}")
-            
+                for command in commands:
+                    if command.status == "TIMEOUT":
+                        manager.send_from_thread({"type": "command.updated", "data": {
+                            "request_id": command.request_id or f"cmd-{command.id}",
+                            "device_id": command.device_id,
+                            "status": "TIMEOUT",
+                            "error_message": command.error_message,
+                        }})
+                for device in devices:
+                    manager.send_from_thread({"type": "device.updated", "data": {
+                        "device_id": device.id,
+                        "device_code": device.device_code,
+                        "status": "OFFLINE",
+                        "last_seen": device.last_seen.isoformat() + "Z" if device.last_seen else None,
+                    }})
+        except Exception:
+            logger.exception("Background task failed")
         time.sleep(10)

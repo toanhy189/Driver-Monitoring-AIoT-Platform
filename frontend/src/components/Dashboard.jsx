@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import DashboardView from "./DashboardView.jsx";
-import { getDevices, applyDeviceUpdate, markDevicesStale } from "../services/devices.js";
+import { getDevices } from "../services/devices.js";
+import { applyDeviceUpdate, markDevicesStale } from "../services/deviceModel.js";
 import { normalizeTelemetry } from "../services/telemetry.js";
 import { getLatestTelemetry } from "../services/telemetryApi.js";
 import { matchesDevice } from "../services/realtime.js";
@@ -17,6 +18,8 @@ function Dashboard({ user, realtime = NO_REALTIME, onLogout, onUnauthorized, onO
   const [telemetrySource, setTelemetrySource] = useState(null);
   const [telemetryError, setTelemetryError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
+  const measurementDevices = devices.filter(device =>
+    (device.type ?? device.device_type) === "VISION_NODE");
   const pendingDeviceUpdates = useRef([]);
   const deviceRequestInFlight = useRef(false);
   const lastEventSequence = useRef(realtime.events.at(-1)?.sequence ?? 0);
@@ -60,8 +63,10 @@ function Dashboard({ user, realtime = NO_REALTIME, onLogout, onUnauthorized, onO
   }, [realtime.connected]);
 
   useEffect(() => {
-    if (devices.length === 1 && selectedDeviceId == null) setSelectedDeviceId(devices[0].id);
-    if (selectedDeviceId != null && !devices.some(device => device.id === selectedDeviceId)) {
+    if (measurementDevices.length === 1 && selectedDeviceId == null) {
+      setSelectedDeviceId(measurementDevices[0].id);
+    }
+    if (selectedDeviceId != null && !measurementDevices.some(device => device.id === selectedDeviceId)) {
       setSelectedDeviceId(null);
     }
   }, [devices, selectedDeviceId]);
@@ -122,7 +127,7 @@ function Dashboard({ user, realtime = NO_REALTIME, onLogout, onUnauthorized, onO
 
   return <DashboardView
     user={user} onLogout={onLogout} onOpenDevices={onOpenDevices} onOpenCommands={onOpenCommands} onOpenAlerts={onOpenAlerts}
-    wsConnected={realtime.connected} devices={devices} devicesLoading={devicesLoading}
+    wsConnected={realtime.connected} devices={devices} measurementDevices={measurementDevices} devicesLoading={devicesLoading}
     devicesError={devicesError} selectedDeviceId={selectedDeviceId} onSelectDevice={setSelectedDeviceId}
     telemetry={telemetry} telemetrySource={telemetrySource} telemetryStale={!realtime.connected}
     telemetryError={telemetryError} earText={earText} perclosText={perclosText}

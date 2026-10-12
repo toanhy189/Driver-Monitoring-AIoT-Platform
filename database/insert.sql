@@ -1,13 +1,15 @@
 INSERT INTO users (fullname, username, hash_password, email, phone)
 VALUES ('Nguyễn Văn An', 'nguyenan', '$argon2id$v=19$m=65536,t=3,p=4$DdvWdfr4/V2LHpZkN9zhGg$fdDtduGG/5ATl28e6nqTXN1RKAhgOrMQVI0TFlweTyk', 'an@example.com', '0901234567');
 
-INSERT INTO devices (device_code, model, name, status, ip_address)
-VALUES ('alert-01', 'Thiết bị cảnh báo V1', 'V1-A01 của An', 'ONLINE', '192.168.1.10'),
-       ('DM-000002', 'External-Cam-V1', 'Camera phụ', 'OFFLINE', '192.168.1.11');
+INSERT INTO devices (device_code, model, name, device_type, status, ip_address)
+VALUES ('alert-01', 'Thiết bị cảnh báo V1', 'V1-A01 của An', 'ALERT_NODE', 'OFFLINE', '192.168.1.10'),
+       ('DM-000002', 'External-Cam-V1', 'Camera phụ', 'VISION_NODE', 'OFFLINE', '192.168.1.11'),
+       ('vision-01', 'AI Vision Node', 'Camera AI', 'VISION_NODE', 'OFFLINE', NULL);
 
 INSERT INTO user_devices (user_id, device_id, assigned_at, unassigned_at)
 VALUES (1, 1, CURRENT_TIMESTAMP, NULL),
-       (1, 2, CURRENT_TIMESTAMP, NULL);
+       (1, 2, CURRENT_TIMESTAMP, NULL),
+       (1, 3, CURRENT_TIMESTAMP, NULL);
 
 INSERT INTO telemetry (device_id, recorded_at, ear, perclos, angle_x, angle_y, angle_z, confidence)
 VALUES
@@ -91,12 +93,12 @@ VALUES
     (1, 8, '2026-09-21 08:45:10', '2026-09-21 08:45:13', 3.0, FALSE, NULL, 0.90),
     (1, 9, '2026-09-21 08:50:22', '2026-09-21 08:50:26', 4.0, TRUE,  '2026-09-21 08:50:25', 0.97);
 	
-INSERT INTO alerts (event_id, type, severity, created_at, resolved_at)
-VALUES (5, 'DROWSINESS', 'WARNING', '2026-09-21 08:30:12', '2026-09-21 08:30:20'),
-       (2, 'HEAD_POSE', 'WARNING', '2026-09-21 08:15:23', NULL),
-       (4, 'HEAD_POSE', 'WARNING', '2026-09-21 08:25:33', NULL),
-       (7, 'FACE_LOST', 'WARNING', '2026-09-21 08:40:05', '2026-09-21 08:40:07'),
-       (9, 'DISTRACTION', 'WARNING', '2026-09-21 08:50:25', NULL);
+INSERT INTO alerts (event_id, device_id, alert_type, severity, created_at, resolved_at)
+VALUES (5, 1, 'DROWSINESS', 'WARNING', '2026-09-21 08:30:12', '2026-09-21 08:30:20'),
+       (2, 1, 'HEAD_POSE', 'WARNING', '2026-09-21 08:15:23', NULL),
+       (4, 1, 'HEAD_POSE', 'WARNING', '2026-09-21 08:25:33', NULL),
+       (7, 1, 'FACE_LOST', 'WARNING', '2026-09-21 08:40:05', '2026-09-21 08:40:07'),
+       (9, 1, 'DISTRACTION', 'WARNING', '2026-09-21 08:50:25', NULL);
 
 INSERT INTO command_types (code, name, description)
 VALUES
@@ -106,7 +108,8 @@ VALUES
     ('CAMERA_CHECK', 'Kiểm tra camera', 'Yêu cầu thiết bị kiểm tra trạng thái camera'),
     ('BUZZER_OFF', 'Tắt còi', 'Tắt còi cảnh báo'),
     ('VIBRATION_OFF', 'Tắt rung', 'Tắt motor rung cảnh báo'),
-    ('LED_OFF', 'Tắt đèn', 'Tắt đèn cảnh báo');
+    ('LED_OFF', 'Tắt đèn', 'Tắt đèn cảnh báo'),
+    ('TEST_ALERT', 'Kiểm tra cảnh báo', 'Kiểm tra LED, còi và motor');
 
 INSERT INTO commands (alert_id, device_id, command_type_id, status, created_at, executed_at)
 VALUES (1, 1, 1, 'EXECUTED', '2026-09-21 08:30:12', '2026-09-21 08:30:12'),

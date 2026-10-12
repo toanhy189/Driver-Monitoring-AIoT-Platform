@@ -3,7 +3,7 @@ import DeviceStatusCard from "./DeviceStatusCard.jsx";
 import DriverStatusCard from "./DriverStatusCard.jsx";
 import MetricCard from "./MetricCard.jsx";
 
-function DashboardView({ user, onLogout, onOpenDevices, onOpenCommands, onOpenAlerts, wsConnected, devices, devicesLoading, devicesError, selectedDeviceId, onSelectDevice, telemetry, telemetrySource, telemetryStale, telemetryError, earText, perclosText, hasEar, hasPerclos }) {
+function DashboardView({ user, onLogout, onOpenDevices, onOpenCommands, onOpenAlerts, wsConnected, devices, measurementDevices, devicesLoading, devicesError, selectedDeviceId, onSelectDevice, telemetry, telemetrySource, telemetryStale, telemetryError, earText, perclosText, hasEar, hasPerclos }) {
   const onlineCount = devices.filter(device => !device.isStale && device.status === "ONLINE").length;
   const offlineCount = devices.filter(device => !device.isStale && device.status === "OFFLINE").length;
   const updatedAt = telemetry?.recorded_at || telemetry?.received_at;
@@ -11,6 +11,11 @@ function DashboardView({ user, onLogout, onOpenDevices, onOpenCommands, onOpenAl
   const confidence = Number.isFinite(telemetry?.confidence) ?
     `${(telemetry.confidence * 100).toFixed(0)}%` : "—";
   const angle = value => Number.isFinite(value) ? `${value.toFixed(1)}°` : "—";
+  const pose = telemetry?.head_pose;
+  const poseTitle = pose ? "Góc đầu yaw / pitch / roll" : "Góc đầu X / Y / Z";
+  const poseValue = pose ?
+    `${angle(pose.yaw)} / ${angle(pose.pitch)} / ${angle(pose.roll)}` :
+    `${angle(telemetry?.angle_x)} / ${angle(telemetry?.angle_y)} / ${angle(telemetry?.angle_z)}`;
 
   return <AppShell user={user} activePage="dashboard" serverConnected={wsConnected} onDashboard={() => {}} onDevices={onOpenDevices} onCommands={onOpenCommands} onAlerts={onOpenAlerts} onLogout={onLogout}>
     <div className="page-title"><h1>Tổng quan</h1><p>Theo dõi kết nối thiết bị và trạng thái tài xế</p></div>
@@ -18,7 +23,7 @@ function DashboardView({ user, onLogout, onOpenDevices, onOpenCommands, onOpenAl
       <label>Thiết bị đo
         <select value={selectedDeviceId ?? ""} onChange={event => onSelectDevice(event.target.value ? Number(event.target.value) : null)}>
           <option value="">Chọn thiết bị</option>
-          {devices.map(device => <option key={device.id} value={device.id}>{device.name || device.device_code} · {device.device_code}</option>)}
+          {measurementDevices.map(device => <option key={device.id} value={device.id}>{device.name || device.device_code} · {device.device_code}</option>)}
         </select>
       </label>
       <span className="telemetry-freshness" role="status">
@@ -47,7 +52,7 @@ function DashboardView({ user, onLogout, onOpenDevices, onOpenCommands, onOpenAl
     </section>
     <section className="ai-detail-grid" aria-label="Dữ liệu AI bổ sung">
       <MetricCard title="Khuôn mặt" value={telemetry?.face_detected === true ? "Có mặt" : telemetry?.face_detected === false ? "Không thấy mặt" : "—"} />
-      <MetricCard title="Góc đầu X / Y / Z" value={`${angle(telemetry?.angle_x)} / ${angle(telemetry?.angle_y)} / ${angle(telemetry?.angle_z)}`} />
+      <MetricCard title={poseTitle} value={poseValue} />
       <MetricCard title="Độ tin cậy" value={confidence} />
     </section>
 

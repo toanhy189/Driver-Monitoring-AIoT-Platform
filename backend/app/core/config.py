@@ -33,5 +33,10 @@ class Settings(BaseSettings):
 
     MQTT_HOST: str = "localhost"
     MQTT_PORT: int = 1883
+    MQTT_USERNAME: str = ""
+    MQTT_PASSWORD: str = ""
+    MOSQUITTO_PASSWD_BIN: str = ""
+    MOSQUITTO_PASSWD_FILE: str = ""
+    MOSQUITTO_ACL_FILE: str = ""
 
 settings = Settings()
