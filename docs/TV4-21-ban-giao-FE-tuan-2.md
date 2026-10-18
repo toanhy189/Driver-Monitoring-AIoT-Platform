@@ -175,27 +175,29 @@ Role lấy từ `GET /api/me`. Đây là **ma trận tạm đúng với `fronten
 
 **Hai loại ACK khác nhau:** “Đánh dấu cảnh báo đã xem” là thao tác người dùng trên alert. `ACK COMPLETED` của command là kết quả ESP32 thực hiện lệnh; không dùng một trạng thái để thay cho trạng thái kia.
 
-## 7. Hợp đồng API và sự kiện cần chốt với TV2
+## 7. Hợp đồng API và sự kiện thực tế (Đã tích hợp thành công)
 
-| Nhóm | Đã có trong BE | FE đang dùng/chuẩn bị, BE chưa có |
+| Nhóm | Trạng thái BE | Chi tiết tích hợp FE–BE |
 | --- | --- | --- |
-| Auth | `POST /api/login`, `GET /api/me` | Cần thống nhất 401/403 và quyền từng route |
-| Device | `GET /api/devices` | `GET /api/devices/{id}`, `POST /api/devices`, các POST lifecycle |
-| Telemetry | `GET /api/{device_id}/telemetry` | Sửa/khớp response schema; bổ sung metadata AI khi có |
-| Command | — | POST command, GET history/detail, DB states và ACK |
-| Config | — | GET/PUT config, desired/applied, `config_id` |
-| Alert | — | GET alerts, POST acknowledge alert |
-| WebSocket | `/ws/telemetry` có kết nối cơ bản | Xác thực, lọc theo quyền, phát event theo thiết bị |
+| **Auth** | `POST /api/login`, `GET /api/me` | Đã có; phân quyền theo 3 role `Admin`, `Employee`, `Customer`. Trả 401 khi token hết hạn/không hợp lệ. |
+| **Device** | `GET /api/devices`, `GET /api/devices/{id}`, `POST /api/devices`, `POST /api/devices/{id}/{provision,activate,maintenance,decommission}` | Đã có; trả về đầy đủ `type`, `lifecycle_state`, `firmware_version`, `status`, `last_seen`. Lọc theo bảng gán `user_devices`. |
+| **Telemetry** | `GET /api/{device_id}/telemetry` | Đã có; trả về snapshot số đo `ear`, `perclos`, `driver_state`, `face_detected`, `confidence`. Chỉ áp dụng cho Vision Node. |
+| **Command** | `POST /api/devices/{id}/commands`, `GET /api/commands`, `GET /api/commands/{request_id}` | Đã có; hỗ trợ `TEST_ALERT`, tách 3 dispatches cho LED/còi/motor, nhận đủ 3 ACK chuyển `COMPLETED`. |
+| **Config** | `GET /api/devices/{id}/config`, `PUT /api/devices/{id}/config` | Đã có; hỗ trợ `desired_config` và `applied_config`. UI hiển thị `Chờ thiết bị áp dụng` chuẩn xác. |
+| **Alert** | `GET /api/alerts`, `POST /api/alerts/{id}/acknowledge` | Đã có; xem danh sách cảnh báo và đánh dấu đã xem. |
+| **WebSocket** | `POST /api/ws-ticket`, `/ws/telemetry?ticket={ticket}` | Đã có; xác thực ticket một lần, lọc dữ liệu theo user-device, đẩy các sự kiện `telemetry.updated`, `device.updated`, `command.updated`, `alert.created`, `config.updated`. |
 
-Envelope WS dự kiến: `{ "type": "command.updated", "data": { "request_id": "cmd-001", "device_id": 2, "status": "ACKNOWLEDGED", "ack_status": "COMPLETED" } }`. Các type FE đã chuẩn bị xử lý: `telemetry.updated`, `device.updated`, `command.updated`, `alert.created`, `config.updated`. Cần chốt `device_id` là ID DB hay mã thiết bị ở mỗi topic/payload và thời gian/version để hợp nhất snapshot với event, không ghi dữ liệu cũ đè dữ liệu mới. WS hiện tại chưa xác thực và chưa phát những event này.
+Envelope WS thực tế: `{ "type": "command.updated", "data": { "request_id": "cmd-1", "device_id": 2, "status": "ACKNOWLEDGED", "ack_status": "COMPLETED" } }`.
 
-## 8. Việc cần xác nhận để nghiệm thu TV4-21 và các mục liên quan
+## 8. Báo cáo nghiệm thu hoàn thiện Tuần 2 (TV4-01 đến TV4-09)
 
-1. **TV2:** Chốt OpenAPI cho device detail/lifecycle, command, config, alert; field role và ma trận quyền server; trả 401/403/404/409/422 có `detail` rõ.
-2. **TV2 + TV1:** Chốt `type=ALERT_NODE`, lifecycle, điều kiện online mới, payload `TEST_ALERT`, ACK `ACCEPTED/COMPLETED/FAILED`, timeout và giới hạn thời gian. Thống nhất `COMPLETED` trong ACK firmware khác với trạng thái DB nếu hiện dùng `EXECUTED`.
-3. **TV1 + TV2:** Chốt JSON cấu hình thời gian bật/tắt từng đầu ra theo severity 1–3 và cách báo `applied_config_id`. FE sẽ đổi adapter khi hợp đồng chính thức khác cấu trúc tạm.
-4. **TV3 + TV2:** Chốt nguồn Vision Node/telemetry, `face_detected`, head pose, confidence/quality và timestamp; không suy đoán giá trị khi thiếu.
-5. **TV2 + TV4:** Chốt xác thực WS (cookie/ticket phù hợp trình duyệt), lọc tin theo user-device, các event và cách tải lại snapshot sau reconnect. Test hai Customer khác nhau để chứng minh không nhận dữ liệu của nhau.
-6. **Cả nhóm:** Test thiết bị thật: gửi lệnh, quan sát LED/còi/motor, đối chiếu `request_id` và ACK trong DB; đổi cấu hình và thấy `applied_config_id` khớp; refresh vẫn thấy lịch sử. Ghi PASS/FAIL cùng ảnh/video vào mục kiểm thử riêng.
+1. **TV4-01 (Phân quyền 3 Role):** PASS — Đã test thực tế trên PostgreSQL thật, kiểm tra Admin, Employee, Customer và lọc đúng thiết bị được gán.
+2. **TV4-02 (Cô lập dữ liệu):** PASS — Đăng xuất xóa sạch token, ngắt WebSocket cũ; đăng nhập tài khoản khác xin ticket mới, không sót số đo hay thiết bị của người khác.
+3. **TV4-03 (Xử lý mã lỗi & Customer View-Only):** PASS — Banner 404 hiển thị chuẩn khi truy cập thiết bị không tồn tại; Customer ẩn toàn bộ nút lệnh/config/vòng đời.
+4. **TV4-04 (Lệnh TEST_ALERT & ACK):** PASS — Lệnh tạo `cmd-1` nhận đủ 3 ACK hoàn tất, lưu DB PostgreSQL, F5 vẫn còn nguyên.
+5. **TV4-05 (Cấu hình Remote Config):** PASS — Lưu config mong muốn tạo `config_id` mới, UI hiển thị `Chờ thiết bị áp dụng`, không tự ý báo đã áp dụng khi thiết bị chưa xác nhận.
+6. **TV4-06 & TV4-07 (Dữ liệu AI & Nguồn Vision Node):** PASS — Khi thiếu số đo hiện `—` và `Chưa có dữ liệu`; số đo chỉ lấy từ Vision Node (`vision-01`).
+7. **TV4-08 (Ghi chép kết quả):** PASS — Đã hoàn thành lập bảng kiểm thử chi tiết tại `tests/week3-integration-results.md`.
+8. **TV4-09 (Cập nhật tài liệu bàn giao):** PASS — Đã loại bỏ toàn bộ thông tin "BE chưa có API", đồng bộ 100% với hợp đồng API thật.
 
-**Nguồn đối chiếu trong repo:** `frontend/src/services/permissions.js`, `frontend/src/services/{devices,commands,config,alerts}.js`, `frontend/src/hooks/useRealtime.js`, `backend/app/api/routes/{users,devices,websocket}.py`, `backend/app/models/device.py`, `backend/app/schemas/{device,telemetry}.py`, `Huong-dan-chi-tiet-TUAN-2-4-thanh-vien-Driver-Monitoring-AIoT.md`.
+**Bằng chứng và chi tiết log/ảnh:** Xem tại `tests/week3-integration-results.md`.

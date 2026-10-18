@@ -27,3 +27,28 @@ class TelemetryResponse(BaseModel):
     @classmethod
     def mark_utc(cls, value):
         return as_utc(value) if isinstance(value, datetime) else value
+
+
+class TelemetryHistoryItem(BaseModel):
+    id: int
+    recorded_at: datetime
+    ear: float | None = None
+    perclos: float | None = None
+    driver_state: str | None = None
+    confidence: float | None = None
+    face_detected: bool | None = None
+    model_version: str | None = None
+
+    @field_validator("recorded_at", mode="before")
+    @classmethod
+    def mark_utc(cls, value):
+        return as_utc(value) if isinstance(value, datetime) else value
+
+
+class TelemetryHistoryResponse(BaseModel):
+    device_id: int
+    device_code: str
+    total_samples: int
+    model_version: str | None = None
+    last_updated: datetime | None = None
+    items: list[TelemetryHistoryItem]

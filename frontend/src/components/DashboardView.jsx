@@ -2,8 +2,9 @@ import AppShell, { Icon } from "./AppShell.jsx";
 import DeviceStatusCard from "./DeviceStatusCard.jsx";
 import DriverStatusCard from "./DriverStatusCard.jsx";
 import MetricCard from "./MetricCard.jsx";
+import AiMetricsSection from "./AiMetricsSection.jsx";
 
-function DashboardView({ user, onLogout, onOpenDevices, onOpenCommands, onOpenAlerts, wsConnected, devices, measurementDevices, devicesLoading, devicesError, selectedDeviceId, onSelectDevice, telemetry, telemetrySource, telemetryStale, telemetryError, earText, perclosText, hasEar, hasPerclos }) {
+function DashboardView({ user, onLogout, onOpenDevices, onOpenCommands, onOpenAlerts, onUnauthorized, realtime, selectedDevice, wsConnected, devices, measurementDevices, devicesLoading, devicesError, selectedDeviceId, onSelectDevice, telemetry, telemetrySource, telemetryStale, telemetryError, earText, perclosText, hasEar, hasPerclos }) {
   const onlineCount = devices.filter(device => !device.isStale && device.status === "ONLINE").length;
   const offlineCount = devices.filter(device => !device.isStale && device.status === "OFFLINE").length;
   const updatedAt = telemetry?.recorded_at || telemetry?.received_at;
@@ -55,6 +56,15 @@ function DashboardView({ user, onLogout, onOpenDevices, onOpenCommands, onOpenAl
       <MetricCard title={poseTitle} value={poseValue} />
       <MetricCard title="Độ tin cậy" value={confidence} />
     </section>
+
+    {selectedDeviceId && (
+      <AiMetricsSection
+        deviceId={selectedDeviceId}
+        deviceCode={selectedDevice?.device_code}
+        realtime={realtime}
+        onUnauthorized={onUnauthorized}
+      />
+    )}
 
     <section className="surface-card device-preview" aria-labelledby="devices-heading">
       <div className="section-heading"><h2 id="devices-heading">Thiết bị trong hệ thống</h2><button className="text-link" onClick={onOpenDevices}>Xem tất cả <Icon name="arrow" size={17} /></button></div>
