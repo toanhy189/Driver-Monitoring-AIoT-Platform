@@ -11,7 +11,7 @@ enum class TestMode
   Mqtt    // Mục 8: nhận/in lệnh, gửi ONLINE.
 };
 
-constexpr TestMode TEST_MODE = TestMode::Button;
+constexpr TestMode TEST_MODE = TestMode::Mqtt;
 
 constexpr int LED_PIN = 26;
 constexpr int BUTTON_PIN = 27;
@@ -24,5 +24,8 @@ constexpr unsigned long RETRY_INTERVAL_MS = 5000;
 constexpr char DEVICE_CODE[] = "alert-01";
 constexpr char FIRMWARE_VERSION[] = "0.2.10";
 constexpr char COMMAND_TOPIC[] = "driver/alert-01/command";
+// [CONFIG - thêm] Topic nhận cấu hình và topic báo APPLIED/REJECTED.
+constexpr char CONFIG_TOPIC[] = "driver/alert-01/config/update";
+constexpr char CONFIG_APPLIED_TOPIC[] = "driver/alert-01/config/applied";
 constexpr char ACK_TOPIC[] = "driver/alert-01/ack";
 constexpr char STATUS_TOPIC[] = "driver/alert-01/status";
