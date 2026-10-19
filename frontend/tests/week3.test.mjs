@@ -16,6 +16,13 @@ async function moduleFor(entry, globals = {}) {
 }
 const response = body => ({ status: 200, ok: true, text: async () => JSON.stringify(body) });
 
+test("số đo giữ phiên bản AI do BE trả và không tự đặt phiên bản khi thiếu", async () => {
+  const { normalizeTelemetry } = await moduleFor("../src/services/telemetry.js");
+  const sample = { device_id: 1, driver_state: "DROWSY", face_detected: true, model_version: "drowsiness-v3.0" };
+  assert.equal(normalizeTelemetry(sample).model_version, "drowsiness-v3.0");
+  assert.equal(normalizeTelemetry({ ...sample, model_version: null }).model_version, null);
+});
+
 test("tuần 3: gửi cùng khóa idempotency và không tự retry POST khi mất kết nối", async () => {
   const calls = [];
   const commands = await moduleFor("../src/services/commands.js", { fetch: async (url, options) => {

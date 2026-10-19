@@ -1,13 +1,13 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, StrictInt, field_validator, model_validator
+from pydantic import AliasChoices, BaseModel, Field, StrictInt, field_validator, model_validator
 
 
 class AiEventRequest(BaseModel):
-    event_id: str = Field(min_length=1, max_length=80)
-    device_id: str = Field(min_length=1, max_length=100)
-    event_type: Literal["DROWSY_THRESHOLD_REACHED", "STATE_CHANGED"]
+    event_id: str = Field(min_length=1, max_length=80, validation_alias=AliasChoices("event_id", "message_id"))
+    device_id: str = Field(min_length=1, max_length=100, validation_alias=AliasChoices("device_id", "device_code"))
+    event_type: Literal["DROWSY_THRESHOLD_REACHED", "DISTRACTED_THRESHOLD_REACHED", "STATE_CHANGED"]
     timestamp: datetime
     model_version: str | None = Field(default=None, max_length=80)
     state: str | None = Field(default=None, max_length=30)
@@ -22,10 +22,10 @@ class AiEventRequest(BaseModel):
 
     @model_validator(mode="after")
     def threshold_duration_required(self):
-        if self.event_type == "DROWSY_THRESHOLD_REACHED" and self.state_duration_ms is None:
+        if self.event_type.endswith("_THRESHOLD_REACHED") and self.state_duration_ms is None:
             raise ValueError("state_duration_ms is required")
-        if self.event_type == "DROWSY_THRESHOLD_REACHED" and self.state != "DROWSY":
-            raise ValueError("DROWSY threshold event must have state DROWSY")
+        if self.event_type.endswith("_THRESHOLD_REACHED") and self.state != self.event_type.removesuffix("_THRESHOLD_REACHED"):
+            raise ValueError("threshold event must match its state")
         return self
 
 

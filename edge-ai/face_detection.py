@@ -1,11 +1,12 @@
 import cv2
 import mediapipe as mp
+from config import TASK_PATH
 
 
 class FaceLandmarkDetector:
-    def __init__(self, model_path="face_landmarker.task"):
+    def __init__(self, model_path=TASK_PATH):
         base_options = mp.tasks.BaseOptions(
-            model_asset_path=model_path
+            model_asset_path=str(model_path)
         )
 
         options = mp.tasks.vision.FaceLandmarkerOptions(

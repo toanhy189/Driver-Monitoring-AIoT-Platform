@@ -35,6 +35,17 @@ CREATE TABLE IF NOT EXISTS ai_events (
 CREATE INDEX IF NOT EXISTS ai_events_device_time_idx ON ai_events(device_id, occurred_at DESC);
 CREATE INDEX IF NOT EXISTS telemetry_model_time_idx ON telemetry(device_id, model_version, recorded_at DESC);
 
+-- Storage acknowledgements share the transaction of the telemetry/event they confirm.
+CREATE TABLE IF NOT EXISTS ai_message_receipts (
+    id SERIAL PRIMARY KEY,
+    device_id INT NOT NULL REFERENCES devices(id),
+    message_id VARCHAR(80) NOT NULL,
+    topic VARCHAR(200) NOT NULL,
+    payload_hash VARCHAR(64) NOT NULL,
+    saved_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (device_id, message_id)
+);
+
 CREATE TABLE IF NOT EXISTS rule_bindings (
     source_device_id INT PRIMARY KEY REFERENCES devices(id),
     target_device_id INT NOT NULL REFERENCES devices(id),

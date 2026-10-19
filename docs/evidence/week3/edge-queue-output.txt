@@ -1,0 +1,8 @@
+MQTT client started
+MQTT client ID: vision-w3-e6c980c391-edaf7820
+MQTT client started
+MQTT client ID: vision-w3-e6c980c391-0fadd2f9
+[MQTT DEBUG] on_connect called, rc=Success
+[MQTT] Connected successfully
+MQTT disconnected
+{"probe": "PASS", "queued_before": 2, "pending_after_storage_ack": 0, "builder_source": "edge-ai/main2.py", "camera_opened": false}

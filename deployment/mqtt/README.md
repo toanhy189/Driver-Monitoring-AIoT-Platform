@@ -12,7 +12,7 @@ docker compose --env-file .env -f deployment/docker-compose.yml up -d mqtt-setup
 python backend/tests/test_mqtt_security_integration.py -v
 ```
 
-Lệnh đầu tạo mật khẩu ngẫu nhiên trong `.env` riêng của máy. Lệnh thứ hai tạo dữ liệu tài khoản trong Docker volume `mqtt_data`, bật broker và tạo hai tài khoản `backend`, `vision-01`. Chạy lại các lệnh này không đổi mật khẩu đã có. Bài test cuối kiểm tra đăng nhập ẩn danh bị từ chối, quyền đọc/ghi đúng topic, và thu hồi thiết bị ngắt kết nối ngay.
+Lệnh đầu tạo mật khẩu ngẫu nhiên trong `.env` riêng của máy. Lệnh thứ hai tạo dữ liệu tài khoản trong Docker volume `mqtt_data`, bật broker và tạo hai tài khoản `backend`, `vision-01`. Chạy lại setup cập nhật ACL của hai role này, không đổi mật khẩu hoặc bật lại tài khoản bị thu hồi. Bài test cuối kiểm tra đăng nhập ẩn danh bị từ chối, quyền đọc/ghi đúng topic và thu hồi thiết bị ngắt kết nối ngay. Chỉ chạy trên broker đã được duyệt áp dụng bộ quyền mới.
 
 Nếu chạy BE bằng Docker Compose, `mqtt-setup` tự chạy trước BE. Nếu chạy BE bằng Uvicorn trên Windows, giữ `MQTT_HOST=localhost` và `MQTT_PORT=1884` trong `.env`. Khi đổi `.env`, khởi động lại BE để nạp cấu hình mới.
 
@@ -20,11 +20,20 @@ Nếu chạy BE bằng Docker Compose, `mqtt-setup` tự chạy trước BE. N�
 
 | Tài khoản | Được gửi | Được đọc |
 | --- | --- | --- |
-| `backend` | `driver/+/command`, `driver/+/config/update` | `driver/#` |
-| `vision-01` (Edge AI) | `driver/telemetry`, `driver/events`, `driver/status` | Không có |
+| `backend` | `driver/+/command`, `driver/+/config/update`, `driver/+/storage_ack` | `driver/#` |
+| `vision-01` (Edge AI mặc định) | `driver/vision-01/telemetry`, `/events`, `/status`; thêm ba topic chung cũ để tương thích | Chỉ `driver/vision-01/storage_ack` |
+| Vision Node khác do API provision | Chỉ telemetry/events/status theo mã của chính nó | Chỉ storage_ack theo mã của chính nó |
 | Mỗi thiết bị `alert-...` | Chỉ `status`, `ack`, `telemetry`, `heartbeat`, `config/applied` của chính nó | Chỉ `command`, `config/update` của chính nó |
 
-Các topic của TV1 và TV3 giữ nguyên. `drowsiness-detection/config.py` lấy tài khoản AI và cổng từ `.env`. Sau khi cài lại `drowsiness-detection/requirements.txt`, chương trình AI có thể dùng broker Docker. Nếu Admin đăng ký thiết bị `vision-01`, nút cấp thông tin kết nối trả đúng tài khoản AI này. MQTT trên cổng 1884 vẫn là kết nối không mã hóa; chỉ sử dụng trong mạng nội bộ tin cậy.
+Topic TV1 giữ nguyên. TV3 đã chuyển thư mục sang `edge-ai` và dùng topic theo mã thiết bị. `edge-ai/config.py` lấy tài khoản, host/cổng và `AI_DEVICE_CODE` từ `.env`; cài thư viện bằng `edge-ai/requirements.txt`. Nếu Admin đăng ký thiết bị mặc định `vision-01`, nút cấp thông tin kết nối trả tài khoản AI đã tạo. MQTT trên cổng 1884 vẫn là kết nối không mã hóa; chỉ sử dụng trong mạng nội bộ tin cậy.
+
+## Nâng từ ACL cũ
+
+Sau khi duyệt thay đổi quyền, build image `mqtt-setup` mới và chạy `docker compose --env-file .env -f deployment/docker-compose.yml run --rm mqtt-setup`. Chỉ pull code chưa cập nhật được ACL đang lưu tại broker. Setup mới dùng `modifyRole` để cập nhật role đã có; không cần xóa Docker volume hay cấp lại mật khẩu.
+
+Luồng SQLite cần migration bổ sung `ai_message_receipts` trước khi mở BE mới. AI chỉ xóa bản lưu tạm sau khi nhận `SAVED` từ BE; đây là xác nhận lưu dữ liệu, khác ACK thực hiện lệnh từ ESP32.
+
+Kiểm tra toàn bộ trên môi trường riêng, không sửa broker đang dùng: `python backend/tests/run_week3_isolated.py`. Script tạo broker, tài khoản, network và DB thử, chạy các ca rồi dọn tài nguyên thử.
 
 ## Cấp tài khoản cho ESP32
 

@@ -21,7 +21,17 @@ from app.services.time_utils import as_utc
 logger = logging.getLogger(__name__)
 
 
-def process_event(session: Session, payload: dict) -> list[dict]:
+def event_payload_hash(payload: dict, data: AiEventRequest) -> str:
+    canonical = {**payload, "event_id": data.event_id, "device_id": data.device_id}
+    canonical.pop("message_id", None)
+    canonical.pop("device_code", None)
+    return hashlib.sha256(json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def process_event(session: Session, payload: dict, *, commit: bool = True) -> list[dict]:
+    def finish():
+        session.commit() if commit else session.flush()
+
     try:
         data = AiEventRequest.model_validate(payload)
     except ValidationError:
@@ -31,7 +41,7 @@ def process_event(session: Session, payload: dict) -> list[dict]:
                           .with_for_update()).first()
     if source is None or source.device_type != "VISION_NODE" or source.lifecycle_state == "DECOMMISSIONED":
         return []
-    digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    digest = event_payload_hash(payload, data)
     existing = session.exec(select(AiEvent).where(AiEvent.event_id == data.event_id)).first()
     if existing:
         if existing.payload_hash != digest or existing.device_id != source.id:
@@ -46,12 +56,18 @@ def process_event(session: Session, payload: dict) -> list[dict]:
     try:
         session.flush()
         if data.event_type == "STATE_CHANGED":
-            session.commit()
+            finish()
+            return []
+        if data.event_type == "DISTRACTED_THRESHOLD_REACHED":
+            # Preserve the AI observation; actuation policy is still awaiting group agreement.
+            event.outcome = "POLICY_PENDING"
+            session.add(event)
+            finish()
             return []
         if session.exec(select(Alert).where(Alert.source_event_id == data.event_id)).first():
             event.outcome = "LEGACY_DUPLICATE"
             session.add(event)
-            session.commit()
+            finish()
             return []
         binding = session.exec(select(RuleBinding).where(RuleBinding.source_device_id == source.id)
                                .with_for_update()).first()
@@ -62,13 +78,13 @@ def process_event(session: Session, payload: dict) -> list[dict]:
         if severity == 0:
             event.outcome = "BELOW_THRESHOLD"
             session.add(event)
-            session.commit()
+            finish()
             return []
         if enabled and binding.last_triggered_at and \
                 (now - binding.last_triggered_at).total_seconds() < policy.cooldown_seconds:
             event.outcome = "COOLDOWN_SUPPRESSED"
             session.add(event)
-            session.commit()
+            finish()
             return []
         alert = Alert(device_id=source.id, alert_type=data.event_type, status="NEW",
                       source_event_id=data.event_id, severity=str(severity), created_at=event.occurred_at)
@@ -96,7 +112,7 @@ def process_event(session: Session, payload: dict) -> list[dict]:
             binding.last_triggered_at = now
             session.add(binding)
         session.add(event)
-        session.commit()
+        finish()
         result = [{"type": "alert.created", "data": {
             "alert_id": alert.id, "device_id": source.id, "device_code": source.device_code,
             "event_id": event.event_id,
@@ -111,6 +127,8 @@ def process_event(session: Session, payload: dict) -> list[dict]:
             }})
         return result
     except IntegrityError:
+        if not commit:
+            raise
         session.rollback()
         logger.info("Concurrent AI event delivery ignored: %s", data.event_id)
         return []

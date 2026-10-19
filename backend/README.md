@@ -23,7 +23,29 @@ Chạy tại thư mục gốc dự án theo [hướng dẫn nhanh](../README.md#
 | Biểu đồ AI của TV4 | `GET /api/{id}/telemetry/history` | Thiết bị đang gán; giữ response biểu đồ và thứ tự tăng dần |
 | Chính sách cảnh báo | `GET/PUT /api/devices/{id}/rule` | Admin được gán cả nguồn Vision Node và đích Alert Node |
 
-BE vẫn nhận topic AI `driver/telemetry`, `driver/events`, `driver/status` và topic ESP32 `driver/{device_code}/status`, `driver/{device_code}/ack`. Một yêu cầu `TEST_ALERT` phát ba lệnh firmware hiện có và chỉ báo hoàn tất khi cả ba ACK `COMPLETED` đúng mã. FE/BE không cần sửa payload của TV1/TV3.
+AI mới dùng `driver/{device_code}/telemetry`, `/events`, `/status`. BE nhận `message_id` và `device_code`, lưu dữ liệu cùng biên nhận trong một giao dịch, rồi gửi `{message_id, status: "SAVED"}` tới `driver/{device_code}/storage_ack`. Gửi lại cùng tin không lưu trùng. Các topic AI chung và cặp `event_id/device_id` cũ vẫn được nhận để giữ tương thích.
+
+Topic ESP32 giữ nguyên. Một yêu cầu `TEST_ALERT` phát ba lệnh firmware hiện có và chỉ báo hoàn tất khi cả ba ACK `COMPLETED` đúng mã. `DISTRACTED_THRESHOLD_REACHED` được lưu với kết quả `POLICY_PENDING`, chưa tự điều khiển tải khi nhóm chưa chốt chính sách.
+
+## Áp dụng bản đồng bộ AI tuần 3
+
+Code đã được kiểm tra trên broker và DB thử riêng. Trạng thái môi trường đang dùng được ghi ở [runtime-readiness.json](../docs/evidence/week3/runtime-readiness.json); kiểm tra đó chỉ đọc, chưa áp dụng migration/ACL mới.
+
+Sau khi nhóm duyệt áp dụng, chạy từ thư mục gốc:
+
+```powershell
+python backend/scripts/migrate_week3.py
+docker compose --env-file .env -f deployment/docker-compose.yml build mqtt-setup
+docker compose --env-file .env -f deployment/docker-compose.yml run --rm mqtt-setup
+```
+
+Migration bổ sung bảng `ai_message_receipts`; setup cập nhật ACL của hai role BE/AI đã có, giữ mật khẩu và không bật lại tài khoản bị thu hồi. Khởi động lại BE sau khi áp dụng. Luồng AI có SQLite nằm ở `edge-ai/main2.py`; cấu hình lấy từ `.env`, file hàng đợi được giữ riêng trên máy.
+
+Để chạy lại kiểm thử mà không sửa broker đang dùng:
+
+```powershell
+python backend/tests/run_week3_isolated.py
+```
 
 ## Giới hạn tích hợp thiết bị
 

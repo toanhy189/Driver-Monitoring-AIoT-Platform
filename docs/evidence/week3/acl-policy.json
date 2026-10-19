@@ -56,21 +56,118 @@
       "priority": 1
     }
   ],
-  "backend": {
-    "read": [
-      "driver/#"
-    ],
-    "write": [
-      "driver/+/command",
-      "driver/+/config/update"
-    ]
-  },
-  "edge-ai": {
-    "read": [],
-    "write": [
-      "driver/telemetry",
-      "driver/events",
-      "driver/status"
-    ]
-  }
+  "backend": [
+    {
+      "acltype": "subscribeLiteral",
+      "topic": "driver/#",
+      "allow": true,
+      "priority": 1
+    },
+    {
+      "acltype": "publishClientReceive",
+      "topic": "driver/#",
+      "allow": true,
+      "priority": 1
+    },
+    {
+      "acltype": "publishClientSend",
+      "topic": "driver/+/command",
+      "allow": true,
+      "priority": 1
+    },
+    {
+      "acltype": "publishClientSend",
+      "topic": "driver/+/config/update",
+      "allow": true,
+      "priority": 1
+    },
+    {
+      "acltype": "publishClientSend",
+      "topic": "driver/+/storage_ack",
+      "allow": true,
+      "priority": 1
+    }
+  ],
+  "vision-EXAMPLE": [
+    {
+      "acltype": "publishClientSend",
+      "topic": "driver/vision-EXAMPLE/telemetry",
+      "allow": true,
+      "priority": 1
+    },
+    {
+      "acltype": "publishClientSend",
+      "topic": "driver/vision-EXAMPLE/events",
+      "allow": true,
+      "priority": 1
+    },
+    {
+      "acltype": "publishClientSend",
+      "topic": "driver/vision-EXAMPLE/status",
+      "allow": true,
+      "priority": 1
+    },
+    {
+      "acltype": "subscribeLiteral",
+      "topic": "driver/vision-EXAMPLE/storage_ack",
+      "allow": true,
+      "priority": 1
+    },
+    {
+      "acltype": "publishClientReceive",
+      "topic": "driver/vision-EXAMPLE/storage_ack",
+      "allow": true,
+      "priority": 1
+    }
+  ],
+  "edge-ai": [
+    {
+      "acltype": "publishClientSend",
+      "topic": "driver/vision-01/telemetry",
+      "allow": true,
+      "priority": 1
+    },
+    {
+      "acltype": "publishClientSend",
+      "topic": "driver/vision-01/events",
+      "allow": true,
+      "priority": 1
+    },
+    {
+      "acltype": "publishClientSend",
+      "topic": "driver/vision-01/status",
+      "allow": true,
+      "priority": 1
+    },
+    {
+      "acltype": "subscribeLiteral",
+      "topic": "driver/vision-01/storage_ack",
+      "allow": true,
+      "priority": 1
+    },
+    {
+      "acltype": "publishClientReceive",
+      "topic": "driver/vision-01/storage_ack",
+      "allow": true,
+      "priority": 1
+    },
+    {
+      "acltype": "publishClientSend",
+      "topic": "driver/telemetry",
+      "allow": true,
+      "priority": 1
+    },
+    {
+      "acltype": "publishClientSend",
+      "topic": "driver/events",
+      "allow": true,
+      "priority": 1
+    },
+    {
+      "acltype": "publishClientSend",
+      "topic": "driver/status",
+      "allow": true,
+      "priority": 1
+    }
+  ]
 }

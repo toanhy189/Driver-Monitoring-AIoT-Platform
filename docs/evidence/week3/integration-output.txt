@@ -15,8 +15,15 @@ test_13_ai_mqtt_to_rule_to_command_to_three_ack (__main__.Week3Integration.test_
 test_14_interrupted_publish_is_not_retried_blindly (__main__.Week3Integration.test_14_interrupted_publish_is_not_retried_blindly) ... ok
 test_15_concurrent_first_config_put_preserves_latest_revision (__main__.Week3Integration.test_15_concurrent_first_config_put_preserves_latest_revision) ... ok
 test_16_firmware_reboot_ack_reports_failure (__main__.Week3Integration.test_16_firmware_reboot_ack_reports_failure) ... ok
+test_17_scoped_ai_storage_ack_dedup_and_new_events (__main__.Week3Integration.test_17_scoped_ai_storage_ack_dedup_and_new_events) ... Ignoring reused AI message ID with different content
+ok
+test_18_storage_ack_requires_successful_db_commit (__main__.Week3Integration.test_18_storage_ack_requires_successful_db_commit) ... Ignoring invalid queued AI message
+ok
+test_19_ai_redelivery_restart_and_historical_snapshot (__main__.Week3Integration.test_19_ai_redelivery_restart_and_historical_snapshot) ... ok
+test_20_actual_edge_queue_and_mqtt_client_without_camera (__main__.Week3Integration.test_20_actual_edge_queue_and_mqtt_client_without_camera) ... ok
+test_21_new_ai_topic_rule_command_ack_and_fe_contract (__main__.Week3Integration.test_21_new_ai_topic_rule_command_ack_and_fe_contract) ... ok
 
 ----------------------------------------------------------------------
-Ran 16 tests in 45.278s
+Ran 21 tests in 32.169s
 
 OK

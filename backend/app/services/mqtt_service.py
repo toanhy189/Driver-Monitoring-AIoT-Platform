@@ -1,26 +1,31 @@
 """Translate existing AI and ESP32 MQTT messages into database snapshots and FE events."""
 
+import hashlib
 import json
 import logging
 from datetime import datetime, timezone
 
 import paho.mqtt.client as mqtt
+from pydantic import ValidationError
 from sqlmodel import Session, select
 
 from app.core.config import settings
 from app.core.db import engine
 from app.models.alert import Alert
+from app.models.ai_event import AiEvent, AiMessageReceipt
 from app.models.command import Command
 from app.models.config import Config
 from app.models.device import Device
 from app.models.telemetry import Telemetry
+from app.schemas.ai_telemetry import QueuedTelemetry
+from app.schemas.rules import AiEventRequest
 from app.services.command_state import aggregate, update_dispatch
 from app.services.websocket_manager import manager
 
 
 logger = logging.getLogger(__name__)
 
-# AI currently uses driver/telemetry, driver/events, driver/status.
+# Edge AI uses driver/{code}/{telemetry,events,status}; legacy shared topics remain accepted.
 # ESP32 currently uses driver/{code}/status and driver/{code}/ack.
 TOPICS = [("driver/#", 1)]
 
@@ -60,7 +65,7 @@ def _device_event(device: Device) -> dict:
     }
 
 
-def _save_telemetry(session: Session, code: str, payload: dict) -> list[dict]:
+def _save_telemetry(session: Session, code: str, payload: dict, *, commit: bool = True) -> list[dict]:
     device = _device(session, code)
     if device is None or device.lifecycle_state == "DECOMMISSIONED":
         return []
@@ -84,11 +89,12 @@ def _save_telemetry(session: Session, code: str, payload: dict) -> list[dict]:
     device.status = "ONLINE"
     device.last_seen = _now()
     session.add(device)
-    session.commit()
+    session.commit() if commit else session.flush()
     return [
         {
             "type": "telemetry.updated",
             "data": {
+                "id": telemetry.id,
                 "device_id": device.id,
                 "device_code": device.device_code,
                 "recorded_at": telemetry.recorded_at.isoformat() + "Z",
@@ -127,6 +133,52 @@ def _save_status(session: Session, code: str, payload: dict) -> list[dict]:
 def _save_ai_event(session: Session, payload: dict) -> list[dict]:
     from app.services.rule_engine import process_event
     return process_event(session, payload)
+
+
+def _save_queued_ai(session: Session, code: str, topic: str, kind: str, payload: dict) -> list[dict]:
+    """One transaction saves data and its receipt; a retry only repeats the acknowledgement."""
+    from app.services.rule_engine import event_payload_hash, process_event
+
+    message_id = payload.get("message_id")
+    if not isinstance(message_id, str) or not 1 <= len(message_id) <= 80:
+        return []
+    source = session.exec(select(Device).where(Device.device_code == code).with_for_update()).first()
+    if source is None or source.device_type != "VISION_NODE" or source.lifecycle_state == "DECOMMISSIONED":
+        return []
+    try:
+        digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
+    except (TypeError, ValueError):
+        return []
+    saved = session.exec(select(AiMessageReceipt).where(
+        AiMessageReceipt.device_id == source.id, AiMessageReceipt.message_id == message_id)).first()
+    acknowledgement = {"type": "ingest.saved", "data": {"device_code": code, "message_id": message_id}}
+    if saved:
+        if saved.topic != topic or saved.payload_hash != digest:
+            logger.warning("Ignoring reused AI message ID with different content")
+            return []
+        return [acknowledgement]
+    try:
+        if kind == "telemetry":
+            data = QueuedTelemetry.model_validate(payload)
+            latest = session.exec(select(Telemetry.recorded_at).where(Telemetry.device_id == source.id)
+                                  .order_by(Telemetry.recorded_at.desc()).limit(1)).first()
+            events = _save_telemetry(session, code, data.model_dump(mode="json"), commit=False)
+            if latest and data.timestamp.astimezone(timezone.utc).replace(tzinfo=None) < latest:
+                events = [event for event in events if event["type"] != "telemetry.updated"]
+        else:
+            data = AiEventRequest.model_validate(payload)
+            events = process_event(session, payload, commit=False)
+            event = session.exec(select(AiEvent).where(AiEvent.event_id == data.event_id)).first()
+            if event is None or event.device_id != source.id or event.payload_hash != event_payload_hash(payload, data):
+                session.rollback()
+                return []
+    except ValidationError:
+        session.rollback()
+        logger.warning("Ignoring invalid queued AI message")
+        return []
+    session.add(AiMessageReceipt(device_id=source.id, message_id=message_id, topic=topic, payload_hash=digest))
+    session.commit()  # Must succeed before the MQTT callback can publish SAVED.
+    return [*events, acknowledgement]
 
 
 def _save_ack(session: Session, code: str, payload: dict) -> list[dict]:
@@ -240,6 +292,11 @@ def process_message(topic: str, payload: dict) -> list[dict]:
     parts = topic.split("/")
     if not parts or parts[0] != "driver":
         return []
+    if len(parts) == 3:
+        # The ACL protects the topic; reject an inconsistent source inside the JSON too.
+        for field in ("device_code", "device_id"):
+            if payload.get(field) is not None and payload[field] != parts[1]:
+                return []
     with Session(engine) as session:
         if topic == "driver/telemetry":
             return _save_telemetry(session, payload.get("device_id"), payload)
@@ -248,7 +305,13 @@ def process_message(topic: str, payload: dict) -> list[dict]:
         if topic == "driver/status":
             return _save_status(session, payload.get("device_id"), payload)
         if len(parts) == 3 and parts[2] == "telemetry":
+            if "message_id" in payload:
+                return _save_queued_ai(session, parts[1], topic, "telemetry", payload)
             return _save_telemetry(session, parts[1], payload)
+        if len(parts) == 3 and parts[2] == "events":
+            if "message_id" in payload:
+                return _save_queued_ai(session, parts[1], topic, "events", payload)
+            return _save_ai_event(session, payload)
         if len(parts) == 3 and parts[2] in {"status", "heartbeat"}:
             return _save_status(session, parts[1], payload)
         if len(parts) == 3 and parts[2] == "ack":
@@ -265,12 +328,19 @@ def on_connect(client, userdata, flags, reason_code, properties=None):
 
 def on_message(client, userdata, msg):
     # These are BE output topics; retained tombstones are valid and need no JSON parsing.
-    if msg.topic.endswith("/command") or msg.topic.endswith("/config/update"):
+    if msg.topic.endswith(("/command", "/config/update", "/storage_ack")):
         return
     try:
         payload = json.loads(msg.payload.decode("utf-8"))
         for event in process_message(msg.topic, payload):
-            manager.send_from_thread(event)
+            if event["type"] == "ingest.saved":
+                data = event["data"]
+                result = client.publish(f"driver/{data['device_code']}/storage_ack",
+                    json.dumps({"message_id": data["message_id"], "status": "SAVED"}), qos=1, retain=False)
+                if result.rc != mqtt.MQTT_ERR_SUCCESS:
+                    logger.warning("Storage ACK publish failed; the AI queue can retry the same message")
+            else:
+                manager.send_from_thread(event)
     except (UnicodeDecodeError, json.JSONDecodeError):
         logger.warning("Ignoring invalid MQTT JSON on %s", msg.topic)
     except Exception:

@@ -24,9 +24,9 @@ Checking size .pio\build\development\firmware.elf
 Advanced Memory Usage is available via "PlatformIO Home > Project Inspect"
 RAM:   [=         ]  14.4% (used 47180 bytes from 327680 bytes)
 Flash: [======    ]  60.3% (used 790961 bytes from 1310720 bytes)
-========================= [SUCCESS] Took 6.58 seconds =========================
+========================= [SUCCESS] Took 3.51 seconds =========================
 
 Environment    Status    Duration
 -------------  --------  ------------
-development    SUCCESS   00:00:06.582
-========================= 1 succeeded in 00:00:06.582 =========================
+development    SUCCESS   00:00:03.505
+========================= 1 succeeded in 00:00:03.505 =========================

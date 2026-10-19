@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 
 from face_detection import FaceLandmarkDetector
 
-from drowsiness import (
+from eye import (
     calculate_average_ear,
     PerclosCalculator,
     EyeClosureTracker
@@ -25,15 +25,12 @@ from drowsiness import (
 from mqtt_client import MQTTClient
 
 from config import (
-    DEVICE_ID,
-    EAR_THRESHOLD,
-    PERCLOS_THRESHOLD,
-    MODEL_VERSION
+    DEVICE_CODE, MODEL_VERSION,
+    EAR_THRESHOLD, PERCLOS_THRESHOLD,
 )
 
 from head_pose import (
-    HeadPoseEstimator,
-    HeadPoseTracker
+    HeadPoseEstimator, HeadPoseTracker
 )
 
 
@@ -49,6 +46,8 @@ def main():
         print("Không thể mở webcam.")
         return
 
+    MAX_CAMERA_FAILURES = 5
+
     # =========================
     # FACE LANDMARK
     # =========================
@@ -58,11 +57,6 @@ def main():
     # =========================
     # PERCLOS
     # =========================
-    '''
-    perclos_calculator = PerclosCalculator(
-            ear_threshold=EAR_THRESHOLD
-        )
-    '''
     
     perclos_calculator = PerclosCalculator(
         ear_threshold=EAR_THRESHOLD,
@@ -123,22 +117,42 @@ def main():
     # MAIN LOOP
     # =========================
 
+    camera_failures = 0
     try:
-
+        # Bộ đếm thứ tự event của thiết bị
+        event_sequence = 0
+        
         while True:
-
             ret, frame = cap.read()
 
             if not ret:
-                print("Không thể đọc webcam.")
-                break
+                camera_failures += 1
+                
+                if camera_failures >= MAX_CAMERA_FAILURES:
+                    # Đánh dấu camera không khả dụng.
+                    print("Không thể đọc webcam.")
+                    mqtt_client.publish_status("CAMERA_FAILURE")
+                    break
+
+                continue
+
+            # Camera đọc frame thành công
+            camera_failures = 0
+
+            # heartbeat
+            if mqtt_client.connected:
+                now = time.monotonic()
+
+                if now - mqtt_client.last_heartbeat >= mqtt_client.heartbeat_interval:
+                    mqtt_client.publish_status("ONLINE")
+                    mqtt_client.last_heartbeat = now
+            
 
         #    frame_height, frame_width = frame.shape[:2]
 
             faces = detector.process(frame)
 
             if faces:
-
                 face_landmarks = faces[0]
 
                 # =========================
@@ -153,9 +167,7 @@ def main():
                 # =========================
                 # PERCLOS
                 # =========================
-                perclos = perclos_calculator.update(
-                    ear
-                )
+                perclos = perclos_calculator.update(ear)
 
                 if perclos is None:
                     print(
@@ -165,7 +177,6 @@ def main():
                     perclos_text = "WARMUP"
 
                 else:
-
                     perclos_text = f"{perclos:.3f}"
                 # =========================
                 # POSE
@@ -252,9 +263,7 @@ def main():
                         drowsy_event_sent = False
 
                     # Tính thời gian DROWSY liên tục của episode hiện tại
-                    drowsy_duration_ms = (
-                        current_time - drowsy_since
-                    ) * 1000
+                    drowsy_duration_ms = (current_time - drowsy_since) * 1000
 
                     # Khi DROWSY liên tục >= 3 giây:
                     # gửi 1 event cho TV2 để kiểm tra Rule.
@@ -264,70 +273,72 @@ def main():
                     ):
                         event = {
                             "event_id": str(uuid.uuid4()),
-                            "device_id": DEVICE_ID,
+                            "sequence_number": event_sequence,
+                            "device_code": DEVICE_CODE,
                             "timestamp": datetime.now(
                                 timezone.utc
                             ).isoformat(),
-                            "model_version": MODEL_VERSION,
                             "event_type": "DROWSY_THRESHOLD_REACHED",
                             "state": "DROWSY",
                             "state_duration_ms": round(
                                 drowsy_duration_ms
                             )
                         }
+                        event_sequence += 1
                         mqtt_client.publish_event(event)
                             # Đánh dấu episode này đã gửi event,
                             # tránh gửi lặp lại ở các frame tiếp theo.
                         drowsy_event_sent = True
 
-                    else:
-                        # Driver đã thoát DROWSY -> kết thúc episode hiện tại.
-                        # Episode DROWSY tiếp theo sẽ được tính lại từ đầu.
-                        drowsy_since = None
-                        drowsy_event_sent = False
+                else:
+                    # Driver đã thoát DROWSY -> kết thúc episode hiện tại.
+                    # Episode DROWSY tiếp theo sẽ được tính lại từ đầu.
+                    drowsy_since = None
+                    drowsy_event_sent = False
 
-                    # =========================
-                    # DRIVER STATE EVENT
-                    # =========================
+                # =========================
+                # DRIVER STATE EVENT
+                # =========================
 
-                    current_time = time.monotonic()
+                current_time = time.monotonic()
 
-                    # Lưu trạng thái đầu tiên, chưa phát event vì chưa có trạng thái trước đó.
-                    if last_driver_state is None:
-                        last_driver_state = driver_state
-                        state_since = current_time
+                # Lưu trạng thái đầu tiên, chưa phát event vì chưa có trạng thái trước đó.
+                if last_driver_state is None:
+                    last_driver_state = driver_state
+                    state_since = current_time
 
-                    # Chỉ phát event khi trạng thái thực sự thay đổi.
-                    elif driver_state != last_driver_state:
+                # Chỉ phát event khi trạng thái thực sự thay đổi.
+                elif driver_state != last_driver_state:
 
-                        # Lưu trạng thái vừa kết thúc và thời gian trạng thái đó kéo dài.
-                        previous_state = last_driver_state
-                        previous_state_duration = current_time - state_since
+                    # Lưu trạng thái vừa kết thúc và thời gian trạng thái đó kéo dài.
+                    previous_state = last_driver_state
+                    previous_state_duration = current_time - state_since
 
-                        event = {
-                            "event_id": str(uuid.uuid4()),
-                            "device_id": DEVICE_ID,
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
-                            "model_version": MODEL_VERSION,
-                            "event_type": "STATE_CHANGED",
+                    event = {
+                        "event_id": str(uuid.uuid4()),
+                        "sequence_number": event_sequence,
+                        "device_code": DEVICE_CODE,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "event_type": "STATE_CHANGED",
 
-                            # Trạng thái trước khi thay đổi
-                            "previous_state": previous_state,
+                        # Trạng thái trước khi thay đổi
+                        "previous_state": previous_state,
 
-                            # Trạng thái mới
-                            "state": driver_state,
+                        # Trạng thái mới
+                        "state": driver_state,
 
-                            # Thời gian trạng thái trước đã duy trì
-                            "previous_state_duration_ms": round(
-                                previous_state_duration * 1000
-                            )
-                        }
+                        # Thời gian trạng thái trước đã duy trì
+                        "previous_state_duration_ms": round(
+                            previous_state_duration * 1000
+                        )
+                    }
+                    event_sequence += 1
 
-                        mqtt_client.publish_event(event)
+                    mqtt_client.publish_event(event)
 
-                        # Cập nhật trạng thái mới để theo dõi episode tiếp theo.
-                        last_driver_state = driver_state
-                        state_since = current_time
+                    # Cập nhật trạng thái mới để theo dõi episode tiếp theo.
+                    last_driver_state = driver_state
+                    state_since = current_time
 
                 # =========================
                 # TELEMETRY
@@ -341,7 +352,7 @@ def main():
                     # Khác với event: telemetry là dữ liệu trạng thái hiện tại,
                     # không phải tín hiệu kích hoạt Rule.
                     telemetry = {
-                        "device_id": DEVICE_ID,
+                        "device_code": DEVICE_CODE,
                         "timestamp": datetime.now(timezone.utc).isoformat(),
 
                         "ear": round(ear, 3),
@@ -547,11 +558,8 @@ def main():
             # HIỂN THỊ WEBCAM
             # =========================
 
-            cv2.imshow(
-                "Drowsiness Detection",
-                frame
-            )
-
+            cv2.imshow("Drowsiness Detection", frame)
+            
             # Q để thoát
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break

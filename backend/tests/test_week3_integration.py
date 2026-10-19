@@ -18,6 +18,7 @@ import tempfile
 import time
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fastapi.testclient import TestClient
@@ -30,7 +31,7 @@ from app.core.config import settings
 from app.core.db import engine
 from app.core.security import create_access_token, get_password_hash
 from app.main import app
-from app.models.ai_event import AiEvent, RuleBinding
+from app.models.ai_event import AiEvent, AiMessageReceipt, RuleBinding
 from app.models.alert import Alert
 from app.models.command import Command
 from app.models.config import Config
@@ -41,7 +42,7 @@ from app.models.user_device import UserDevice
 from app.schemas.rules import RulePolicy
 from app.services.background_tasks import expire_commands, run_once
 from app.services.command_dispatch import create_command, dispatch_command
-from app.services.mqtt_service import process_message
+from app.services.mqtt_service import on_message, process_message
 from app.services.mqtt_revoke_service import revoke_device
 from app.services.websocket_manager import ConnectionManager
 
@@ -164,6 +165,26 @@ class Week3Integration(unittest.TestCase):
         return self.client.post(f"/api/devices/{self.target_id}/commands",
             headers={**self.auth, **({"Idempotency-Key": key} if key else {})},
             json={"action": "TEST_ALERT", "buzzer_ms": 1000, "vibration_ms": 1000, "led_mode": "FLASH"})
+
+    def provision_source(self):
+        with Session(engine) as session:
+            source = session.get(Device, self.source_id)
+            source.lifecycle_state = "REGISTERED"
+            session.add(source); session.commit()
+        response = self.client.post(f"/api/devices/{self.source_id}/provision", headers=self.auth)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.provisioned.append(self.source_code)
+        self.client.post(f"/api/devices/{self.source_id}/activate", headers=self.auth).raise_for_status()
+        credentials = response.json()
+        peer = Peer(credentials["mqtt_username"], credentials["mqtt_password"])
+        self.peers.append(peer)
+        return peer, credentials
+
+    def queued_telemetry(self):
+        return {"message_id": "message-" + secrets.token_hex(8), "device_code": self.source_code,
+                "timestamp": datetime.now(timezone.utc).isoformat(), "model_version": "drowsiness-v3.0",
+                "driver_state": "UNKNOWN", "face_detected": False, "ear": None, "perclos": None,
+                "head_pose": {"yaw": None, "pitch": None, "roll": None}}
 
     def get_command(self, request_id):
         return self.client.get(f"/api/commands/{request_id}", headers=self.auth).json()
@@ -442,6 +463,8 @@ class Week3Integration(unittest.TestCase):
                          for key, value in settings.model_dump().items()}
         container_env.update({"DATABASE_URL": engine.url.set(host="host.docker.internal").render_as_string(hide_password=False),
             "MQTT_HOST": "host.docker.internal", "ENABLE_BACKGROUND_TASKS": "false", "WS_TICKET_TTL_SECONDS": "2"})
+        if os.getenv("W3_TEST_MQTT_DOCKER_HOST"):
+            container_env.update({"MQTT_HOST": os.environ["W3_TEST_MQTT_DOCKER_HOST"], "MQTT_PORT": "1883"})
         handle = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", suffix=".env", delete=False)
         env_path = Path(handle.name)
         handle.write("\n".join(key + "=" + value for key, value in container_env.items())); handle.close()
@@ -451,7 +474,8 @@ class Week3Integration(unittest.TestCase):
             with socket.socket() as reservation:
                 reservation.bind(("127.0.0.1", 0))
                 fixed_port = reservation.getsockname()[1]
-            docker("run", "-d", "--name", name, "-p", f"127.0.0.1:{fixed_port}:8000", "--env-file", str(env_path),
+            network_args = ["--network", os.environ["W3_TEST_NETWORK"]] if os.getenv("W3_TEST_NETWORK") else []
+            docker("run", "-d", "--name", name, *network_args, "-p", f"127.0.0.1:{fixed_port}:8000", "--env-file", str(env_path),
                 "--mount", f"type=bind,source={root / 'backend'},target=/app,readonly", "deployment-mqtt-setup:latest",
                 "python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--no-access-log")
             port = docker("port", name, "8000/tcp").split(":")[-1]
@@ -615,6 +639,132 @@ class Week3Integration(unittest.TestCase):
                               "parent_status": parent["status"], "error_message": parent["error_message"]})
 
 
+    def test_17_scoped_ai_storage_ack_dedup_and_new_events(self):
+        peer, _ = self.provision_source()
+        payload = self.queued_telemetry()
+        topic = f"driver/{self.source_code}/telemetry"
+
+        def receipt_count():
+            with Session(engine) as session:
+                return len(session.exec(select(AiMessageReceipt).where(AiMessageReceipt.device_id == self.source_id)).all())
+
+        # Drop the first acknowledgement by subscribing only after the DB commit.
+        peer.publish(topic, payload)
+        wait_for(lambda: receipt_count() == 1)
+        peer.subscribe(f"driver/{self.source_code}/storage_ack")
+        with self.assertRaises(queue.Empty): peer.messages.get(timeout=0.2)
+        for _ in range(2):
+            peer.publish(topic, payload)
+            _, body, retained = peer.messages.get(timeout=5)
+            self.assertEqual(json.loads(body), {"message_id": payload["message_id"], "status": "SAVED"})
+            self.assertFalse(retained)
+        with Session(engine) as session:
+            self.assertEqual(len(session.exec(select(Telemetry).where(Telemetry.device_id == self.source_id)).all()), 1)
+        for kind, state in (("STATE_CHANGED", "ATTENTIVE"), ("DISTRACTED_THRESHOLD_REACHED", "DISTRACTED")):
+            event = {"message_id": "event-" + secrets.token_hex(8), "device_code": self.source_code,
+                "timestamp": datetime.now(timezone.utc).isoformat(), "event_type": kind, "state": state,
+                "state_duration_ms": 3200, "model_version": "drowsiness-v3.0"}
+            peer.publish(f"driver/{self.source_code}/events", event)
+            self.assertEqual(json.loads(peer.messages.get(timeout=5)[1])["message_id"], event["message_id"])
+            with Session(engine) as session:
+                saved = session.exec(select(AiEvent).where(AiEvent.event_id == event["message_id"])).one()
+                self.assertEqual(saved.outcome, "POLICY_PENDING" if state == "DISTRACTED" else "RECORDED")
+        peer.publish(topic, {**payload, "ear": 0.9})
+        with self.assertRaises(queue.Empty): peer.messages.get(timeout=0.3)
+        self.assertEqual(receipt_count(), 3)
+        record("AI storage acknowledgement", {"lost_ack_retry": "SAVED repeated without extra telemetry",
+            "state_changed": "stored", "distracted": "stored; policy pending", "id_content_mismatch": "no ACK"})
+
+    def test_18_storage_ack_requires_successful_db_commit(self):
+        payload = self.queued_telemetry()
+        client = unittest.mock.MagicMock()
+        message = SimpleNamespace(topic=f"driver/{self.source_code}/telemetry", payload=json.dumps(payload).encode())
+        with patch.object(Session, "commit", side_effect=RuntimeError("simulated DB commit failure")), \
+             self.assertLogs("app.services.mqtt_service", level="ERROR"):
+            on_message(client, None, message)
+        client.publish.assert_not_called()
+        with Session(engine) as session:
+            self.assertEqual(session.exec(select(Telemetry).where(Telemetry.device_id == self.source_id)).all(), [])
+            self.assertEqual(session.exec(select(AiMessageReceipt).where(AiMessageReceipt.device_id == self.source_id)).all(), [])
+        self.assertEqual(process_message(message.topic, {**payload, "timestamp": "invalid"}), [])
+        self.assertEqual(process_message(message.topic, {**payload, "device_code": "vision-other"}), [])
+        record("AI storage transaction", "DB commit failure rolls back telemetry and receipt; no SAVED; invalid JSON fields get no ACK")
+
+    def test_19_ai_redelivery_restart_and_historical_snapshot(self):
+        payload = self.queued_telemetry()
+        topic = f"driver/{self.source_code}/telemetry"
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            list(pool.map(lambda _: process_message(topic, payload), range(4)))
+        code = "import json; from app.services.mqtt_service import process_message; " + \
+               "assert process_message(" + repr(topic) + ",json.loads(" + repr(json.dumps(payload)) + "))[-1]['type']=='ingest.saved'"
+        env = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1])}
+        child = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True)
+        self.assertEqual(child.returncode, 0, child.stderr)
+        older = {**payload, "message_id": "old-" + self.suffix,
+                 "timestamp": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()}
+        events = process_message(topic, older)
+        self.assertNotIn("telemetry.updated", [event["type"] for event in events])
+        with Session(engine) as session:
+            self.assertEqual(len(session.exec(select(Telemetry).where(Telemetry.device_id == self.source_id)).all()), 2)
+            self.assertEqual(len(session.exec(select(AiMessageReceipt).where(AiMessageReceipt.device_id == self.source_id)).all()), 2)
+        latest = self.client.get(f"/api/{self.source_id}/telemetry", headers=self.auth).json()
+        self.assertEqual(latest["recorded_at"], payload["timestamp"].replace("+00:00", "Z"))
+        record("AI restart and replay", "4 concurrent retries and a new process keep one row; old telemetry stored without replacing live snapshot")
+
+    def test_20_actual_edge_queue_and_mqtt_client_without_camera(self):
+        _, credentials = self.provision_source()
+        root = Path(__file__).resolve().parents[2]
+        with tempfile.TemporaryDirectory(prefix="codex-edge-") as directory:
+            env = {**os.environ, "AI_QUEUE_DB": str(Path(directory) / "codex-edge-probe.db"),
+                "AI_DEVICE_CODE": self.source_code, "AI_MQTT_HOST": settings.MQTT_HOST,
+                "AI_MQTT_PORT": str(settings.MQTT_PORT), "AI_MQTT_USERNAME": credentials["mqtt_username"],
+                "AI_MQTT_PASSWORD": credentials["mqtt_password"], "PYTHONIOENCODING": "utf-8"}
+            run = subprocess.run([sys.executable, str(root / "backend/tests/edge_ai_queue_probe.py")],
+                env=env, capture_output=True, text=True, encoding="utf-8", timeout=35)
+        output = run.stdout + run.stderr
+        (Path(os.environ["W3_EVIDENCE"]) / "edge-queue-output.txt").write_text(output, encoding="utf-8")
+        self.assertEqual(run.returncode, 0, output)
+        with Session(engine) as session:
+            self.assertEqual(len(session.exec(select(AiMessageReceipt).where(AiMessageReceipt.device_id == self.source_id)).all()), 2)
+            event = session.exec(select(AiEvent).where(AiEvent.device_id == self.source_id)).one()
+            self.assertEqual(event.model_version, "drowsiness-v3.0")
+        record("AI actual components", {"main2_payload_builders": "PASS", "sqlite_offline_kept": 2,
+            "storage_ack_queue_removed": 2, "camera_opened": False, "opencv_mediapipe_pipeline": "not run"})
+
+
+    def test_21_new_ai_topic_rule_command_ack_and_fe_contract(self):
+        target, _ = self.provision()
+        source, _ = self.provision_source()
+        target.subscribe(f"driver/{self.target_code}/command")
+        source.subscribe(f"driver/{self.source_code}/storage_ack")
+        self.binding()
+        payload = self.event()
+        payload["message_id"] = payload.pop("event_id")
+        payload["device_code"] = payload.pop("device_id")
+        payload["model_version"] = "drowsiness-v3.0"
+        ticket = self.client.post("/api/ws-ticket", headers=self.auth).json()["ticket"]
+        with self.client.websocket_connect("/ws/telemetry?ticket=" + ticket,
+                headers={"Origin": settings.FRONTEND_HOST}) as websocket:
+            source.publish(f"driver/{self.source_code}/events", payload)
+            self.assertEqual(json.loads(source.messages.get(timeout=5)[1])["status"], "SAVED")
+            notification = websocket.receive_json()
+            self.assertEqual(notification["type"], "alert.created")
+            self.assertEqual(notification["data"]["event_id"], payload["message_id"])
+        run_once()
+        children = [json.loads(target.messages.get(timeout=5)[1]) for _ in range(3)]
+        for child in children:
+            target.publish(f"driver/{self.target_code}/ack", {"device_code": self.target_code,
+                "request_id": child["request_id"], "status": "COMPLETED", "elapsed_ms": 2000, "error": None})
+        alerts = self.client.get(f"/api/alerts?device_id={self.source_id}", headers=self.auth).json()
+        self.assertEqual(alerts[0]["event_id"], payload["message_id"])
+        request_id = alerts[0]["request_id"]
+        wait_for(lambda: self.get_command(request_id)["ack_status"] == "COMPLETED")
+        self.assertEqual(self.get_command(request_id)["status"], "ACKNOWLEDGED")
+        record("AI-BE-IoT-FE contract", {"new_scoped_event": "SAVED", "websocket": "alert.created",
+            "commands": [child["command"] for child in children], "child_ack": "all COMPLETED",
+            "api_alert_command_link": "PASS", "hardware": "virtual ESP32"})
+
+
 class EvidenceResult(unittest.TextTestResult):
     def startTest(self, test):
         self.started = time.perf_counter(); super().startTest(test)
@@ -631,6 +781,7 @@ if __name__ == "__main__":
     directory = Path(os.environ["W3_EVIDENCE"])
     (directory / "integration-results.json").write_text(json.dumps({"executed_at": datetime.now(timezone.utc).isoformat(),
         "scope": "Real PostgreSQL, HTTP/ASGI, MQTT broker; virtual ESP32, no hardware", "tests_run": result.testsRun,
+        "broker_scope": os.getenv("W3_BROKER_SCOPE", "broker selected by environment"),
         "failures": len(result.failures), "errors": len(result.errors), "skipped": len(result.skipped),
         "observations": OBSERVATIONS}, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     raise SystemExit(0 if result.wasSuccessful() else 1)

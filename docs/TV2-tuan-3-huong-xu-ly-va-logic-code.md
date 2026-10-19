@@ -97,7 +97,7 @@ Tài khoản web và tài khoản MQTT là hai loại khác nhau. Tài khoản w
 4. `mqtt-setup` chạy `mqtt_bootstrap.setup()`: mặc định chặn gửi/nhận/đăng ký topic, sau đó tạo role và tài khoản BE/AI nếu chưa có. Tên mặc định là `backend`, `vision-01`; giá trị thực lấy từ `.env`.
 5. `BrokerSecurity` đăng nhập bằng tài khoản quản trị broker và gửi yêu cầu tạo/thu hồi tài khoản qua topic điều khiển riêng. HTTP provision không tự ghi một tên vào DB rồi coi là đã cấp: phải được broker xử lý thành công trước, như mục 3.5.
 
-**Chạy lại setup không phải đồng bộ mọi thay đổi ACL:** `ensure_identity()` chỉ tạo tài khoản/role còn thiếu. Sửa danh sách quyền trong code rồi chạy lại chưa tự thay ACL của role đã có; khi đổi topic phải cập nhật quyền đang lưu ở broker và test lại.
+**Setup sau lần resolve PR #5:** `ensure_identity()` tạo role còn thiếu hoặc dùng `modifyRole` cập nhật ACL role đã có. Tài khoản có sẵn giữ mật khẩu và trạng thái bị thu hồi. Muốn áp dụng quyền mới phải build/chạy lại `mqtt-setup`; chỉ pull code chưa thay cấu hình đang lưu ở broker. Cấu trúc lệnh `modifyRole` đối chiếu theo [topic API chính thức của Mosquitto](https://github.com/eclipse-mosquitto/mosquitto/blob/master/plugins/dynamic-security/README.md#modify-role).
 
 Broker Docker mở **1884 trên Windows**, bên trong container là **1883**. BE chạy trong Docker dùng `mosquitto:1883`; BE/AI trên Windows dùng host/cổng trong `.env`; ESP32 dùng IP máy chạy broker và cổng 1884. Nếu máy còn Mosquitto riêng ở 1883, kết nối được vào đó chưa chứng minh đã dùng broker Docker có ACL.
 
@@ -117,7 +117,9 @@ Với Alert Node có mã `alert-01`, mẫu ACL hiện tại cho phép:
 
 Thiết bị không được dùng quyền của mình để đọc lệnh/config hoặc gửi ACK/applied vào nhánh của mã thiết bị khác. BE cần cả quyền đăng ký topic và nhận tin; đăng ký xong nhưng không được nhận cũng chưa đạt yêu cầu đọc.
 
-Với tài khoản AI mặc định `vision-01`, quyền hiện tại là **chỉ gửi** `driver/telemetry`, `driver/events`, `driver/status`; không cấp quyền đọc. Các topic AI này đang dùng chung, khác nhánh riêng của ESP32. ACL tại broker giới hạn tên topic, không kiểm tra mã nguồn bên trong JSON. Vì vậy chưa có bảo đảm mỗi camera chỉ được khai báo chính mã của nó trong payload; nếu thêm nhiều camera cần chốt topic theo mã và kiểm tra topic/payload tương ứng ở BE.
+Với tài khoản AI mặc định `vision-01`, bộ quyền mới cho gửi `driver/vision-01/telemetry`, `/events`, `/status` và chỉ đọc `driver/vision-01/storage_ack`. Ba topic chung cũ `driver/telemetry`, `driver/events`, `driver/status` còn được cấp gửi để giữ tương thích. Vision Node khác được provision theo loại thiết bị chỉ có nhánh riêng của nó.
+
+BE kiểm tra mã nguồn trong JSON khớp mã trên topic riêng. Broker kiểm tra quyền topic; BE kiểm tra thêm nội dung. Kênh chung cũ vẫn cho tài khoản AI khai báo mã nguồn bằng payload, nên chưa bảo đảm phân tách hoàn toàn nhiều camera nếu còn dùng kênh cũ.
 
 Test [test_mqtt_security_integration.py](../backend/tests/test_mqtt_security_integration.py) dùng tài khoản thiết bị tạm theo cùng mẫu ACL: nhận command/config đúng topic, gửi ACK/applied đúng topic, bị chặn khi đọc/gửi chéo và AI không được gửi ACK/applied của thiết bị. Kết quả này chứng minh các ca quyền topic đã chạy trên broker thật; chưa thay cho thử đầy đủ với firmware `alert-01` và chương trình AI `vision-01` thật.
 
@@ -134,8 +136,8 @@ Code chính: [mqtt_security.py](../backend/app/services/mqtt_security.py), [mqtt
 
 | Bên kết nối | Được gửi | Được đọc |
 | --- | --- | --- |
-| BE | `driver/+/command`, `driver/+/config/update` | `driver/#` |
-| AI | `driver/telemetry`, `driver/events`, `driver/status` | Không cấp quyền đọc |
+| BE | `driver/+/command`, `driver/+/config/update`, `driver/+/storage_ack` | `driver/#` |
+| AI mới | `driver/{code}/telemetry`, `/events`, `/status` | Chỉ `driver/{code}/storage_ack` |
 | ESP32 theo mã riêng | `status`, `ack`, `telemetry`, `heartbeat`, `config/applied` của chính nó | `command`, `config/update` của chính nó |
 
 Test MQTT dùng tài khoản thử, gửi tin đúng topic và thử gửi chéo. Kết quả đúng gồm cả **được phép đúng nơi** và **bị chặn ở nơi khác**. Ví dụ quyền được xuất tại [acl-policy.json](evidence/week3/acl-policy.json), không chứa mật khẩu.
@@ -219,7 +221,7 @@ Worker và request HTTP cùng dùng khóa dòng DB để một lệnh con chỉ 
 
 Code chính: [schemas/rules.py](../backend/app/schemas/rules.py), [rule_engine.py](../backend/app/services/rule_engine.py), [models/ai_event.py](../backend/app/models/ai_event.py), [routes/rules.py](../backend/app/api/routes/rules.py).
 
-AI giữ cách gửi hiện tại lên `driver/events`. BE tiếp nhận `STATE_CHANGED` để lưu diễn biến, và `DROWSY_THRESHOLD_REACHED` để đánh giá cảnh báo. Các trường nhận gồm `event_id`, mã thiết bị trong `device_id`, `timestamp` có múi giờ, `model_version`, trạng thái và `state_duration_ms`.
+AI mới gửi lên `driver/{code}/events`; topic `driver/events` cũ vẫn được nhận. BE chấp nhận `message_id/device_code` mới hoặc `event_id/device_id` cũ; nếu thiếu event_id thì dùng message_id làm mã sự kiện. `timestamp` phải có múi giờ; có thêm model_version, trạng thái và thời lượng. `STATE_CHANGED` lưu diễn biến; `DROWSY_THRESHOLD_REACHED` được xét theo rule. `DISTRACTED_THRESHOLD_REACHED` được lưu với kết quả `POLICY_PENDING`, chờ nhóm chốt chính sách điều khiển.
 
 1. Kiểm tra hình dạng dữ liệu và nguồn Vision Node đã đăng ký.
 2. Khóa dòng nguồn, tìm `event_id` đã nhận trong bảng `ai_events`. DB có ràng buộc unique để chặn cả trường hợp nhận đồng thời.
@@ -242,7 +244,17 @@ Sự kiện cũ do lưu offline rồi gửi lại được giữ trong lịch s�
 
 Cooldown mẫu: 30 giây; sự kiện quá 60 giây không tạo lệnh tự động. Đây là thông số thử, **chưa được TV1/TV3 xác nhận**.
 
-**Giới hạn cần chốt với AI:** AI hiện được viết theo hướng gửi một event khi buồn ngủ đạt 3 giây. Một event đó không cho BE biết tình trạng tiếp tục kéo dài đến 6/10 giây. Các test mức 2/3 dùng event giả lập chứa thời lượng tương ứng. Nhóm cần chốt nhịp gửi event và cách tăng mức; cooldown hiện chặn mọi event tiếp theo trong khoảng chờ, chưa có ngoại lệ cho tăng mức. Sự kiện mất tập trung quá lâu chưa nằm trong schema BE. Topic AI vẫn giữ `driver/events`; chưa chuyển sang `driver/{code}/events`.
+**Giới hạn cần chốt với AI:** main2.py gửi một event cho mỗi đợt DROWSY/DISTRACTED vượt ngưỡng. Một event ở 3 giây không cho BE biết tình trạng tiếp tục kéo dài đến 6/10 giây. Các test mức 2/3 dùng event mang thời lượng tương ứng. Nhóm cần chốt nhịp gửi event và cách tăng mức; cooldown hiện chặn cả event mức cao hơn trong khoảng chờ. BE đã nhận/lưu sự kiện mất tập trung, nhưng chưa tự đặt chính sách bật tải cho nó.
+
+### Xác nhận lưu SQLite của AI
+
+1. Hàm gửi trong `edge-ai/main2.py` lưu JSON và message_id vào SQLite trước, rồi đánh thức worker trong `mqtt_client.py`. Worker là đường gửi duy nhất của luồng này.
+2. BE khóa dòng Vision Node và tìm biên nhận theo cặp device_id/message_id trong `ai_message_receipts`. Bản gửi lại cùng nội dung không tạo thêm dữ liệu; trùng mã khác nội dung không được trả SAVED.
+3. Telemetry hoặc event/alert/command và biên nhận được ghi trong cùng giao dịch DB. Chỉ khi commit thành công, callback MQTT mới gửi `{"message_id":"...","status":"SAVED"}` tới `driver/{code}/storage_ack`, QoS 1, không retained.
+4. Mất ACK thì AI giữ SQLite và gửi lại cùng ID; BE trả lại SAVED từ biên nhận đã lưu. Cơ chế này còn sau restart BE. Dữ liệu telemetry cũ vẫn được lưu lịch sử nhưng không phát sự kiện thay thế số đo mới hơn.
+5. AI chỉ xóa dòng đúng message_id sau khi nhận SAVED trên topic xác nhận của chính nó. Đóng chương trình sẽ dừng worker; file SQLite được giữ trên máy, không commit vào Git.
+
+Các ca 17–21 kiểm tra mất ACK, trùng tin, lỗi commit, process mới, replay cũ, module SQLite/MQTT thật của AI và chuỗi topic mới → rule → lệnh/ACK → API/WS. Gọi hàm tạo payload hiện tại của main2.py mà không mở camera; chưa chạy pipeline OpenCV/MediaPipe hay tải ESP32 thật.
 
 Mỗi mức có thêm `outputs`, chọn một hoặc nhiều phần tử `led`, `buzzer`, `motor`. Mẫu mặc định dùng cả ba đầu ra ở cả ba mức với cường độ khác nhau; nhóm có thể đổi danh sách tải của từng mức trong policy. TEST_ALERT thủ công vẫn luôn kiểm tra cả ba tải.
 
@@ -351,6 +363,8 @@ python backend/tests/run_week3_integration.py
 python backend/scripts/verify_week3.py --firmware
 python backend/scripts/export_week3_handoff.py
 ```
+
+Đợt đối chiếu PR #5 dùng `python backend/tests/run_week3_isolated.py`: script tạo broker bảo mật, network và tài khoản thử riêng, dùng runner DB riêng ở trên rồi tự dọn. Cách này không cập nhật ACL của broker đang dùng. [runtime-readiness.json](evidence/week3/runtime-readiness.json) ghi kiểm tra chỉ đọc: DB ứng dụng và role broker hiện chưa được nâng lên hợp đồng storage_ack. Khi nhóm duyệt áp dụng, chạy migration tuần 3 mới, build/chạy lại mqtt-setup và khởi động lại BE theo [backend/README.md](../backend/README.md#áp-dụng-bản-đồng-bộ-ai-tuần-3).
 
 Script verify lưu output BE/FE/build vào `docs/evidence/week3`. Cần Node dependencies đã cài và PlatformIO ở đường dẫn cài chuẩn nếu dùng `--firmware`. Test Docker tạo container BE riêng, dùng DB thử, restart container đó rồi dọn container; không restart broker hoặc BE đang dùng của nhóm.
 

@@ -97,6 +97,11 @@ class MqttSecurityIntegration(unittest.TestCase):
         self.assertFalse(backend.subscribe("driver/#").is_failure)
         self.assertTrue(ai.subscribe("driver/#").is_failure)
         self.assertFalse(ai.publish("driver/telemetry").is_failure)
+        code_ai = settings.AI_DEVICE_CODE
+        self.assertFalse(ai.subscribe(f"driver/{code_ai}/storage_ack").is_failure)
+        self.assertFalse(ai.publish(f"driver/{code_ai}/telemetry").is_failure)
+        self.assertTrue(ai.publish("driver/vision-other/telemetry").is_failure)
+        self.assertTrue(ai.publish(f"driver/{code_ai}/storage_ack").is_failure)
 
         code = "tv2-security-" + secrets.token_hex(4)
         credentials = provision_device(code)
@@ -106,6 +111,7 @@ class MqttSecurityIntegration(unittest.TestCase):
             self.assertFalse(device.connect_reason.is_failure)
             self.assertFalse(device.subscribe(f"driver/{code}/command").is_failure)
             self.assertTrue(device.subscribe("driver/other/command").is_failure)
+            self.assertTrue(device.subscribe(f"driver/{code_ai}/storage_ack").is_failure)
             self.assertFalse(backend.publish(f"driver/{code}/command").is_failure)
             self.assertTrue(device.received.wait(5), "Device did not receive its command")
             self.assertEqual(device.last_topic, f"driver/{code}/command")

@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     MQTT_ADMIN_USERNAME: str = "admin"
     MQTT_ADMIN_PASSWORD: str = ""
     AI_MQTT_USERNAME: str = "vision-01"
+    AI_DEVICE_CODE: str = Field(default="vision-01", pattern=r"^[A-Za-z0-9_-]+$")
     AI_MQTT_PASSWORD: str = ""
     SQL_ECHO: bool = False
     ENABLE_MQTT_CONSUMER: bool = True

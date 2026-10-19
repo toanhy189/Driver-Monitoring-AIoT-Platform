@@ -82,3 +82,9 @@ compile_commands.json
 
 # Machine-specific source hashes; keep reports, contracts and test evidence tracked
 /docs/evidence/week3/source-manifest.json
+
+# Edge AI runtime queue stays local; never publish queued user/device data
+/edge-ai/data/*.db
+/edge-ai/data/*.db-journal
+/edge-ai/data/*.db-wal
+/edge-ai/data/*.db-shm

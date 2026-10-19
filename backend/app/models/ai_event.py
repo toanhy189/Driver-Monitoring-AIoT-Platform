@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from pydantic import NaiveDatetime
-from sqlalchemy import Column, JSON
+from sqlalchemy import Column, JSON, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -31,3 +31,15 @@ class RuleBinding(SQLModel, table=True):
     policy: dict = Field(sa_column=Column(JSON, nullable=False))
     last_triggered_at: NaiveDatetime | None = None
     updated_at: NaiveDatetime = Field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+
+
+class AiMessageReceipt(SQLModel, table=True):
+    __tablename__ = "ai_message_receipts"
+    __table_args__ = (UniqueConstraint("device_id", "message_id"),)
+
+    id: int | None = Field(default=None, primary_key=True)
+    device_id: int = Field(foreign_key="devices.id")
+    message_id: str = Field(max_length=80)
+    topic: str = Field(max_length=200)
+    payload_hash: str = Field(max_length=64)
+    saved_at: NaiveDatetime = Field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None))

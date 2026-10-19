@@ -185,7 +185,7 @@ export default function AiMetricsSection({ deviceId, deviceCode, realtime, onUna
       <div className="ai-metadata-bar">
         <div className="metadata-item">
           <span className="metadata-label">Phiên bản mô hình:</span>
-          <strong>{history.model_version || "v1.0.0 (Baseline)"}</strong>
+          <strong>{history.model_version || "Chưa cung cấp"}</strong>
         </div>
         <div className="metadata-item">
           <span className="metadata-label">Tổng số mẫu:</span>

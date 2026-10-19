@@ -4,23 +4,23 @@ import re
 import secrets
 
 from app.core.config import settings
-from app.services.mqtt_security import BrokerSecurity, device_acls
+from app.services.mqtt_security import BrokerSecurity, device_acls, vision_acls
 
 
 DEVICE_CODE = re.compile(r"[A-Za-z0-9_-]+\Z")
 
 
-def provision_device(device_code: str) -> dict[str, str]:
+def provision_device(device_code: str, *, device_type: str | None = None) -> dict[str, str]:
     if not DEVICE_CODE.fullmatch(device_code):
         raise ValueError("Invalid device code for MQTT topic")
     if device_code in {settings.MQTT_USERNAME, settings.MQTT_ADMIN_USERNAME}:
         raise ValueError("Reserved MQTT account name")
 
-    if device_code == settings.AI_MQTT_USERNAME:
+    if device_code == settings.AI_DEVICE_CODE:
         with BrokerSecurity() as broker:
-            if not broker.has_client(device_code):
+            if not broker.has_client(settings.AI_MQTT_USERNAME):
                 raise RuntimeError("Edge AI MQTT account is not initialized")
-        return {"username": device_code, "password": settings.AI_MQTT_PASSWORD}
+        return {"username": settings.AI_MQTT_USERNAME, "password": settings.AI_MQTT_PASSWORD}
 
     password = secrets.token_urlsafe(24)
     role = f"device:{device_code}"
@@ -30,7 +30,8 @@ def provision_device(device_code: str) -> dict[str, str]:
             broker.delete_client(device_code)
         if broker.has_role(role):
             broker.delete_role(role)
-        broker.create_role(role, device_acls(device_code))
+        permissions = vision_acls(device_code) if device_type == "VISION_NODE" else device_acls(device_code)
+        broker.create_role(role, permissions)
         try:
             broker.create_client(device_code, password, role)
         except Exception:

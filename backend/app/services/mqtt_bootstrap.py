@@ -3,13 +3,16 @@
 import time
 
 from app.core.config import settings
-from app.services.mqtt_security import BrokerSecurity, acl
+from app.services.mqtt_security import BrokerSecurity, backend_acls, vision_acls
 
 
 def ensure_identity(broker: BrokerSecurity, username: str, password: str,
                     role: str, acls: list[dict]):
     if not broker.has_role(role):
         broker.create_role(role, acls)
+    else:
+        # Update existing installations without resetting passwords or enabling revoked clients.
+        broker.command("modifyRole", rolename=role, acls=acls)
     if not broker.has_client(username):
         broker.create_client(username, password, role)
 
@@ -29,18 +32,9 @@ def setup() -> None:
                     {"acltype": "unsubscribe", "allow": True},
                 ])
                 ensure_identity(broker, settings.MQTT_USERNAME, settings.MQTT_PASSWORD,
-                                "backend", [
-                                    acl("subscribeLiteral", "driver/#"),
-                                    acl("publishClientReceive", "driver/#"),
-                                    acl("publishClientSend", "driver/+/command"),
-                                    acl("publishClientSend", "driver/+/config/update"),
-                                ])
+                                "backend", backend_acls())
                 ensure_identity(broker, settings.AI_MQTT_USERNAME, settings.AI_MQTT_PASSWORD,
-                                "edge-ai", [
-                                    acl("publishClientSend", "driver/telemetry"),
-                                    acl("publishClientSend", "driver/events"),
-                                    acl("publishClientSend", "driver/status"),
-                                ])
+                                "edge-ai", vision_acls(settings.AI_DEVICE_CODE, legacy=True))
                 return
         except (ConnectionError, OSError):
             if attempt == 14:

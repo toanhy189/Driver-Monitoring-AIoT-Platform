@@ -26,6 +26,20 @@ def device_acls(code: str) -> list[dict]:
     ] + [acl("publishClientReceive", f"{prefix}/{part}") for part in reads]
 
 
+def vision_acls(code: str, *, legacy: bool = False) -> list[dict]:
+    result = [acl("publishClientSend", f"driver/{code}/{part}") for part in ("telemetry", "events", "status")]
+    result += [acl("subscribeLiteral", f"driver/{code}/storage_ack"),
+               acl("publishClientReceive", f"driver/{code}/storage_ack")]
+    if legacy:
+        result += [acl("publishClientSend", f"driver/{part}") for part in ("telemetry", "events", "status")]
+    return result
+
+
+def backend_acls() -> list[dict]:
+    return [acl("subscribeLiteral", "driver/#"), acl("publishClientReceive", "driver/#"),
+            *[acl("publishClientSend", f"driver/+/{part}") for part in ("command", "config/update", "storage_ack")]]
+
+
 class BrokerSecurity:
     def __init__(self):
         if not settings.MQTT_ADMIN_PASSWORD:

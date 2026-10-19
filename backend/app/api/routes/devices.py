@@ -170,7 +170,7 @@ def provision_mqtt_credentials(
     if device.lifecycle_state != "REGISTERED":
         raise HTTPException(status_code=409, detail="Only registered devices can be provisioned")
     try:
-        credentials = provision_device(device.device_code)
+        credentials = provision_device(device.device_code, device_type=device.device_type)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error))
     except Exception as error:

@@ -99,25 +99,16 @@ class HeadPoseEstimator:
         # PITCH
         # =====================================================
 
-        face_height = self.distance(
-            forehead,
-            chin
-        )
+        face_height = self.distance(forehead, chin)
 
         if face_height == 0:
             return None
 
-        mouth_center_y = (
-            mouth_left[1] + mouth_right[1]
-        ) / 2
+        mouth_center_y = (mouth_left[1] + mouth_right[1]) / 2
 
-        nose_to_mouth = (
-            mouth_center_y - nose[1]
-        )
+        nose_to_mouth = (mouth_center_y - nose[1])
 
-        pitch_ratio = (
-            nose_to_mouth / face_height
-        )
+        pitch_ratio = (nose_to_mouth / face_height)
 
         # =====================================================
         # ROLL
@@ -135,7 +126,6 @@ class HeadPoseEstimator:
             "pitch": pitch_ratio,
             "roll": roll_angle
         }
-
 
 class HeadPoseTracker:
     """

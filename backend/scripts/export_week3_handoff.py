@@ -10,7 +10,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
 from app.main import app
-from app.services.mqtt_security import device_acls
+from app.services.mqtt_security import backend_acls, device_acls, vision_acls
 
 
 def main():
@@ -18,8 +18,8 @@ def main():
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "openapi.json").write_text(json.dumps(app.openapi(), ensure_ascii=False, indent=2), encoding="utf-8")
     acl = {"note": "Permission example only, no account passwords", "alert-EXAMPLE": device_acls("alert-EXAMPLE"),
-        "backend": {"read": ["driver/#"], "write": ["driver/+/command", "driver/+/config/update"]},
-        "edge-ai": {"read": [], "write": ["driver/telemetry", "driver/events", "driver/status"]}}
+        "backend": backend_acls(), "vision-EXAMPLE": vision_acls("vision-EXAMPLE"),
+        "edge-ai": vision_acls("vision-01", legacy=True)}
     (directory / "acl-policy.json").write_text(json.dumps(acl, indent=2), encoding="utf-8")
     paths = [*ROOT.glob("backend/app/**/*.py"), *ROOT.glob("backend/tests/*.py"),
              *ROOT.glob("backend/scripts/*.py"), *ROOT.glob("frontend/src/**/*.js"), *ROOT.glob("frontend/src/**/*.jsx"),

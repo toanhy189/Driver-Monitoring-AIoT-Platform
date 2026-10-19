@@ -11,10 +11,10 @@ def revoke_device(device_code: str) -> dict[str, object]:
     if device_code in {settings.MQTT_USERNAME, settings.MQTT_ADMIN_USERNAME}:
         raise ValueError("Reserved MQTT account name")
     with BrokerSecurity() as broker:
-        if device_code == settings.AI_MQTT_USERNAME:
+        if device_code == settings.AI_DEVICE_CODE:
             # Keeping the disabled account stops bootstrap from recreating it.
-            broker.command("disableClient", username=device_code)
-            return {"username": device_code, "revoked": True}
+            broker.command("disableClient", username=settings.AI_MQTT_USERNAME)
+            return {"username": settings.AI_MQTT_USERNAME, "revoked": True}
         if broker.has_client(device_code):
             broker.delete_client(device_code)
         role = f"device:{device_code}"

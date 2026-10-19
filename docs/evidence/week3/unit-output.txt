@@ -1,3 +1,8 @@
+test_existing_broker_role_is_updated_without_resetting_account (test_edge_ai_contract.EdgeAiContractTests.test_existing_broker_role_is_updated_without_resetting_account) ... ok
+test_mismatched_topic_source_is_rejected_before_db_access (test_edge_ai_contract.EdgeAiContractTests.test_mismatched_topic_source_is_rejected_before_db_access) ... ok
+test_new_config_preserves_environment_authentication (test_edge_ai_contract.EdgeAiContractTests.test_new_config_preserves_environment_authentication) ... ok
+test_new_event_aliases_and_distracted_observation (test_edge_ai_contract.EdgeAiContractTests.test_new_event_aliases_and_distracted_observation) ... ok
+test_vision_role_only_receives_own_storage_ack (test_edge_ai_contract.EdgeAiContractTests.test_vision_role_only_receives_own_storage_ack) ... ok
 test_device_list_filters_by_user_and_active_assignment (test_merge_contract.MergeContractTests.test_device_list_filters_by_user_and_active_assignment) ... ok
 test_device_response_does_not_expose_mqtt_password (test_merge_contract.MergeContractTests.test_device_response_does_not_expose_mqtt_password) ... ok
 test_existing_fe_routes_are_kept (test_merge_contract.MergeContractTests.test_existing_fe_routes_are_kept) ... ok
@@ -45,8 +50,13 @@ test_13_ai_mqtt_to_rule_to_command_to_three_ack (test_week3_integration.Week3Int
 test_14_interrupted_publish_is_not_retried_blindly (test_week3_integration.Week3Integration.test_14_interrupted_publish_is_not_retried_blindly) ... skipped 'Use run_week3_integration.py for isolated live checks'
 test_15_concurrent_first_config_put_preserves_latest_revision (test_week3_integration.Week3Integration.test_15_concurrent_first_config_put_preserves_latest_revision) ... skipped 'Use run_week3_integration.py for isolated live checks'
 test_16_firmware_reboot_ack_reports_failure (test_week3_integration.Week3Integration.test_16_firmware_reboot_ack_reports_failure) ... skipped 'Use run_week3_integration.py for isolated live checks'
+test_17_scoped_ai_storage_ack_dedup_and_new_events (test_week3_integration.Week3Integration.test_17_scoped_ai_storage_ack_dedup_and_new_events) ... skipped 'Use run_week3_integration.py for isolated live checks'
+test_18_storage_ack_requires_successful_db_commit (test_week3_integration.Week3Integration.test_18_storage_ack_requires_successful_db_commit) ... skipped 'Use run_week3_integration.py for isolated live checks'
+test_19_ai_redelivery_restart_and_historical_snapshot (test_week3_integration.Week3Integration.test_19_ai_redelivery_restart_and_historical_snapshot) ... skipped 'Use run_week3_integration.py for isolated live checks'
+test_20_actual_edge_queue_and_mqtt_client_without_camera (test_week3_integration.Week3Integration.test_20_actual_edge_queue_and_mqtt_client_without_camera) ... skipped 'Use run_week3_integration.py for isolated live checks'
+test_21_new_ai_topic_rule_command_ack_and_fe_contract (test_week3_integration.Week3Integration.test_21_new_ai_topic_rule_command_ack_and_fe_contract) ... skipped 'Use run_week3_integration.py for isolated live checks'
 
 ----------------------------------------------------------------------
-Ran 46 tests in 0.556s
+Ran 56 tests in 0.227s
 
-OK (skipped=17)
+OK (skipped=22)
