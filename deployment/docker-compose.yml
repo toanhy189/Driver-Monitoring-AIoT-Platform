@@ -9,13 +9,14 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
     ports:
       - "8000:8000"
     depends_on:
       migrate:
         condition: service_completed_successfully
-      mosquitto:
-        condition: service_started
+      mqtt-setup:
+        condition: service_completed_successfully
 
   frontend:
     build:
@@ -54,17 +55,47 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - ../database/migration_fe_be_week2.sql:/migrations/week2.sql:ro
+      - ../database/migration_be_week3.sql:/migrations/week3.sql:ro
     depends_on:
       postgres:
         condition: service_healthy
-    command: ["psql", "-h", "postgres", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}", "-v", "ON_ERROR_STOP=1", "-f", "/migrations/week2.sql"]
+    command: ["psql", "-h", "postgres", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}", "-v", "ON_ERROR_STOP=1", "-f", "/migrations/week2.sql", "-f", "/migrations/week3.sql"]
 
   mosquitto:
     image: eclipse-mosquitto:2
     volumes:
       - ./mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mqtt_data:/mosquitto/data
     ports:
-      - "1883:1883"
+      - "1884:1883"
+    depends_on:
+      mqtt-init:
+        condition: service_completed_successfully
+
+  mqtt-init:
+    image: eclipse-mosquitto:2
+    environment:
+      MQTT_ADMIN_USERNAME: ${MQTT_ADMIN_USERNAME:-admin}
+      MQTT_ADMIN_PASSWORD: ${MQTT_ADMIN_PASSWORD:?Run python deployment/mqtt/prepare_env.py first}
+    volumes:
+      - mqtt_data:/mosquitto/data
+      - ./mqtt/init.sh:/mosquitto/config/init.sh:ro
+    entrypoint: ["/bin/sh", "/mosquitto/config/init.sh"]
+
+  mqtt-setup:
+    build:
+      context: ..
+      dockerfile: deployment/backend/Dockerfile
+    env_file:
+      - ../.env
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+    command: ["python", "-m", "app.services.mqtt_bootstrap"]
+    depends_on:
+      mosquitto:
+        condition: service_started
   
 volumes:
   postgres_data:
+  mqtt_data:

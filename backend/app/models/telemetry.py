@@ -23,3 +23,4 @@ class Telemetry(SQLModel, table=True):
     face_detected: bool | None = None
     head_pose: dict | None = Field(default=None, sa_column=Column(JSON))
     model_version: str | None = None
+    received_at: NaiveDatetime = Field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None))

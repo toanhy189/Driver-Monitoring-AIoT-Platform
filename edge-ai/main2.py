@@ -89,18 +89,10 @@ def send_message(mqtt_client, topic, data):
         logger.error("Message was not saved; skipping publish")
         return False
 
-    # Nếu MQTT chưa kết nối, message vẫn nằm trong SQLite
-    if not mqtt_client.connected:
-        return False
-
-    # TODO: Chỉ xóa message khi đã nhận ACK từ backend
-    topicc = topic.split("/")[-1]
-    if topicc == "telemetry":
-        info = mqtt_client.publish_telemetry(data)
-    elif topicc == "events":
-        info = mqtt_client.publish_event(data)
-
-    return info is not None and info.rc == 0
+    # Một worker gửi từ SQLite; kết nối lại vẫn dùng nguyên message_id.
+    # True chỉ xác nhận đã xếp hàng, không có nghĩa BE đã lưu.
+    mqtt_client.notify_queue()
+    return True
 
 
 # =========================
@@ -153,6 +145,7 @@ def update_confirmed_state(driver_state, state_data, device_code):
         "device_code": device_code,
         "timestamp": current_timestamp(),
         "event_type": "STATE_CHANGED",
+        "model_version": MODEL_VERSION,
         "previous_state": previous_state,
         "state": candidate,
         "previous_state_duration_ms": round(
@@ -209,6 +202,7 @@ def check_threshold_events(state_data, device_code):
                 "device_code": device_code,
                 "timestamp": current_timestamp(),
                 "event_type": f"{state}_THRESHOLD_REACHED",
+                "model_version": MODEL_VERSION,
                 "state": state,
                 "state_duration_ms": round(duration * 1000),
             }

@@ -6,3 +6,7 @@
 .feedback-dialog h2 { margin: 0; color: #142541; font-size: 21px; line-height: 1.3; }
 .feedback-dialog p { margin: 11px 0 24px; color: #566980; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
 .feedback-dialog .primary-button { min-width: 130px; }
+.feedback-credentials { margin: 0 0 24px; text-align: left; }
+.feedback-credentials div { margin-top: 10px; padding: 10px 12px; border: 1px solid #dae6f0; border-radius: 8px; }
+.feedback-credentials dt { color: #566980; font-size: 12px; }
+.feedback-credentials dd { margin: 4px 0 0; overflow-wrap: anywhere; font-family: monospace; font-size: 14px; }

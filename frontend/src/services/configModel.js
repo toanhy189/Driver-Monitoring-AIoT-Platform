@@ -4,17 +4,32 @@ export const CONFIG_OUTPUTS = Object.freeze([
   { key: "motor", label: "Motor rung" },
 ]);
 export const CONFIG_LEVELS = Object.freeze([1, 2, 3]);
-// This limit matches the week-2 backend validator. Firmware support remains separate.
+// Keep the same range as BE validation and the ESP32 config parser.
 export const MAX_TIMING_MS = 10000;
+export const MIN_TIMING_MS = 50;
+export const MAX_ON_TIMING_MS = 5000;
+const CONFIG_ERRORS = {
+  INVALID_CONFIG_ID: "Mã cấu hình không hợp lệ",
+  DEVICE_MISMATCH: "Cấu hình gửi nhầm thiết bị",
+  INVALID_TIMING: "Thời gian bật/tắt không hợp lệ",
+  STORAGE_ERROR: "Thiết bị không lưu được cấu hình",
+  DUPLICATE_ID_MISMATCH: "Mã cấu hình đã tồn tại nhưng nội dung khác",
+  INVALID_REVISION: "Phiên bản cấu hình không hợp lệ",
+  STALE_CONFIG: "Cấu hình cũ hơn phiên bản thiết bị đang dùng",
+  INVALID_JSON: "Dữ liệu cấu hình không đúng định dạng JSON",
+  INVALID_TIMINGS: "Thiếu hoặc sai bảng thời gian cấu hình",
+  ON_MS_OUT_OF_RANGE: "Thời gian bật phải từ 50 đến 5000 ms",
+  OFF_MS_OUT_OF_RANGE: "Thời gian tắt phải từ 50 đến 10000 ms",
+};
 
 function validConfigId(value) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function timing(value, label) {
+function timing(value, label, maximum) {
   if (typeof value !== "number" || !Number.isSafeInteger(value) ||
-      value < 0 || value > MAX_TIMING_MS) {
-    throw new Error(`${label} phải là số nguyên từ 0 đến ${MAX_TIMING_MS} ms.`);
+      value < MIN_TIMING_MS || value > maximum) {
+    throw new Error(`${label} phải là số nguyên từ ${MIN_TIMING_MS} đến ${maximum} ms.`);
   }
   return value;
 }
@@ -32,8 +47,8 @@ export function validateTimings(value) {
         throw new Error(`Thiếu thời gian ${output.label}, mức ${level}.`);
       }
       result[output.key][level] = {
-        on_ms: timing(profile.on_ms, `${output.label}, mức ${level}, thời gian bật`),
-        off_ms: timing(profile.off_ms, `${output.label}, mức ${level}, thời gian tắt`),
+        on_ms: timing(profile.on_ms, `${output.label}, mức ${level}, thời gian bật`, MAX_ON_TIMING_MS),
+        off_ms: timing(profile.off_ms, `${output.label}, mức ${level}, thời gian tắt`, MAX_TIMING_MS),
       };
     }
   }
@@ -99,6 +114,8 @@ export function normalizeConfig(response) {
     appliedId: validConfigId(response.applied_config_id ?? appliedPart?.config_id),
     desired: desiredPart ? validateTimings(desiredPart.timings) : null,
     applied: appliedPart ? validateTimings(appliedPart.timings) : null,
+    status: typeof response.status === "string" ? response.status : null,
+    error: typeof response.error === "string" ? response.error : null,
   };
 }
 
@@ -106,6 +123,13 @@ export function configStatus(snapshot) {
   if (!snapshot) return { kind: "unavailable", label: "Chưa tải được cấu hình" };
   if (!snapshot.desired) return { kind: "empty", label: "Chưa có cấu hình mong muốn" };
   if (!snapshot.desiredId) return { kind: "unknown", label: "Chưa xác định trạng thái áp dụng" };
+  if (snapshot.status === "REJECTED") {
+    const reason = snapshot.error ? CONFIG_ERRORS[snapshot.error] || snapshot.error : null;
+    return { kind: "rejected", label: `Thiết bị từ chối cấu hình${reason ? `: ${reason}` : ""}` };
+  }
+  if (snapshot.status === "PUBLISH_FAILED") {
+    return { kind: "rejected", label: "BE chưa gửi được cấu hình tới broker MQTT" };
+  }
   if (!snapshot.applied || snapshot.appliedId !== snapshot.desiredId) {
     return { kind: "pending", label: "Chờ thiết bị áp dụng" };
   }

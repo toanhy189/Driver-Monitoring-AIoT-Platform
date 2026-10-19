@@ -1,0 +1,374 @@
+{
+  "executed_at": "2026-10-19T15:31:40.253057+00:00",
+  "scope": "Real PostgreSQL, HTTP/ASGI, MQTT broker; virtual ESP32, no hardware",
+  "tests_run": 21,
+  "broker_scope": "isolated disposable broker",
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "observations": [
+    {
+      "case": "TV2-06",
+      "detail": "HTTP provision 200; revoke disconnects real MQTT connection; old login rejected; command/config 409"
+    },
+    {
+      "case": "__main__.Week3Integration.test_01_provision_revoke_and_api_guards",
+      "detail": {
+        "result": "PASS",
+        "duration_ms": 1795.175
+      }
+    },
+    {
+      "case": "TV2-07/09/10",
+      "detail": {
+        "retained": true,
+        "invalid_http": 422,
+        "old_ack_ignored": true,
+        "desired_revision": 2,
+        "applied_unchanged_until_matching_ack": true
+      }
+    },
+    {
+      "case": "__main__.Week3Integration.test_02_config_offline_invalid_late_and_old_ack",
+      "detail": {
+        "result": "PASS",
+        "duration_ms": 792.692
+      }
+    },
+    {
+      "case": "TV2-08",
+      "detail": {
+        "http": 503,
+        "status": "PUBLISH_FAILED",
+        "applied": null
+      }
+    },
+    {
+      "case": "__main__.Week3Integration.test_03_publish_failure_never_marks_applied",
+      "detail": {
+        "result": "PASS",
+        "duration_ms": 108.125
+      }
+    },
+    {
+      "case": "TV2-11/12/20",
+      "detail": {
+        "after_two_ack": "ACCEPTED",
+        "after_three_ack": "COMPLETED",
+        "latency": {
+          "http_ms": 132.65,
+          "total_to_completed_ms": 196.8,
+          "dispatches": {
+            "led": {
+              "mqtt_publish_ms": 22.899,
+              "ack_from_publish_ms": 146.371,
+              "publish_started_at": "2026-10-19T15:31:11.133374Z",
+              "published_at": "2026-10-19T15:31:11.161689Z",
+              "first_ack_at": "2026-10-19T15:31:11.279745Z",
+              "completed_ack_at": "2026-10-19T15:31:11.279745Z"
+            },
+            "motor": {
+              "mqtt_publish_ms": 23.253,
+              "ack_from_publish_ms": 125.655,
+              "publish_started_at": "2026-10-19T15:31:11.168350Z",
+              "published_at": "2026-10-19T15:31:11.196249Z",
+              "first_ack_at": "2026-10-19T15:31:11.294005Z",
+              "completed_ack_at": "2026-10-19T15:31:11.294005Z"
+            },
+            "buzzer": {
+              "mqtt_publish_ms": 20.594,
+              "ack_from_publish_ms": 106.83,
+              "publish_started_at": "2026-10-19T15:31:11.203445Z",
+              "published_at": "2026-10-19T15:31:11.229472Z",
+              "first_ack_at": "2026-10-19T15:31:11.310275Z",
+              "completed_ack_at": "2026-10-19T15:31:11.310275Z"
+            }
+          },
+          "clock": "backend_utc"
+        }
+      }
+    },
+    {
+      "case": "__main__.Week3Integration.test_04_three_ack_completion_and_latency",
+      "detail": {
+        "result": "PASS",
+        "duration_ms": 875.296
+      }
+    },
+    {
+      "case": "TV2-12",
+      "detail": "TIMEOUT persisted; two late ACKs retain TIMEOUT; all three late COMPLETED resolve it"
+    },
+    {
+      "case": "__main__.Week3Integration.test_05_timeout_and_late_ack",
+      "detail": {
+        "result": "PASS",
+        "duration_ms": 799.862
+      }
+    },
+    {
+      "case": "TV2-14/15",
+      "detail": {
+        "event_id": "event-459467518bda014b",
+        "alert_id": 1,
+        "request_id": "cmd-3",
+        "severity": 3,
+        "policy": "proposed defaults, not group approved"
+      }
+    },
+    {
+      "case": "__main__.Week3Integration.test_06_rule_chain_severity_cooldown_and_stale",
+      "detail": {
+        "result": "PASS",
+        "duration_ms": 747.538
+      }
+    },
+    {
+      "case": "TV2-16",
+      "detail": "Two concurrent deliveries + replay from a new Python process -> exactly one event, alert and parent command"
+    },
+    {
+      "case": "__main__.Week3Integration.test_07_event_redelivery_concurrent_and_restart",
+      "detail": {
+        "result": "PASS",
+        "duration_ms": 1919.782
+      }
+    },
+    {
+      "case": "TV2-17",
+      "detail": {
+        "same_key_same_body": "one request_id",
+        "different_body": 409
+      }
+    },
+    {
+      "case": "__main__.Week3Integration.test_08_command_idempotency_concurrent_and_conflict",
+      "detail": {
+        "result": "PASS",
+        "duration_ms": 731.392
+      }
+    },
+    {
+      "case": "TV2-18/19",
+      "detail": {
+        "model_filter_count": 2,
+        "utc": true,
+        "other_user": 404,
+        "bad_filters": 422,
+        "legacy_chart_api": "UTC offset converted; latest samples ascending; other user denied",
+        "metrics": {
+          "device_id": 17,
+          "start": "2026-10-18T15:31:15.993445Z",
+          "end": "2026-10-19T15:31:15.993445Z",
+          "model_version": "model-a",
+          "telemetry": {
+            "count": 2,
+            "avg_ear": 0.2,
+            "avg_perclos": 0.3,
+            "by_state": {
+              "DROWSY": 2
+            }
+          },
+          "alerts": {
+            "count": 0,
+            "by_severity": {}
+          },
+          "commands": {
+            "count": 0,
+            "by_status": {}
+          },
+          "latency": {
+            "clock": "backend_utc",
+            "http_avg_ms": null,
+            "http_p95_ms": null,
+            "completed_avg_ms": null,
+            "completed_p95_ms": null
+          }
+        }
+      }
+    },
+    {
+      "case": "__main__.Week3Integration.test_09_history_filters_permissions_and_metrics",
+      "detail": {
+        "result": "PASS",
+        "duration_ms": 251.806
+      }
+    },
+    {
+      "case": "TV2-21",
+      "detail": "One-use ticket accepted once; reassignment is rechecked from PostgreSQL for every event"
+    },
+    {
+      "case": "__main__.Week3Integration.test_10_ws_ticket_permissions_change",
+      "detail": {
+        "result": "PASS",
+        "duration_ms": 94.226
+      }
+    },
+    {
+      "case": "TV2-12/14",
+      "detail": "ACK handled inside publisher before HTTP returns stays COMPLETED; global rule switch prevents auto commands"
+    },
+    {
+      "case": "__main__.Week3Integration.test_11_ack_before_http_response_and_disabled_rule",
+      "detail": {
+        "result": "PASS",
+        "duration_ms": 830.633
+      }
+    },
+    {
+      "case": "TV2-13/21",
+      "detail": {
+        "runtime": "Docker backend with real PostgreSQL/MQTT",
+        "restart": "PASS",
+        "websocket_owner_only": "PASS",
+        "assignment_revoke": "PASS",
+        "ticket_reuse_expiry": "PASS",
+        "new_ticket_after_restart": "PASS",
+        "command_ack_config_history_persisted": "PASS"
+      }
+    },
+    {
+      "case": "__main__.Week3Integration.test_12_docker_restart_http_websocket_and_persistence",
+      "detail": {
+        "result": "PASS",
+        "duration_ms": 11798.29
+      }
+    },
+    {
+      "case": "TV2-15/22",
+      "detail": {
+        "path": "AI MQTT -> Rule Engine -> persisted queue -> MQTT commands -> virtual ESP32 ACKs",
+        "event_id": "event-d7c09050864dbbe0",
+        "alert_id": 11,
+        "request_id": "cmd-11",
+        "severity": 2,
+        "final_ack": "COMPLETED"
+      }
+    },
+    {
+      "case": "__main__.Week3Integration.test_13_ai_mqtt_to_rule_to_command_to_three_ack",
+      "detail": {
+        "result": "PASS",
+        "duration_ms": 1744.886
+      }
+    },
+    {
+      "case": "TV2-17/13",
+      "detail": "A crash after durable PUBLISHING marker -> no resend from a new session; timeout reports delivery unknown"
+    },
+    {
+      "case": "__main__.Week3Integration.test_14_interrupted_publish_is_not_retried_blindly",
+      "detail": {
+        "result": "PASS",
+        "duration_ms": 669.101
+      }
+    },
+    {
+      "case": "TV2-07/09",
+      "detail": {
+        "concurrent_first_put": "both HTTP 200; one config row; revision 2",
+        "retained": "matches latest desired config_id"
+      }
+    },
+    {
+      "case": "__main__.Week3Integration.test_15_concurrent_first_config_put_preserves_latest_revision",
+      "detail": {
+        "result": "PASS",
+        "duration_ms": 626.146
+      }
+    },
+    {
+      "case": "TV2-12/13",
+      "detail": {
+        "firmware_ack": "INTERRUPTED/REBOOTED",
+        "parent_status": "FAILED",
+        "error_message": "REBOOTED"
+      }
+    },
+    {
+      "case": "__main__.Week3Integration.test_16_firmware_reboot_ack_reports_failure",
+      "detail": {
+        "result": "PASS",
+        "duration_ms": 792.299
+      }
+    },
+    {
+      "case": "AI storage acknowledgement",
+      "detail": {
+        "lost_ack_retry": "SAVED repeated without extra telemetry",
+        "state_changed": "stored",
+        "distracted": "stored; policy pending",
+        "id_content_mismatch": "no ACK"
+      }
+    },
+    {
+      "case": "__main__.Week3Integration.test_17_scoped_ai_storage_ack_dedup_and_new_events",
+      "detail": {
+        "result": "PASS",
+        "duration_ms": 1334.662
+      }
+    },
+    {
+      "case": "AI storage transaction",
+      "detail": "DB commit failure rolls back telemetry and receipt; no SAVED; invalid JSON fields get no ACK"
+    },
+    {
+      "case": "__main__.Week3Integration.test_18_storage_ack_requires_successful_db_commit",
+      "detail": {
+        "result": "PASS",
+        "duration_ms": 88.008
+      }
+    },
+    {
+      "case": "AI restart and replay",
+      "detail": "4 concurrent retries and a new process keep one row; old telemetry stored without replacing live snapshot"
+    },
+    {
+      "case": "__main__.Week3Integration.test_19_ai_redelivery_restart_and_historical_snapshot",
+      "detail": {
+        "result": "PASS",
+        "duration_ms": 1291.94
+      }
+    },
+    {
+      "case": "AI actual components",
+      "detail": {
+        "main2_payload_builders": "PASS",
+        "sqlite_offline_kept": 2,
+        "storage_ack_queue_removed": 2,
+        "camera_opened": false,
+        "opencv_mediapipe_pipeline": "not run"
+      }
+    },
+    {
+      "case": "__main__.Week3Integration.test_20_actual_edge_queue_and_mqtt_client_without_camera",
+      "detail": {
+        "result": "PASS",
+        "duration_ms": 3208.93
+      }
+    },
+    {
+      "case": "AI-BE-IoT-FE contract",
+      "detail": {
+        "new_scoped_event": "SAVED",
+        "websocket": "alert.created",
+        "commands": [
+          "LED_ON",
+          "MOTOR_ON",
+          "BUZZER_ON"
+        ],
+        "child_ack": "all COMPLETED",
+        "api_alert_command_link": "PASS",
+        "hardware": "virtual ESP32"
+      }
+    },
+    {
+      "case": "__main__.Week3Integration.test_21_new_ai_topic_rule_command_ack_and_fe_contract",
+      "detail": {
+        "result": "PASS",
+        "duration_ms": 1655.2
+      }
+    }
+  ]
+}

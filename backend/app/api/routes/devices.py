@@ -1,5 +1,5 @@
-from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, Query
+from datetime import datetime, timezone
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlmodel import Session, select
 
 from app.api.deps import require_admin, require_viewer
@@ -8,7 +8,7 @@ from app.models.device import Device
 from app.models.telemetry import Telemetry
 from app.models.user import User
 from app.models.user_device import UserDevice
-from app.schemas.device import DeviceRegisterRequest, DeviceResponse, DeviceStatusRequest
+from app.schemas.device import DeviceRegisterRequest, DeviceResponse, DeviceStatusRequest, ProvisionResponse
 from app.schemas.telemetry import TelemetryHistoryItem, TelemetryHistoryResponse, TelemetryResponse
 from app.services.access import assigned_device, assigned_devices
 from app.services.mqtt_provision_service import provision_device
@@ -82,25 +82,29 @@ def get_current_telemetry(
     )
 
 
-@router.get("/devices/{device_id}/telemetry/history", response_model=TelemetryHistoryResponse)
 @router.get("/{device_id}/telemetry/history", response_model=TelemetryHistoryResponse)
 def get_telemetry_history(
     device_id: int,
     from_time: datetime | None = None,
     to_time: datetime | None = None,
-    limit: int = Query(default=100, ge=1, le=500),
+    limit: int = Query(default=100, ge=1, le=200),
     current_user: User = Depends(require_viewer),
     session: Session = Depends(get_session),
 ):
     device = assigned_device(session, current_user.id, device_id)
+    for value in (from_time, to_time):
+        if value is not None and (value.tzinfo is None or value.utcoffset() is None):
+            raise HTTPException(status_code=422, detail="from_time/to_time must include a UTC offset")
+    if from_time is not None and to_time is not None and from_time >= to_time:
+        raise HTTPException(status_code=422, detail="Expected from_time < to_time")
     query = select(Telemetry).where(Telemetry.device_id == device_id)
     if from_time:
-        query = query.where(Telemetry.recorded_at >= from_time.replace(tzinfo=None))
+        query = query.where(Telemetry.recorded_at >= from_time.astimezone(timezone.utc).replace(tzinfo=None))
     if to_time:
-        query = query.where(Telemetry.recorded_at <= to_time.replace(tzinfo=None))
+        query = query.where(Telemetry.recorded_at < to_time.astimezone(timezone.utc).replace(tzinfo=None))
 
     # Query descending to get the most recent samples up to limit
-    items_desc = session.exec(query.order_by(Telemetry.recorded_at.desc()).limit(limit)).all()
+    items_desc = session.exec(query.order_by(Telemetry.recorded_at.desc(), Telemetry.id.desc()).limit(limit)).all()
     # Reverse to ascending chronological order for timeline / charts
     items_asc = list(reversed(items_desc))
     total_samples = len(items_asc)
@@ -155,9 +159,10 @@ def register_device(
     return {"message": "Device registered", "device": _response(device)}
 
 
-@router.post("/devices/{device_id}/provision", response_model=DeviceResponse)
+@router.post("/devices/{device_id}/provision", response_model=ProvisionResponse)
 def provision_mqtt_credentials(
     device_id: int,
+    response: Response,
     current_user: User = Depends(require_admin),
     session: Session = Depends(get_session),
 ):
@@ -165,16 +170,23 @@ def provision_mqtt_credentials(
     if device.lifecycle_state != "REGISTERED":
         raise HTTPException(status_code=409, detail="Only registered devices can be provisioned")
     try:
-        credentials = provision_device(device.device_code)
+        credentials = provision_device(device.device_code, device_type=device.device_type)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error))
     except Exception as error:
         raise HTTPException(status_code=503, detail=f"MQTT provisioning unavailable: {error}")
     device.mqtt_username = credentials["username"]
-    device.mqtt_password = credentials["password"]
+    device.mqtt_password = None
     device.lifecycle_state = "PROVISIONED"
     session.add(device)
     session.commit()
     session.refresh(device)
-    return _response(device)
+    response.headers["Cache-Control"] = "no-store"
+    return ProvisionResponse.model_validate({
+        **_response(device).model_dump(),
+        "mqtt_username": credentials["username"],
+        "mqtt_password": credentials["password"],
+    })
 
 
 @router.post("/devices/{device_id}/activate", response_model=DeviceResponse)
@@ -221,6 +233,8 @@ def decommission_device(
     if device.mqtt_username:
         try:
             revoke_device(device.device_code)
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error))
         except Exception as error:
             raise HTTPException(status_code=503, detail=f"MQTT revoke unavailable: {error}")
     device.lifecycle_state = "DECOMMISSIONED"

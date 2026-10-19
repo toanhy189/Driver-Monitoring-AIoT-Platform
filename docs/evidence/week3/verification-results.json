@@ -1,0 +1,21 @@
+{
+  "executed_at": "2026-10-19T15:34:20.236659+00:00",
+  "checks": [
+    {
+      "check": "unit",
+      "exit_code": 0
+    },
+    {
+      "check": "frontend-tests",
+      "exit_code": 0
+    },
+    {
+      "check": "frontend-build",
+      "exit_code": 0
+    },
+    {
+      "check": "firmware-build",
+      "exit_code": 0
+    }
+  ]
+}

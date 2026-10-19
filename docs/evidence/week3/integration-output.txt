@@ -1,0 +1,29 @@
+test_01_provision_revoke_and_api_guards (__main__.Week3Integration.test_01_provision_revoke_and_api_guards) ... ok
+test_02_config_offline_invalid_late_and_old_ack (__main__.Week3Integration.test_02_config_offline_invalid_late_and_old_ack) ... ok
+test_03_publish_failure_never_marks_applied (__main__.Week3Integration.test_03_publish_failure_never_marks_applied) ... ok
+test_04_three_ack_completion_and_latency (__main__.Week3Integration.test_04_three_ack_completion_and_latency) ... ok
+test_05_timeout_and_late_ack (__main__.Week3Integration.test_05_timeout_and_late_ack) ... ok
+test_06_rule_chain_severity_cooldown_and_stale (__main__.Week3Integration.test_06_rule_chain_severity_cooldown_and_stale) ... Ignoring invalid AI event schema
+ok
+test_07_event_redelivery_concurrent_and_restart (__main__.Week3Integration.test_07_event_redelivery_concurrent_and_restart) ... ok
+test_08_command_idempotency_concurrent_and_conflict (__main__.Week3Integration.test_08_command_idempotency_concurrent_and_conflict) ... ok
+test_09_history_filters_permissions_and_metrics (__main__.Week3Integration.test_09_history_filters_permissions_and_metrics) ... ok
+test_10_ws_ticket_permissions_change (__main__.Week3Integration.test_10_ws_ticket_permissions_change) ... ok
+test_11_ack_before_http_response_and_disabled_rule (__main__.Week3Integration.test_11_ack_before_http_response_and_disabled_rule) ... ok
+test_12_docker_restart_http_websocket_and_persistence (__main__.Week3Integration.test_12_docker_restart_http_websocket_and_persistence) ... ok
+test_13_ai_mqtt_to_rule_to_command_to_three_ack (__main__.Week3Integration.test_13_ai_mqtt_to_rule_to_command_to_three_ack) ... ok
+test_14_interrupted_publish_is_not_retried_blindly (__main__.Week3Integration.test_14_interrupted_publish_is_not_retried_blindly) ... ok
+test_15_concurrent_first_config_put_preserves_latest_revision (__main__.Week3Integration.test_15_concurrent_first_config_put_preserves_latest_revision) ... ok
+test_16_firmware_reboot_ack_reports_failure (__main__.Week3Integration.test_16_firmware_reboot_ack_reports_failure) ... ok
+test_17_scoped_ai_storage_ack_dedup_and_new_events (__main__.Week3Integration.test_17_scoped_ai_storage_ack_dedup_and_new_events) ... Ignoring reused AI message ID with different content
+ok
+test_18_storage_ack_requires_successful_db_commit (__main__.Week3Integration.test_18_storage_ack_requires_successful_db_commit) ... Ignoring invalid queued AI message
+ok
+test_19_ai_redelivery_restart_and_historical_snapshot (__main__.Week3Integration.test_19_ai_redelivery_restart_and_historical_snapshot) ... ok
+test_20_actual_edge_queue_and_mqtt_client_without_camera (__main__.Week3Integration.test_20_actual_edge_queue_and_mqtt_client_without_camera) ... ok
+test_21_new_ai_topic_rule_command_ack_and_fe_contract (__main__.Week3Integration.test_21_new_ai_topic_rule_command_ack_and_fe_contract) ... ok
+
+----------------------------------------------------------------------
+Ran 21 tests in 32.169s
+
+OK

@@ -44,6 +44,9 @@ export function normalizeTelemetry(data) {
     result.confidence = Number.isFinite(data.confidence) && data.confidence >= 0 &&
       data.confidence <= 1 ? data.confidence : null;
   }
+  if (Object.hasOwn(data, "model_version")) {
+    result.model_version = typeof data.model_version === "string" && data.model_version.trim() ? data.model_version.trim() : null;
+  }
   if (Object.hasOwn(data, "recorded_at") || Object.hasOwn(data, "timestamp")) {
     result.recorded_at = validTimestamp(data.recorded_at ?? data.timestamp);
   }

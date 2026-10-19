@@ -170,12 +170,14 @@ class MQTTClient:
 
     def _on_message(self, client, userdata, msg):
         """Nhận ACK từ backend và xóa message đã lưu thành công."""
+        if msg.topic != ACK_TOPIC:
+            return
         try:
             ack = json.loads(msg.payload.decode("utf-8"))
             message_id = ack.get("message_id")
             status = ack.get("status")
 
-            if not message_id:
+            if not isinstance(message_id, str) or not message_id:
                 logger.warning("Received ACK without message_id.")
                 return
 
@@ -334,6 +336,14 @@ class MQTTClient:
 
     # Dong MQTT khi chuong trinh ket thuc binh thuong
     def close(self):
+
+        self.stop_event.set()
+        self.queue_wakeup.set()
+        with self.ack_lock:
+            for waiting in self.pending_acks.values():
+                waiting.set()
+        if hasattr(self, "worker"):
+            self.worker.join(timeout=3)
 
         if self.connected:
 

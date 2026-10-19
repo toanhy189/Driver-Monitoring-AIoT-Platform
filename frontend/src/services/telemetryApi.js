@@ -17,7 +17,7 @@ export async function getTelemetryHistory(deviceId, { fromTime, toTime, limit = 
   if (toTime) params.append("to_time", toTime);
   if (limit) params.append("limit", String(limit));
   const queryString = params.toString() ? `?${params.toString()}` : "";
-  const response = await authenticatedRequest(`/devices/${deviceId}/telemetry/history${queryString}`, {
+  const response = await authenticatedRequest(`/${deviceId}/telemetry/history${queryString}`, {
     missingMessage: "Bạn cần đăng nhập để xem lịch sử số đo.",
     signal,
   });

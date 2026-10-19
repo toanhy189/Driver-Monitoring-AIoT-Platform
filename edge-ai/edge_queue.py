@@ -1,16 +1,12 @@
 
 import sqlite3
 import logging
-from pathlib import Path
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from config import DB_PATH
 
 # Cấu hình logging
 logger = logging.getLogger(__name__)
-
-# Đường dẫn database nằm trong thư mục data cạnh file này
-DB_PATH = Path(__file__).resolve().parent / "data" / "queue.db"
-
 
 @contextmanager
 def get_connection():

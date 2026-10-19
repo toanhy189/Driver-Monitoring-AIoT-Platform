@@ -1,67 +1,23 @@
-from pathlib import Path
-import re
-import subprocess
+"""Immediately disconnect and remove a device's MQTT identity."""
 
+from app.services.mqtt_provision_service import DEVICE_CODE
+from app.services.mqtt_security import BrokerSecurity
 from app.core.config import settings
 
 
-def _paths():
-    if not all((settings.MOSQUITTO_PASSWD_BIN, settings.MOSQUITTO_PASSWD_FILE,
-                settings.MOSQUITTO_ACL_FILE)):
-        raise RuntimeError("Broker credential management is not configured")
-    return (Path(settings.MOSQUITTO_PASSWD_BIN),
-            Path(settings.MOSQUITTO_PASSWD_FILE),
-            Path(settings.MOSQUITTO_ACL_FILE))
-
-
-def revoke_device(device_code: str) -> dict:
-    """
-    Xóa MQTT username/password và ACL của device.
-    """
-
-    mosquitto_passwd, passwd_file, acl_file = _paths()
-    # 1. Xóa user khỏi passwd
-    result = subprocess.run(
-        [
-            str(mosquitto_passwd),
-            "-D",
-            str(passwd_file),
-            device_code,
-        ],
-        capture_output=True,
-        text=True,
-    )
-
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"Failed to revoke MQTT credential: {result.stderr}"
-        )
-
-    # 2. Xóa ACL của device
-    if acl_file.exists():
-        content = acl_file.read_text(
-            encoding="utf-8"
-        )
-
-        pattern = (
-            rf"(?ms)^user {re.escape(device_code)}\r?\n"
-            rf"(?:\r?\n)?"
-            rf"(?:topic[^\r\n]*\r?\n)+"
-            rf"(?:\r?\n)?"
-        )
-
-        new_content = re.sub(
-            pattern,
-            "",
-            content,
-        )
-
-        acl_file.write_text(
-            new_content,
-            encoding="utf-8",
-        )
-
-    return {
-        "username": device_code,
-        "revoked": True,
-    }
+def revoke_device(device_code: str) -> dict[str, object]:
+    if not DEVICE_CODE.fullmatch(device_code):
+        raise ValueError("Invalid device code for MQTT topic")
+    if device_code in {settings.MQTT_USERNAME, settings.MQTT_ADMIN_USERNAME}:
+        raise ValueError("Reserved MQTT account name")
+    with BrokerSecurity() as broker:
+        if device_code == settings.AI_DEVICE_CODE:
+            # Keeping the disabled account stops bootstrap from recreating it.
+            broker.command("disableClient", username=settings.AI_MQTT_USERNAME)
+            return {"username": settings.AI_MQTT_USERNAME, "revoked": True}
+        if broker.has_client(device_code):
+            broker.delete_client(device_code)
+        role = f"device:{device_code}"
+        if broker.has_role(role):
+            broker.delete_role(role)
+    return {"username": device_code, "revoked": True}

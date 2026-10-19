@@ -16,6 +16,7 @@ async function loadModule(entry, globals = {}) {
     entryPoints: [fileURLToPath(new URL(entry, import.meta.url))],
     bundle: true,
     write: false,
+    outdir: "out",
     platform: "node",
     format: "cjs",
     jsx: "automatic",
@@ -23,7 +24,7 @@ async function loadModule(entry, globals = {}) {
     define: { "import.meta.env": "{}" },
   });
   const module = { exports: {} };
-  vm.runInNewContext(result.outputFiles[0].text, {
+  vm.runInNewContext(result.outputFiles.find(file => file.path.endsWith(".js")).text, {
     module, exports: module.exports, require, console, ...globals,
   });
   return module.exports;

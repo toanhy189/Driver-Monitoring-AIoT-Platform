@@ -60,5 +60,9 @@ export async function runDeviceAction(id, action, { signal } = {}) {
       typeof result.lifecycle_state !== "string") {
     throw new Error("BE chưa trả trạng thái hợp lệ của thiết bị vừa thao tác.");
   }
+  if (action === "provision" &&
+      (typeof result.mqtt_username !== "string" || typeof result.mqtt_password !== "string")) {
+    throw new Error("BE chưa trả tài khoản MQTT cho thiết bị.");
+  }
   return result;
 }

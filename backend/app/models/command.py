@@ -32,3 +32,11 @@ class Command(SQLModel, table=True):
     ack_status: str | None = None
     error_message: str | None = None
     dispatches: dict | None = Field(default=None, sa_column=Column(JSON))
+    idempotency_key: str | None = None
+    request_hash: str | None = None
+    http_received_at: NaiveDatetime | None = None
+    http_completed_at: NaiveDatetime | None = None
+    http_duration_ms: float | None = None
+    mqtt_published_at: NaiveDatetime | None = None
+    first_ack_at: NaiveDatetime | None = None
+    completed_ack_at: NaiveDatetime | None = None

@@ -62,15 +62,31 @@ test("không báo đã áp dụng trước khi config_id khớp; sai schema ho�
   assert.equal(config.configStatus({ ...current, appliedId: "cfg-002" }).kind, "pending");
   assert.equal(config.configStatus({ ...current, appliedId: "cfg-002", applied: timings() }).kind, "applied");
   assert.equal(config.configStatus({ ...current, desiredId: null }).kind, "unknown");
+  assert.equal(config.configStatus({ ...current, status: "REJECTED", error: "INVALID_TIMING" }).kind, "rejected");
+  assert.match(config.configStatus({ ...current, status: "REJECTED", error: "INVALID_TIMING" }).label,
+    /Thời gian bật\/tắt không hợp lệ/);
+  assert.equal(config.configStatus({ ...current, status: "PUBLISH_FAILED" }).kind, "rejected");
   assert.throws(() => config.normalizeConfig({ severity: 2, buzzer_ms: 1000 }), /desired/);
   const draft = config.draftFromTimings(timings());
   assert.equal(config.timingsFromDraft(draft).led[1].on_ms, 100);
   draft.led[1].on_ms = "100.5";
   assert.throws(() => config.timingsFromDraft(draft), /số nguyên/);
   draft.led[1].on_ms = "10001";
-  assert.throws(() => config.timingsFromDraft(draft), /10000/);
+  assert.throws(() => config.timingsFromDraft(draft), /5000/);
   draft.led[1].on_ms = "-1";
   assert.throws(() => config.timingsFromDraft(draft), /số nguyên/);
+});
+
+test("giới hạn thời gian cấu hình khớp firmware TV1 tuần 3", async () => {
+  const config = await loadModule("../src/services/configModel.js");
+  for (const [field, minimum, maximum] of [["on_ms", 50, 5000], ["off_ms", 50, 10000]]) {
+    for (const value of [minimum, maximum, minimum - 1, maximum + 1]) {
+      const candidate = timings();
+      candidate.led[1][field] = value;
+      if (value >= minimum && value <= maximum) assert.equal(config.validateTimings(candidate).led[1][field], value);
+      else assert.throws(() => config.validateTimings(candidate), /phải là số nguyên/);
+    }
+  }
 });
 
 test("Customer xem form nhưng không có nút lưu; Admin chỉ được lưu sau khi tải cấu hình", async () => {

@@ -17,10 +17,15 @@ function validRequestId(id) {
   return id;
 }
 
-export async function sendTestAlert(deviceId, { parameters = TEST_ALERT_BODY, signal } = {}) {
+export function newCommandKey() {
+  return globalThis.crypto?.randomUUID?.() || `web-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+export async function sendTestAlert(deviceId, { parameters = TEST_ALERT_BODY, signal, idempotencyKey = newCommandKey() } = {}) {
   const id = validDeviceId(deviceId);
   const response = await authenticatedRequest(`/devices/${id}/commands`, {
     method: "POST", body: validateTestAlertParameters(parameters),
+    headers: { "Idempotency-Key": idempotencyKey },
     missingMessage: "Bạn cần đăng nhập để xem lệnh.", signal,
   });
   const command = normalizeCommand(response);

@@ -1,0 +1,8 @@
+{
+  "checked_at": "2026-10-19T15:32:52.925629+00:00",
+  "application_receipts_table_exists": false,
+  "live_backend_storage_ack_permission": false,
+  "live_ai_scoped_events_permission": false,
+  "rule_engine_enabled": false,
+  "live_acl_changed_by_this_check": false
+}

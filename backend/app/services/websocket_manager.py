@@ -5,6 +5,8 @@ from sqlmodel import Session, select
 
 from app.core.db import engine
 from app.models.user_device import UserDevice
+from app.models.user import User
+from app.core.config import settings
 
 
 class ConnectionManager:
@@ -13,6 +15,9 @@ class ConnectionManager:
         self.loop: asyncio.AbstractEventLoop | None = None
 
     async def connect(self, websocket: WebSocket, user_id: int):
+        if len(self.connections) >= settings.MAX_WS_CONNECTIONS:
+            await websocket.close(code=1013)
+            return
         await websocket.accept()
         self.loop = asyncio.get_running_loop()
         self.connections[websocket] = user_id
@@ -30,6 +35,8 @@ class ConnectionManager:
                 select(UserDevice.user_id).where(
                     UserDevice.device_id == device_id,
                     UserDevice.unassigned_at.is_(None),
+                ).join(User, User.id == UserDevice.user_id).where(
+                    User.role.in_(["Admin", "Employee", "Customer", "ADMIN", "OPERATOR", "VIEWER"])
                 )
             ).all())
         for websocket, user_id in list(self.connections.items()):

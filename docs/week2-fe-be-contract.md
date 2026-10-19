@@ -50,9 +50,9 @@ Hai thời lượng phải là số nguyên `1–10000`; `led_mode` là `ON` ho�
 }
 ```
 
-`timings` thực tế bắt buộc có **led, buzzer, motor** và cả ba mức `1`, `2`, `3`, mỗi mức có `on_ms` và `off_ms` là số nguyên `0–10000`. `PUT /api/devices/{id}/config` nhận `{ "timings": ... }` và trả `{ "config_id": "cfg-...", "status": "PENDING_APPLICATION" }`. FE chỉ hiển thị **đã áp dụng** khi BE trả cả `applied` và `applied_config_id` khớp `config_id`. Firmware hiện chưa subscribe cấu hình từ xa, nên PUT hiện mới lưu **desired**; trạng thái chờ áp dụng là đúng cho đến khi IoT bổ sung xác nhận có `config_id`.
+`timings` bắt buộc có **led, buzzer, motor** và cả ba mức `1`, `2`, `3`. Theo firmware TV1 tuần 3, `on_ms` là số nguyên 50–5000; `off_ms` là số nguyên 50–10000. `PUT /api/devices/{id}/config` nhận `{ "timings": ... }` và trả `{ "config_id": "cfg-...", "status": "PENDING_APPLICATION" }`. FE chỉ hiển thị **đã áp dụng** khi BE trả cả `applied` và `applied_config_id` khớp `config_id`. Firmware nhận `config/update`, lưu flash và gửi APPLIED/REJECTED tới `config/applied`. BE publish QoS 1 retained, lưu revision và chỉ cập nhật applied sau ACK APPLIED đúng thiết bị/config_id. Firmware hiện chưa dùng revision để chặn config cũ; xem [hợp đồng tuần 3](TV2-tuan-3-huong-xu-ly-va-logic-code.md).
 
-`GET /api/alerts` trả mảng gồm `alert_id`, `device_id`, `device_code`, `alert_type`, `severity`, `created_at`, `status`. `POST /api/alerts/{alert_id}/acknowledge` chỉ nhận cảnh báo `NEW` và trả cảnh báo đã cập nhật `status: "ACKNOWLEDGED"`; thao tác này chỉ đánh dấu đã xem, không thay ACK của lệnh. BE hiện chưa liên kết cảnh báo AI với `request_id` lệnh nên trường đó là `null`.
+`GET /api/alerts` trả mảng gồm `alert_id`, `device_id`, `device_code`, `alert_type`, `severity`, `created_at`, `status`. `POST /api/alerts/{alert_id}/acknowledge` chỉ nhận cảnh báo `NEW` và trả cảnh báo đã cập nhật `status: "ACKNOWLEDGED"`; thao tác này chỉ đánh dấu đã xem, không thay ACK của lệnh. Rule Engine tuần 3 lưu liên kết sự kiện/cảnh báo/lệnh. request_id chỉ được trả khi có lệnh liên quan và user có quyền xem thiết bị nhận lệnh; nếu chưa có hoặc không có quyền thì là null.
 
 ## Realtime và giới hạn kiểm thử
 
