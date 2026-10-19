@@ -37,6 +37,10 @@ function FeedbackDialog({ feedback, onClose }) {
         <span className="feedback-dialog-icon" aria-hidden="true">{isError ? "!" : "✓"}</span>
         <h2 id="feedback-title">{feedback.title}</h2>
         <p id="feedback-message">{feedback.message}</p>
+        {feedback.credentials && <dl className="feedback-credentials">
+          <div><dt>Tài khoản MQTT</dt><dd>{feedback.credentials.username}</dd></div>
+          <div><dt>Mật khẩu MQTT</dt><dd>{feedback.credentials.password}</dd></div>
+        </dl>}
         <button ref={closeButton} type="button" className="primary-button" onClick={onCloseRef.current}>Xác nhận</button>
       </section>
     </div>

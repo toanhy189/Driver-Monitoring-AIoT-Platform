@@ -99,6 +99,8 @@ def _save_telemetry(session: Session, code: str, payload: dict) -> list[dict]:
                 "head_pose": telemetry.head_pose,
                 "confidence": telemetry.confidence,
                 "model_version": telemetry.model_version,
+                "angle_x": telemetry.angle_x, "angle_y": telemetry.angle_y, "angle_z": telemetry.angle_z,
+                "model_version": telemetry.model_version,
             },
         },
         _device_event(device),
@@ -124,34 +126,8 @@ def _save_status(session: Session, code: str, payload: dict) -> list[dict]:
 
 
 def _save_ai_event(session: Session, payload: dict) -> list[dict]:
-    if payload.get("event_type") != "DROWSY_THRESHOLD_REACHED":
-        return []
-    device = _device(session, payload.get("device_id"))
-    if device is None or device.lifecycle_state == "DECOMMISSIONED":
-        return []
-    source_id = payload.get("event_id")
-    if not isinstance(source_id, str) or not source_id:
-        return []
-    if session.exec(select(Alert).where(Alert.source_event_id == source_id)).first():
-        return []
-    alert = Alert(
-        device_id=device.id,
-        alert_type=payload["event_type"],
-        status="NEW",
-        source_event_id=source_id,
-        created_at=_timestamp(payload.get("timestamp")),
-    )
-    session.add(alert)
-    session.commit()
-    session.refresh(alert)
-    return [{"type": "alert.created", "data": {
-        "alert_id": alert.id,
-        "device_id": device.id,
-        "device_code": device.device_code,
-        "alert_type": alert.alert_type,
-        "status": alert.status,
-        "created_at": alert.created_at.isoformat() + "Z",
-    }}]
+    from app.services.rule_engine import process_event
+    return process_event(session, payload)
 
 
 def _save_ack(session: Session, code: str, payload: dict) -> list[dict]:
@@ -188,7 +164,17 @@ def _save_ack(session: Session, code: str, payload: dict) -> list[dict]:
     )
     if command.dispatches[key]["status"] == previous:
         return []
+    received = _now()
+    child = command.dispatches[key]
+    command.dispatches = {**command.dispatches, key: {
+        **child, "first_ack_at": child.get("first_ack_at") or received.isoformat() + "Z",
+        **({"completed_ack_at": received.isoformat() + "Z"} if state == "COMPLETED" else {}),
+    }}
+    if command.first_ack_at is None:
+        command.first_ack_at = received
     aggregate(command)
+    if command.ack_status == "COMPLETED":
+        command.completed_ack_at = received
     # A single late child ACK does not resolve the whole timed-out request.
     if was_timeout and command.status == "ACKNOWLEDGED" and command.ack_status != "COMPLETED":
         command.status = "TIMEOUT"
@@ -209,15 +195,33 @@ def _save_ack(session: Session, code: str, payload: dict) -> list[dict]:
 
 def _save_applied_config(session: Session, code: str, payload: dict) -> list[dict]:
     device = _device(session, code)
-    if device is None:
+    if device is None or device.lifecycle_state == "DECOMMISSIONED":
         return []
-    config = session.exec(select(Config).where(Config.device_id == device.id)).first()
+    if payload.get("device_code") != code:
+        return []
+    config = session.exec(select(Config).where(Config.device_id == device.id).with_for_update()).first()
     desired = config.desired_config if config else None
-    if not isinstance(desired, dict) or payload.get("config_id") != desired.get("config_id"):
+    if (not isinstance(desired, dict) or not desired.get("config_id") or
+            "timings" not in desired or payload.get("config_id") != desired.get("config_id")):
         return []
-    if config.applied_config == desired:
+    status = payload.get("status")
+    if status not in {"APPLIED", "REJECTED"}:
         return []
-    config.applied_config = desired
+    if status == "APPLIED":
+        applied = {"config_id": desired["config_id"], "timings": desired["timings"]}
+        if config.applied_config == applied and desired.get("status") == "APPLIED":
+            return []
+        config.applied_config = applied
+        config.desired_config = {**desired, "status": "APPLIED", "error": None}
+    else:
+        if desired.get("status") == "APPLIED" and config.applied_config and \
+                config.applied_config.get("config_id") == desired["config_id"]:
+            return []
+        reason = payload.get("error")
+        reason = reason[:120] if isinstance(reason, str) and reason else "Device rejected configuration"
+        if desired.get("status") == "REJECTED" and desired.get("error") == reason:
+            return []
+        config.desired_config = {**desired, "status": "REJECTED", "error": reason}
     config.updated_at = _now()
     session.add(config)
     session.commit()
@@ -225,7 +229,9 @@ def _save_applied_config(session: Session, code: str, payload: dict) -> list[dic
         "device_id": device.id,
         "device_code": device.device_code,
         "config_id": desired["config_id"],
-        "applied_config_id": desired["config_id"],
+        "applied_config_id": config.applied_config.get("config_id") if config.applied_config else None,
+        "status": status,
+        "error": config.desired_config.get("error"),
     }}]
 
 
@@ -259,6 +265,9 @@ def on_connect(client, userdata, flags, reason_code, properties=None):
 
 
 def on_message(client, userdata, msg):
+    # These are BE output topics; retained tombstones are valid and need no JSON parsing.
+    if msg.topic.endswith("/command") or msg.topic.endswith("/config/update"):
+        return
     try:
         payload = json.loads(msg.payload.decode("utf-8"))
         for event in process_message(msg.topic, payload):
@@ -269,7 +278,7 @@ def on_message(client, userdata, msg):
         logger.exception("Failed to process MQTT message on %s", msg.topic)
 
 
-def start_mqtt_consumer():
+def start_mqtt_consumer(stop_event=None):
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     if settings.MQTT_USERNAME:
         client.username_pw_set(settings.MQTT_USERNAME, settings.MQTT_PASSWORD)
@@ -277,4 +286,10 @@ def start_mqtt_consumer():
     client.on_message = on_message
     client.reconnect_delay_set(min_delay=1, max_delay=30)
     client.connect_async(settings.MQTT_HOST, settings.MQTT_PORT, 60)
-    client.loop_forever(retry_first_connection=True)
+    if stop_event is None:
+        client.loop_forever(retry_first_connection=True)
+    else:
+        client.loop_start()
+        stop_event.wait()
+        client.disconnect()
+        client.loop_stop()

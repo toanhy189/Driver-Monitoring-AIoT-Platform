@@ -1,5 +1,10 @@
 from contextlib import asynccontextmanager
-from threading import Thread
+from threading import Thread, Event
+from datetime import datetime, timezone
+from time import perf_counter
+from sqlmodel import Session
+from app.core.db import engine
+from app.models.command import Command
 
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
@@ -12,21 +17,24 @@ from app.services.background_tasks import run_background_tasks
 
 def custom_generate_unique_id(route):
     tag = route.tags[0] if route.tags else "default"
-    return f"{tag}-{route.name}"
+    path = route.path_format.strip("/").replace("/", "_").replace("{", "").replace("}", "")
+    method = sorted(route.methods or {"GET"})[0].lower()
+    return f"{tag}-{route.name}-{method}-{path}"
 
 @asynccontextmanager
 async def lifespan(app):
-    Thread(
-        target=start_mqtt_consumer,
-        daemon=True
-    ).start()
-    
-    Thread(
-        target=run_background_tasks,
-        daemon=True
-    ).start()
-
+    stop = Event()
+    threads = []
+    for enabled, task in ((settings.ENABLE_MQTT_CONSUMER, start_mqtt_consumer),
+                          (settings.ENABLE_BACKGROUND_TASKS, run_background_tasks)):
+        if enabled:
+            worker = Thread(target=task, args=(stop,), daemon=True)
+            worker.start()
+            threads.append(worker)
     yield
+    stop.set()
+    for worker in threads:
+        worker.join(timeout=5)
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -45,3 +53,23 @@ app.add_middleware(
 
 app.include_router(api_router, prefix=settings.API_STR)
 app.include_router(websocket_router)
+
+
+@app.middleware("http")
+async def record_http_duration(request, call_next):
+    received = datetime.now(timezone.utc).replace(tzinfo=None)
+    started = perf_counter()
+    response = await call_next(request)
+    duration = round((perf_counter() - started) * 1000, 3)
+    response.headers["X-Response-Time-Ms"] = str(duration)
+    command_id = getattr(request.state, "command_id", None)
+    if command_id is not None:
+        with Session(engine) as session:
+            command = session.get(Command, command_id)
+            if command:
+                command.http_received_at = received
+                command.http_completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+                command.http_duration_ms = duration
+                session.add(command)
+                session.commit()
+    return response

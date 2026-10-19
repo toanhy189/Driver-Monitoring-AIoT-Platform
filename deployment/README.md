@@ -1,41 +1,30 @@
-# Cách tạo docker
-## 1. Tạo 1 bản sao .env của .env.example
-Cấu trúc thư mục sẽ như sau:
-```text
-Driver-Monitoring-AIoT-Platform/
-│
-├── .env
-├── .env.example
-├── backend/
-├── frontend/
-├── ...
-└── deployment/
-```
-## 2. Tìm và thay đổi các trường này trong .env theo DB local trên máy
-```bash
-    POSTGRES_USER=postgres
-    POSTGRES_PASSWORD=MAT_KHAU_DB
-    POSTGRES_DB=device_monitor
-```
-## 3. Tiếp tìm và thay đổi dòng này trong .env
-```bash
-    DATABASE_URL=postgresql+psycopg://postgres:MAT_KHAU_DB@localhost:5432/device_monitor
-```
-thành
-```bash
-    DATABASE_URL=postgresql+psycopg://postgres:MAT_KHAU_DB@postgres:5432/device_monitor
-```
-(@localhost ---> @postgres)
+# Chạy hệ thống bằng Docker Compose
 
+Thực hiện các lệnh tại **thư mục gốc dự án**.
 
-Lúc dev local trên máy thì đổi lại localhost nha, postgres này là một container của Docker, không phải PostgreSQL local trên máy.
+## Lần đầu
 
-## 3. Chạy lệnh dưới đây để build các Container trong Docker
-```bash
-    docker compose --env-file .env -f deployment/docker-compose.yml up --build
-```
-## 4. Từ các lần sau, chạy Container chỉ cần lệnh sau:
-```bash
-    docker compose --env-file .env -f deployment/docker-compose.yml up
+1. Sao chép `.env.example` thành `.env`. Điền `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `DATABASE_URL` và `SECRET_KEY`. File `.env` được Git bỏ qua.
+2. Chạy `python deployment/mqtt/prepare_env.py`. Script tạo mật khẩu MQTT ngẫu nhiên trong `.env` và không in mật khẩu ra màn hình.
+3. Chạy `docker compose --env-file .env -f deployment/docker-compose.yml up -d --build`.
+
+Compose tạo PostgreSQL, chạy migration, khởi tạo tài khoản MQTT rồi mới mở BE và FE. Nếu chỉ cần DB và broker để chạy BE trên Windows:
+
+```powershell
+docker compose --env-file .env -f deployment/docker-compose.yml up -d postgres mqtt-setup
 ```
 
+Khi BE chạy trên Windows, dùng `DATABASE_URL` trỏ tới `localhost:5432`, `MQTT_HOST=localhost`, `MQTT_PORT=1884` trong `.env`. Trong container, Compose tự đổi địa chỉ sang `postgres:5432` và `mosquitto:1883`; bạn không cần sửa `.env` qua lại.
+
+## Những lần sau
+
+```powershell
+docker compose --env-file .env -f deployment/docker-compose.yml up -d
+```
+
+Dữ liệu PostgreSQL nằm trong volume `postgres_data`; cấu hình tài khoản Mosquitto nằm trong volume `mqtt_data`. Đừng xóa hai volume này nếu muốn giữ dữ liệu và tài khoản.
+
+Broker Docker mở cổng **1884** trên Windows vì máy phát triển có Mosquitto riêng ở cổng 1883. Xem [hướng dẫn TV2-03](mqtt/README.md) để thử quyền MQTT, lấy tài khoản cho ESP32 và cấu hình Edge AI.
+
+
+Phần BE tuần 3 bổ sung `database/migration_be_week3.sql`; service migrate chạy file này sau migration tuần 2. Nếu chạy BE trực tiếp trên Windows, dùng `python backend/scripts/migrate_week3.py` trước khi khởi động lại BE. Hợp đồng và minh chứng: [TV2 tuần 3](../docs/TV2-tuan-3-huong-xu-ly-va-logic-code.md). Docker BE chạy một worker vì ticket/kết nối WebSocket đang giữ trong RAM của process.

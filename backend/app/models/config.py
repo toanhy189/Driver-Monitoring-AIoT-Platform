@@ -12,6 +12,7 @@ class Config(SQLModel, table=True):
     )
 
     device_id: int = Field(unique=True)
+    revision: int = 0
     
     desired_config: dict | None = Field(default=None, sa_column=Column(JSON))
     applied_config: dict | None = Field(default=None, sa_column=Column(JSON))

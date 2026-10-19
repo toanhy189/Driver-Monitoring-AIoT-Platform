@@ -78,6 +78,19 @@ test("bốn thao tác vòng đời gọi đúng URL; lỗi không tạo trạng 
   assert.equal(calls.length, 4);
 });
 
+test("provision chỉ thành công khi BE trả tài khoản MQTT của thiết bị", async () => {
+  const service = await loadModule("../src/services/devices.js", {
+    localStorage: { getItem: () => "token" },
+    fetch: async () => response(200, {
+      id: 2, device_code: "alert-01", lifecycle_state: "PROVISIONED",
+      mqtt_username: "alert-01", mqtt_password: "secret-for-test",
+    }),
+  });
+  const result = await service.runDeviceAction(2, "provision");
+  assert.equal(result.mqtt_username, "alert-01");
+  assert.equal(result.mqtt_password, "secret-for-test");
+});
+
 test("response 2xx phải chứa đúng thiết bị trước khi FE báo đăng ký hoặc đổi trạng thái thành công", async () => {
   const service = await loadModule("../src/services/devices.js", {
     localStorage: { getItem: () => "token" },

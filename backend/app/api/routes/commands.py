@@ -1,6 +1,9 @@
 from datetime import datetime, timedelta, timezone
+import hashlib
+import json
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header, Request, Query
 from sqlmodel import Session, select
 
 from app.api.deps import require_operator, require_viewer
@@ -16,6 +19,8 @@ from app.services.audit_service import log_action
 from app.services.command_service import publish_command
 from app.services.command_state import aggregate, update_dispatch
 from app.services.time_utils import as_utc
+from app.services.command_dispatch import create_command, dispatch_command
+from app.services.latency import command_latency
 
 
 router = APIRouter(tags=["commands"])
@@ -56,69 +61,56 @@ def _public(session: Session, command: Command, device: Device | None = None) ->
         "ack_status": ack_status,
         "error_message": command.error_message,
         "executed_at": as_utc(command.executed_at),
+        "alert_id": command.alert_id,
+        "latency": command_latency(command),
+        "latency_ms": command_latency(command)["total_to_completed_ms"],
     }
 
 
-def _save_parent(
-    session: Session, device: Device, user: User, action: str,
-    dispatches: dict,
-) -> Command:
-    command_type = _command_type(session, action)
-    parent = Command(
-        device_id=device.id,
-        command_type_id=command_type.id,
-        action=action,
-        created_by_user_id=user.id,
-        status="PENDING",
-    )
-    session.add(parent)
-    session.flush()
-    parent.request_id = f"cmd-{parent.id}"
-    parent.dispatches = {
-        key: {"request_id": f"cmd-{parent.id}-{key}", "status": "PENDING"}
-        for key in dispatches
-    }
-    session.add(parent)
+def _save_parent(session, device, user, action, dispatches, **kwargs):
+    parent = create_command(session, device, action, dispatches, user_id=user.id, **kwargs)
     session.commit()
     return parent
 
 
-def _publish_actions(session: Session, parent: Command, device: Device, actions: dict) -> dict:
-    for key, parameters in actions.items():
-        child_request_id = parent.dispatches[key]["request_id"]
-        success = publish_command(
-            device.device_code,
-            {"request_id": child_request_id, **parameters},
-        )
-        # An ACK can arrive while publish waits. Never overwrite a later state.
-        current = session.exec(
-            select(Command).where(Command.id == parent.id).with_for_update()
-            .execution_options(populate_existing=True)
-        ).one()
-        next_status = "SENT" if success else "FAILED"
-        # A matching ACK can reach the consumer before publish() returns.
-        # A local publish failure cannot overturn an ACK already received.
-        if not success and current.dispatches[key]["status"] not in {"PENDING", "SENT"}:
-            next_status = current.dispatches[key]["status"]
-        current.dispatches = update_dispatch(
-            current.dispatches, key, next_status,
-            None if success or next_status != "FAILED" else "MQTT publish failed",
-        )
-        aggregate(current)
-        session.add(current)
+def _publish_actions(session, parent, device, actions):
+    if any("dispatch_state" not in child for child in parent.dispatches.values()):
+        parent.dispatches = {key: {**child, "dispatch_state": child.get("dispatch_state", "QUEUED"),
+                                  "payload": child.get("payload", actions[key])}
+                             for key, child in parent.dispatches.items()}
+        session.add(parent)
         session.commit()
+    dispatch_command(session, parent.id, publisher=publish_command)
     session.refresh(parent)
     return _public(session, parent, device)
+
+
+def _replay(session, user, device, key, body):
+    if key is None:
+        return None, None
+    # Serialize requests from the same user; uniqueness in PostgreSQL is the final guard.
+    session.exec(select(User).where(User.id == user.id).with_for_update()).first()
+    digest = hashlib.sha256(json.dumps(body, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    previous = session.exec(select(Command).where(Command.created_by_user_id == user.id,
+        Command.device_id == device.id, Command.idempotency_key == key)).first()
+    if previous and previous.request_hash != digest:
+        raise HTTPException(status_code=409, detail="Idempotency-Key was already used with different parameters")
+    return previous, digest
 
 
 @router.post("/devices/{device_id}/commands", status_code=201)
 def send_test_alert(
     device_id: int,
     data: TestAlertRequest,
+    request: Request,
     current_user: User = Depends(require_operator),
     session: Session = Depends(get_session),
+    idempotency_key: Annotated[str | None, Header(min_length=8, max_length=128, pattern=r"^[A-Za-z0-9_.:-]+$")] = None,
 ):
     device = assigned_device(session, current_user.id, device_id)
+    previous, digest = _replay(session, current_user, device, idempotency_key, data.model_dump())
+    if previous:
+        return _public(session, previous, device)
     if device.device_type != "ALERT_NODE":
         raise HTTPException(status_code=409, detail="Device is not an alert node")
     if device.lifecycle_state != "ACTIVE":
@@ -143,7 +135,9 @@ def send_test_alert(
             "intensity": "MEDIUM",
         },
     }
-    parent = _save_parent(session, device, current_user, data.action, actions)
+    parent = _save_parent(session, device, current_user, data.action, actions,
+                          idempotency_key=idempotency_key, request_hash=digest)
+    request.state.command_id = parent.id
     log_action(
         session=session, user_id=current_user.id, action="TEST_ALERT",
         entity_type="Command", entity_id=parent.request_id,
@@ -156,6 +150,8 @@ def send_test_alert(
 @router.get("/commands")
 def list_commands(
     device_id: int | None = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 100,
+    offset: Annotated[int, Query(ge=0, le=10000)] = 0,
     current_user: User = Depends(require_viewer),
     session: Session = Depends(get_session),
 ):
@@ -169,7 +165,7 @@ def list_commands(
     )
     if device_id is not None:
         query = query.where(Command.device_id == device_id)
-    commands = session.exec(query.order_by(Command.created_at.desc()).limit(100)).all()
+    commands = session.exec(query.order_by(Command.created_at.desc(), Command.id.desc()).offset(offset).limit(limit)).all()
     return [_public(session, command) for command in commands]
 
 
@@ -193,8 +189,10 @@ def get_command(
 @router.post("/commands/", status_code=201)
 def send_command_legacy(
     data: LegacyCommandRequest,
+    request: Request,
     current_user: User = Depends(require_operator),
     session: Session = Depends(get_session),
+    idempotency_key: Annotated[str | None, Header(min_length=8, max_length=128, pattern=r"^[A-Za-z0-9_.:-]+$")] = None,
 ):
     device = session.exec(
         select(Device).where(Device.device_code == data.device_code)
@@ -202,6 +200,9 @@ def send_command_legacy(
     if device is None:
         raise HTTPException(status_code=404, detail="Device not found")
     assigned_device(session, current_user.id, device.id)
+    previous, digest = _replay(session, current_user, device, idempotency_key, data.model_dump())
+    if previous:
+        return _public(session, previous, device)
     if device.lifecycle_state != "ACTIVE" or device.status != "ONLINE":
         raise HTTPException(status_code=409, detail="Device is not active and online")
     command_name = {"VIBRATION_ON": "MOTOR_ON", "VIBRATION_OFF": "MOTOR_OFF"}.get(
@@ -214,5 +215,7 @@ def send_command_legacy(
         "duration": data.duration,
         "intensity": data.intensity,
     }}
-    parent = _save_parent(session, device, current_user, data.command, actions)
+    parent = _save_parent(session, device, current_user, data.command, actions,
+                          idempotency_key=idempotency_key, request_hash=digest)
+    request.state.command_id = parent.id
     return _publish_actions(session, parent, device, actions)

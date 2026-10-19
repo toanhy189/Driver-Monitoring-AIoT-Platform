@@ -1,6 +1,7 @@
 """Focused checks for the FE/BE boundary and existing MQTT devices."""
 
 import asyncio
+import json
 import os
 import sys
 import unittest
@@ -28,8 +29,9 @@ from app.schemas.command import TestAlertRequest as AlertTestRequest  # noqa: E4
 from app.schemas.config import validate_timings  # noqa: E402
 from app.schemas.device import DeviceResponse  # noqa: E402
 from app.services.command_state import aggregate, update_dispatch  # noqa: E402
+from app.services.config_publish_service import publish_config  # noqa: E402
 from app.api.routes.commands import _publish_actions  # noqa: E402
-from app.api.routes.configs import ConfigUpdateRequest, update_device_config  # noqa: E402
+from app.api.routes.configs import ConfigUpdateRequest, _snapshot, update_device_config  # noqa: E402
 from app.services.mqtt_service import _save_ack, _save_applied_config, process_message  # noqa: E402
 from app.services.websocket_manager import ConnectionManager  # noqa: E402
 from app.services.ws_tickets import consume_ticket, issue_ticket  # noqa: E402
@@ -56,9 +58,13 @@ class FakeSession:
         self.commits = 0
 
     def exec(self, statement):
+        if statement.column_descriptions[0].get("entity") is Device:
+            return Result(self.device)
         return Result(self.command)
 
     def get(self, model, identifier):
+        if model is Command:
+            return self.command
         return self.device
 
     def add(self, value):
@@ -72,6 +78,23 @@ class FakeSession:
 
 
 class Week2ContractTests(unittest.TestCase):
+    def test_openapi_operation_ids_are_unique_for_alias_routes(self):
+        schema = app.openapi()
+        identifiers = [operation["operationId"] for methods in schema["paths"].values()
+                       for operation in methods.values() if isinstance(operation, dict) and "operationId" in operation]
+        self.assertEqual(len(identifiers), len(set(identifiers)))
+
+    def test_config_publish_is_retained_qos_one_and_addressed_to_device(self):
+        payload = {"config_id": "cfg-123", "timings": {}}
+        with patch("app.services.config_publish_service.mqtt.Client") as factory:
+            client = factory.return_value
+            client.publish.return_value.is_published.return_value = True
+            self.assertTrue(publish_config("alert-01", payload))
+        topic, body = client.publish.call_args.args
+        self.assertEqual(topic, "driver/alert-01/config/update")
+        self.assertEqual(json.loads(body), {"device_code": "alert-01", **payload})
+        self.assertEqual(client.publish.call_args.kwargs, {"qos": 1, "retain": True})
+
     def test_database_timestamp_columns_accept_naive_utc_values(self):
         for model, fields in (
             (Command, ("created_at", "executed_at")),
@@ -210,6 +233,7 @@ class Week2ContractTests(unittest.TestCase):
         }
         with patch("app.api.routes.configs.assigned_device", return_value=device), \
              patch("app.api.routes.configs._config_for", return_value=config), \
+             patch("app.api.routes.configs.publish_config", return_value=True) as publish, \
              patch("app.api.routes.configs.log_action"):
             response = update_device_config(
                 2, ConfigUpdateRequest(timings=timings), user, FakeSession()
@@ -217,6 +241,7 @@ class Week2ContractTests(unittest.TestCase):
         self.assertEqual(response["status"], "PENDING_APPLICATION")
         self.assertEqual(config.desired_config["config_id"], response["config_id"])
         self.assertEqual(config.applied_config["config_id"], "cfg-old")
+        publish.assert_called_once_with("alert-01", {"config_id": response["config_id"], "timings": timings, "revision": 1})
 
     def test_config_applied_event_must_match_saved_desired_id(self):
         device = Device(id=2, device_code="alert-01", model="Alert")
@@ -228,14 +253,50 @@ class Week2ContractTests(unittest.TestCase):
         session = FakeSession(config, device)
         with patch("app.services.mqtt_service._device", return_value=device):
             self.assertEqual(_save_applied_config(session, "alert-01", {
-                "config_id": "cfg-other",
+                "device_code": "alert-01", "config_id": "cfg-other", "status": "APPLIED",
+            }), [])
+            self.assertEqual(_save_applied_config(session, "alert-01", {
+                "device_code": "alert-01", "config_id": "cfg-new",
             }), [])
             self.assertEqual(config.applied_config["config_id"], "cfg-old")
+            self.assertEqual(_save_applied_config(session, "alert-01", {
+                "device_code": "alert-01", "config_id": "cfg-new", "status": "REJECTED",
+                "error": "INVALID_TIMING",
+            })[0]["data"]["status"], "REJECTED")
+            self.assertEqual(config.applied_config["config_id"], "cfg-old")
+            self.assertEqual(config.desired_config["error"], "INVALID_TIMING")
+            self.assertEqual(_snapshot(config)["status"], "REJECTED")
+            self.assertEqual(_save_applied_config(session, "alert-01", {
+                "device_code": "other", "config_id": "cfg-new", "status": "APPLIED",
+            }), [])
             events = _save_applied_config(session, "alert-01", {
-                "config_id": "cfg-new",
+                "device_code": "alert-01", "config_id": "cfg-new", "status": "APPLIED",
             })
         self.assertEqual(config.applied_config["config_id"], "cfg-new")
         self.assertEqual(events[0]["data"]["applied_config_id"], "cfg-new")
+        self.assertEqual(config.desired_config["status"], "APPLIED")
+        with patch("app.services.mqtt_service._device", return_value=device):
+            self.assertEqual(_save_applied_config(session, "alert-01", {
+                "device_code": "alert-01", "config_id": "cfg-new",
+                "status": "REJECTED", "error": "INVALID_TIMING",
+            }), [])
+        self.assertEqual(config.desired_config["status"], "APPLIED")
+
+    def test_config_publish_failure_is_visible_without_claiming_applied(self):
+        config = Config(id=3, device_id=2, applied_config=None)
+        device = Device(id=2, device_code="alert-01", model="Alert", device_type="ALERT_NODE")
+        timings = {output: {str(level): {"on_ms": 100, "off_ms": 200}
+                            for level in (1, 2, 3)} for output in ("led", "buzzer", "motor")}
+        with patch("app.api.routes.configs.assigned_device", return_value=device), \
+             patch("app.api.routes.configs._config_for", return_value=config), \
+             patch("app.api.routes.configs.publish_config", return_value=False), \
+             patch("app.api.routes.configs.log_action"):
+            with self.assertRaises(HTTPException) as failure:
+                update_device_config(2, ConfigUpdateRequest(timings=timings),
+                                     SimpleNamespace(id=1), FakeSession())
+        self.assertEqual(failure.exception.status_code, 503)
+        self.assertEqual(config.desired_config["status"], "PUBLISH_FAILED")
+        self.assertIsNone(config.applied_config)
 
     def test_firmware_interrupted_ack_is_failure(self):
         device = Device(id=2, device_code="alert-01", model="Alert")

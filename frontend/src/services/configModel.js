@@ -4,8 +4,17 @@ export const CONFIG_OUTPUTS = Object.freeze([
   { key: "motor", label: "Motor rung" },
 ]);
 export const CONFIG_LEVELS = Object.freeze([1, 2, 3]);
-// This limit matches the week-2 backend validator. Firmware support remains separate.
+// Keep the same range as BE validation and the ESP32 config parser.
 export const MAX_TIMING_MS = 10000;
+const CONFIG_ERRORS = {
+  INVALID_CONFIG_ID: "Mã cấu hình không hợp lệ",
+  DEVICE_MISMATCH: "Cấu hình gửi nhầm thiết bị",
+  INVALID_TIMING: "Thời gian bật/tắt không hợp lệ",
+  STORAGE_ERROR: "Thiết bị không lưu được cấu hình",
+  DUPLICATE_ID_MISMATCH: "Mã cấu hình đã tồn tại nhưng nội dung khác",
+  INVALID_REVISION: "Phiên bản cấu hình không hợp lệ",
+  STALE_CONFIG: "Cấu hình cũ hơn phiên bản thiết bị đang dùng",
+};
 
 function validConfigId(value) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -99,6 +108,8 @@ export function normalizeConfig(response) {
     appliedId: validConfigId(response.applied_config_id ?? appliedPart?.config_id),
     desired: desiredPart ? validateTimings(desiredPart.timings) : null,
     applied: appliedPart ? validateTimings(appliedPart.timings) : null,
+    status: typeof response.status === "string" ? response.status : null,
+    error: typeof response.error === "string" ? response.error : null,
   };
 }
 
@@ -106,6 +117,13 @@ export function configStatus(snapshot) {
   if (!snapshot) return { kind: "unavailable", label: "Chưa tải được cấu hình" };
   if (!snapshot.desired) return { kind: "empty", label: "Chưa có cấu hình mong muốn" };
   if (!snapshot.desiredId) return { kind: "unknown", label: "Chưa xác định trạng thái áp dụng" };
+  if (snapshot.status === "REJECTED") {
+    const reason = snapshot.error ? CONFIG_ERRORS[snapshot.error] || snapshot.error : null;
+    return { kind: "rejected", label: `Thiết bị từ chối cấu hình${reason ? `: ${reason}` : ""}` };
+  }
+  if (snapshot.status === "PUBLISH_FAILED") {
+    return { kind: "rejected", label: "BE chưa gửi được cấu hình tới broker MQTT" };
+  }
   if (!snapshot.applied || snapshot.appliedId !== snapshot.desiredId) {
     return { kind: "pending", label: "Chờ thiết bị áp dụng" };
   }

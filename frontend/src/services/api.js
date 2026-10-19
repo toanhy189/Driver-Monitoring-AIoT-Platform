@@ -2,13 +2,13 @@ const host = (import.meta.env.VITE_BACKEND_HOST || "http://localhost:8000").repl
 const prefix = `/${(import.meta.env.VITE_API_STR || "/api").replace(/^\/+|\/+$/g, "")}`;
 
 // Các service truyền đường dẫn sau /api, ví dụ "/devices".
-export async function apiRequest(path, { method = "GET", body, token, signal } = {}) {
+export async function apiRequest(path, { method = "GET", body, token, signal, headers: extraHeaders = {} } = {}) {
   if (typeof path !== "string" || !path.startsWith("/") ||
       path === prefix || path.startsWith(`${prefix}/`)) {
     throw new Error(`Đường dẫn API phải bắt đầu bằng / và không lặp lại ${prefix}.`);
   }
 
-  const headers = { Accept: "application/json" };
+  const headers = { Accept: "application/json", ...extraHeaders };
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body !== undefined) headers["Content-Type"] = "application/json";
 

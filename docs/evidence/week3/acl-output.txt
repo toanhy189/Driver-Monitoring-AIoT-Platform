@@ -1,0 +1,6 @@
+test_accounts_acl_and_revoke (__main__.MqttSecurityIntegration.test_accounts_acl_and_revoke) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 1.609s
+
+OK

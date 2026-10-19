@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Literal
 
-from pydantic import PostgresDsn
+from pydantic import PostgresDsn, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -35,8 +35,17 @@ class Settings(BaseSettings):
     MQTT_PORT: int = 1883
     MQTT_USERNAME: str = ""
     MQTT_PASSWORD: str = ""
-    MOSQUITTO_PASSWD_BIN: str = ""
-    MOSQUITTO_PASSWD_FILE: str = ""
-    MOSQUITTO_ACL_FILE: str = ""
+    MQTT_ADMIN_USERNAME: str = "admin"
+    MQTT_ADMIN_PASSWORD: str = ""
+    AI_MQTT_USERNAME: str = "vision-01"
+    AI_MQTT_PASSWORD: str = ""
+    SQL_ECHO: bool = False
+    ENABLE_MQTT_CONSUMER: bool = True
+    ENABLE_BACKGROUND_TASKS: bool = True
+    RULE_ENGINE_ENABLED: bool = False
+    COMMAND_TIMEOUT_SECONDS: int = Field(default=30, ge=1, le=3600)
+    MAX_WS_TICKETS: int = Field(default=10000, ge=1, le=100000)
+    MAX_WS_CONNECTIONS: int = Field(default=500, ge=1, le=10000)
+    WS_TICKET_TTL_SECONDS: int = Field(default=30, ge=1, le=300)
 
 settings = Settings()

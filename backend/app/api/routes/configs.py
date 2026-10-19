@@ -13,6 +13,7 @@ from app.models.user import User
 from app.schemas.config import validate_timings
 from app.services.access import assigned_device
 from app.services.audit_service import log_action
+from app.services.config_publish_service import publish_config
 
 
 router = APIRouter(tags=["configs"])
@@ -22,8 +23,11 @@ class ConfigUpdateRequest(BaseModel):
     timings: dict
 
 
-def _config_for(session: Session, device_id: int) -> Config | None:
-    return session.exec(select(Config).where(Config.device_id == device_id)).first()
+def _config_for(session: Session, device_id: int, *, for_update: bool = False) -> Config | None:
+    statement = select(Config).where(Config.device_id == device_id)
+    if for_update:
+        statement = statement.with_for_update().execution_options(populate_existing=True)
+    return session.exec(statement).first()
 
 
 def _snapshot(config: Config | None) -> dict:
@@ -31,11 +35,17 @@ def _snapshot(config: Config | None) -> dict:
     applied = config.applied_config if config else None
     desired = desired if isinstance(desired, dict) and "timings" in desired else None
     applied = applied if isinstance(applied, dict) and "timings" in applied else None
+    state = desired.get("status") if desired else None
+    if desired and not state:
+        state = ("APPLIED" if applied and desired.get("config_id") == applied.get("config_id")
+                 else "PENDING_APPLICATION")
     return {
         "config_id": desired.get("config_id") if desired else None,
         "applied_config_id": applied.get("config_id") if applied else None,
         "desired": desired,
         "applied": applied,
+        "status": state,
+        "error": desired.get("error") if desired else None,
     }
 
 
@@ -64,11 +74,16 @@ def update_device_config(
     if device.lifecycle_state == "DECOMMISSIONED":
         raise HTTPException(status_code=409, detail="Device decommissioned")
     timings = validate_timings(data.timings)
-    config = _config_for(session, device_id)
+    config = _config_for(session, device_id, for_update=True)
     if config is None:
         config = Config(device_id=device_id)
     config_id = f"cfg-{uuid4().hex}"
-    config.desired_config = {"config_id": config_id, "timings": timings}
+    config.revision += 1
+    config.desired_config = {
+        "config_id": config_id, "timings": timings,
+        "revision": config.revision,
+        "status": "PENDING_APPLICATION", "error": None,
+    }
     config.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
     session.add(config)
     session.commit()
@@ -78,7 +93,22 @@ def update_device_config(
         details={"device_code": device.device_code, "config_id": config_id},
     )
     session.commit()
-    # Current firmware has no config subscription or applied ACK. Keep it pending.
+    config = _config_for(session, device_id, for_update=True)
+    if config.desired_config.get("config_id") != config_id:
+        session.commit()
+        return {"config_id": config_id, "status": "SUPERSEDED"}
+    if not publish_config(device.device_code, {"config_id": config_id, "timings": timings, "revision": config.revision}):
+        session.refresh(config)
+        current = config.desired_config or {}
+        if current.get("config_id") == config_id and current.get("status") == "APPLIED":
+            return {"config_id": config_id, "status": "APPLIED"}
+        if current.get("config_id") == config_id and current.get("status") == "PENDING_APPLICATION":
+            config.desired_config = {**current, "status": "PUBLISH_FAILED",
+                                     "error": "MQTT broker did not confirm the publish"}
+            session.add(config)
+            session.commit()
+        raise HTTPException(status_code=503, detail="Đã lưu cấu hình mong muốn nhưng chưa gửi được tới broker MQTT")
+    session.commit()  # Release publication ordering lock; ACK consumer may now update applied.
     return {"config_id": config_id, "status": "PENDING_APPLICATION"}
 
 

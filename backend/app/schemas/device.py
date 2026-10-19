@@ -50,3 +50,9 @@ class DeviceResponse(BaseModel):
     @classmethod
     def mark_utc(cls, value):
         return as_utc(value) if isinstance(value, datetime) else value
+
+
+class ProvisionResponse(DeviceResponse):
+    # Chỉ POST provision trả mật khẩu để quản trị viên đưa vào thiết bị.
+    mqtt_username: str
+    mqtt_password: str

@@ -62,6 +62,10 @@ test("không báo đã áp dụng trước khi config_id khớp; sai schema ho�
   assert.equal(config.configStatus({ ...current, appliedId: "cfg-002" }).kind, "pending");
   assert.equal(config.configStatus({ ...current, appliedId: "cfg-002", applied: timings() }).kind, "applied");
   assert.equal(config.configStatus({ ...current, desiredId: null }).kind, "unknown");
+  assert.equal(config.configStatus({ ...current, status: "REJECTED", error: "INVALID_TIMING" }).kind, "rejected");
+  assert.match(config.configStatus({ ...current, status: "REJECTED", error: "INVALID_TIMING" }).label,
+    /Thời gian bật\/tắt không hợp lệ/);
+  assert.equal(config.configStatus({ ...current, status: "PUBLISH_FAILED" }).kind, "rejected");
   assert.throws(() => config.normalizeConfig({ severity: 2, buzzer_ms: 1000 }), /desired/);
   const draft = config.draftFromTimings(timings());
   assert.equal(config.timingsFromDraft(draft).led[1].on_ms, 100);

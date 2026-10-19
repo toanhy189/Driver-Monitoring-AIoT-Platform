@@ -58,7 +58,8 @@ function RemoteConfigPage({ user, realtime = NO_REALTIME, deviceId, deviceCode, 
           setDraft(draftFromTimings(result.desired));
           setDraftBaseId(result.desiredId);
         }
-        if (submittedIdRef.current && result.appliedId === submittedIdRef.current) {
+        if (submittedIdRef.current && (result.appliedId === submittedIdRef.current ||
+            result.status === "REJECTED" || result.status === "PUBLISH_FAILED")) {
           submittedIdRef.current = null;
         }
       })
@@ -85,6 +86,10 @@ function RemoteConfigPage({ user, realtime = NO_REALTIME, deviceId, deviceCode, 
   }, [realtime.events, deviceId, deviceCode]);
 
   const status = configStatus(snapshot);
+  const canRetry = snapshot?.status === "PUBLISH_FAILED" || snapshot?.status === "REJECTED";
+  useEffect(() => {
+    if (status.kind === "applied" || status.kind === "rejected") setNotice("");
+  }, [status.kind]);
   const awaitingApplication = status.kind === "pending";
   useEffect(() => {
     if (!awaitingApplication) return;
@@ -132,7 +137,7 @@ function RemoteConfigPage({ user, realtime = NO_REALTIME, deviceId, deviceCode, 
       setSaveError(error.message);
       return;
     }
-    if (JSON.stringify(timings) === JSON.stringify(snapshot.desired)) {
+    if (JSON.stringify(timings) === JSON.stringify(snapshot.desired) && !canRetry) {
       setSaveError("Bạn chưa thay đổi giá trị nào.");
       return;
     }
@@ -144,7 +149,8 @@ function RemoteConfigPage({ user, realtime = NO_REALTIME, deviceId, deviceCode, 
       const configId = await updateDeviceConfig(deviceId, timings, { signal: controller.signal });
       if (controller.signal.aborted) return;
       submittedIdRef.current = configId;
-      setSnapshot(current => ({ ...current, desiredId: configId, desired: timings }));
+      setSnapshot(current => ({ ...current, desiredId: configId, desired: timings,
+        status: "PENDING_APPLICATION", error: null }));
       setDraftBaseId(configId);
       dirtyRef.current = false;
       setDirty(false);
@@ -157,7 +163,7 @@ function RemoteConfigPage({ user, realtime = NO_REALTIME, deviceId, deviceCode, 
       else {
         const message = `${deviceApiError(error)} Hãy tải lại cấu hình trước khi thử gửi lần nữa.`;
         setSaveError(message);
-        setFeedback({ tone: "error", title: "Chưa lưu được cấu hình", message });
+        setFeedback({ tone: "error", title: "Chưa gửi được cấu hình", message });
       }
     } finally {
       if (saveController.current === controller) saveController.current = null;
@@ -194,7 +200,7 @@ function RemoteConfigPage({ user, realtime = NO_REALTIME, deviceId, deviceCode, 
         {changedOnServer && <p className="notice-error" role="alert">Cấu hình trên BE đã đổi trong lúc bạn đang sửa. Hãy bỏ thay đổi hoặc tải lại trước khi lưu.</p>}
         {saveError && <p className="notice-error" role="alert">{saveError}</p>}
         {notice && <p className="notice-success" role="status">{notice}</p>}
-        {canEdit && <div className="config-actions"><button className="outline-button" type="button" onClick={discard} disabled={!dirty || saving}>Bỏ thay đổi</button><button className="primary-button" type="submit" disabled={!snapshot || loading || Boolean(loadError) || !dirty || saving || changedOnServer}>{saving ? "Đang gửi…" : "Lưu cấu hình"}</button></div>}
+        {canEdit && <div className="config-actions"><button className="outline-button" type="button" onClick={discard} disabled={!dirty || saving}>Bỏ thay đổi</button><button className="primary-button" type="submit" disabled={!snapshot || loading || Boolean(loadError) || (!dirty && !canRetry) || saving || changedOnServer}>{saving ? "Đang gửi…" : canRetry && !dirty ? "Gửi lại cấu hình" : "Lưu cấu hình"}</button></div>}
       </form>
 
       <aside className="surface-card config-status-panel" aria-label="Trạng thái áp dụng">

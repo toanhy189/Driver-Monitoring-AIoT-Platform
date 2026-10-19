@@ -1,80 +1,39 @@
+"""Create one MQTT identity and a narrow role for each registered device."""
+
+import re
 import secrets
-import string
-import subprocess
-from pathlib import Path
 
 from app.core.config import settings
-
-def _paths():
-    if not all((settings.MOSQUITTO_PASSWD_BIN, settings.MOSQUITTO_PASSWD_FILE,
-                settings.MOSQUITTO_ACL_FILE)):
-        raise RuntimeError("Broker credential management is not configured")
-    return (Path(settings.MOSQUITTO_PASSWD_BIN),
-            Path(settings.MOSQUITTO_PASSWD_FILE),
-            Path(settings.MOSQUITTO_ACL_FILE))
+from app.services.mqtt_security import BrokerSecurity, device_acls
 
 
-def generate_password(length: int = 16) -> str:
-    characters = string.ascii_letters + string.digits
-    return "".join(
-        secrets.choice(characters)
-        for _ in range(length)
-    )
+DEVICE_CODE = re.compile(r"[A-Za-z0-9_-]+\Z")
 
 
-def provision_device(device_code: str) -> dict:
-    mosquitto_passwd, passwd_file, acl_file = _paths()
-    username = device_code
-    password = generate_password()
+def provision_device(device_code: str) -> dict[str, str]:
+    if not DEVICE_CODE.fullmatch(device_code):
+        raise ValueError("Invalid device code for MQTT topic")
+    if device_code in {settings.MQTT_USERNAME, settings.MQTT_ADMIN_USERNAME}:
+        raise ValueError("Reserved MQTT account name")
 
-    # Thêm/cập nhật username vào passwd
-    result = subprocess.run(
-        [
-            str(mosquitto_passwd),
-            "-b",
-            str(passwd_file),
-            username,
-            password,
-        ],
-        capture_output=True,
-        text=True,
-    )
+    if device_code == settings.AI_MQTT_USERNAME:
+        with BrokerSecurity() as broker:
+            if not broker.has_client(device_code):
+                raise RuntimeError("Edge AI MQTT account is not initialized")
+        return {"username": device_code, "password": settings.AI_MQTT_PASSWORD}
 
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"Failed to create MQTT credential: {result.stderr}"
-        )
-
-    # Đọc ACL hiện tại
-    existing_acl = ""
-
-    if acl_file.exists():
-        existing_acl = acl_file.read_text(
-            encoding="utf-8"
-        )
-
-    # Tránh thêm trùng
-    if f"user {username}" not in existing_acl:
-        acl_block = (
-            f"user {username}\n"
-            f"\n"
-            f"topic write driver/{device_code}/telemetry\n"
-            f"topic write driver/{device_code}/status\n"
-            f"topic write driver/{device_code}/ack\n"
-            f"topic write driver/{device_code}/heartbeat\n"
-            f"topic write driver/{device_code}/config/applied\n"
-            f"topic read driver/{device_code}/command\n"
-            f"topic read driver/{device_code}/config/update\n"
-            f"\n"
-        )
-
-        with acl_file.open(
-            "a",
-            encoding="utf-8",
-        ) as file:
-            file.write(acl_block)
-
-    return {
-        "username": username,
-        "password": password,
-    }
+    password = secrets.token_urlsafe(24)
+    role = f"device:{device_code}"
+    with BrokerSecurity() as broker:
+        # A previous request may have reached the broker but failed before DB commit.
+        if broker.has_client(device_code):
+            broker.delete_client(device_code)
+        if broker.has_role(role):
+            broker.delete_role(role)
+        broker.create_role(role, device_acls(device_code))
+        try:
+            broker.create_client(device_code, password, role)
+        except Exception:
+            broker.delete_role(role)
+            raise
+    return {"username": device_code, "password": password}

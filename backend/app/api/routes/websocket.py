@@ -21,7 +21,7 @@ async def telemetry_websocket(websocket: WebSocket):
         return
     with Session(engine) as session:
         user = session.get(User, user_id)
-    if user is None:
+    if user is None or user.role not in {"Admin", "Employee", "Customer", "ADMIN", "OPERATOR", "VIEWER"}:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
     await manager.connect(websocket, user_id)

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlmodel import Session, select
 
 from app.api.deps import require_admin, require_viewer
@@ -7,7 +7,7 @@ from app.models.device import Device
 from app.models.telemetry import Telemetry
 from app.models.user import User
 from app.models.user_device import UserDevice
-from app.schemas.device import DeviceRegisterRequest, DeviceResponse, DeviceStatusRequest
+from app.schemas.device import DeviceRegisterRequest, DeviceResponse, DeviceStatusRequest, ProvisionResponse
 from app.schemas.telemetry import TelemetryResponse
 from app.services.access import assigned_device, assigned_devices
 from app.services.mqtt_provision_service import provision_device
@@ -107,9 +107,10 @@ def register_device(
     return {"message": "Device registered", "device": _response(device)}
 
 
-@router.post("/devices/{device_id}/provision", response_model=DeviceResponse)
+@router.post("/devices/{device_id}/provision", response_model=ProvisionResponse)
 def provision_mqtt_credentials(
     device_id: int,
+    response: Response,
     current_user: User = Depends(require_admin),
     session: Session = Depends(get_session),
 ):
@@ -118,15 +119,22 @@ def provision_mqtt_credentials(
         raise HTTPException(status_code=409, detail="Only registered devices can be provisioned")
     try:
         credentials = provision_device(device.device_code)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error))
     except Exception as error:
         raise HTTPException(status_code=503, detail=f"MQTT provisioning unavailable: {error}")
     device.mqtt_username = credentials["username"]
-    device.mqtt_password = credentials["password"]
+    device.mqtt_password = None
     device.lifecycle_state = "PROVISIONED"
     session.add(device)
     session.commit()
     session.refresh(device)
-    return _response(device)
+    response.headers["Cache-Control"] = "no-store"
+    return ProvisionResponse.model_validate({
+        **_response(device).model_dump(),
+        "mqtt_username": credentials["username"],
+        "mqtt_password": credentials["password"],
+    })
 
 
 @router.post("/devices/{device_id}/activate", response_model=DeviceResponse)
@@ -173,6 +181,8 @@ def decommission_device(
     if device.mqtt_username:
         try:
             revoke_device(device.device_code)
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error))
         except Exception as error:
             raise HTTPException(status_code=503, detail=f"MQTT revoke unavailable: {error}")
     device.lifecycle_state = "DECOMMISSIONED"

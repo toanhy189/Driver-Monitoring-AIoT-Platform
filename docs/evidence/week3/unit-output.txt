@@ -1,0 +1,48 @@
+test_device_list_filters_by_user_and_active_assignment (test_merge_contract.MergeContractTests.test_device_list_filters_by_user_and_active_assignment) ... ok
+test_device_response_does_not_expose_mqtt_password (test_merge_contract.MergeContractTests.test_device_response_does_not_expose_mqtt_password) ... ok
+test_existing_fe_routes_are_kept (test_merge_contract.MergeContractTests.test_existing_fe_routes_are_kept) ... ok
+test_existing_role_names_are_authorized (test_merge_contract.MergeContractTests.test_existing_role_names_are_authorized) ... ok
+test_login_still_accepts_json_schema_and_returns_user_id_token (test_merge_contract.MergeContractTests.test_login_still_accepts_json_schema_and_returns_user_id_token) ... ok
+test_telemetry_is_serializable_or_explicitly_missing (test_merge_contract.MergeContractTests.test_telemetry_is_serializable_or_explicitly_missing) ... ok
+test_ai_provision_returns_shared_topic_account (test_mqtt_ai_account.AiAccountTest.test_ai_provision_returns_shared_topic_account) ... ok
+test_ai_revoke_disables_account (test_mqtt_ai_account.AiAccountTest.test_ai_revoke_disables_account) ... ok
+test_credentials_only_in_provision_response (test_mqtt_provision_response.ProvisionResponseTest.test_credentials_only_in_provision_response) ... ok
+setUpClass (test_mqtt_security_integration.MqttSecurityIntegration) ... skipped 'Run this file directly for live MQTT checks'
+test_ack_matches_child_id_and_device_before_completing_parent (test_week2_contract.Week2ContractTests.test_ack_matches_child_id_and_device_before_completing_parent) ... ok
+test_ai_and_esp32_topics_keep_their_current_payloads (test_week2_contract.Week2ContractTests.test_ai_and_esp32_topics_keep_their_current_payloads) ... ok
+test_backend_role_boundaries_match_three_week2_roles (test_week2_contract.Week2ContractTests.test_backend_role_boundaries_match_three_week2_roles) ... ok
+test_config_applied_event_must_match_saved_desired_id (test_week2_contract.Week2ContractTests.test_config_applied_event_must_match_saved_desired_id) ... ok
+test_config_publish_failure_is_visible_without_claiming_applied (test_week2_contract.Week2ContractTests.test_config_publish_failure_is_visible_without_claiming_applied) ... ok
+test_config_publish_is_retained_qos_one_and_addressed_to_device (test_week2_contract.Week2ContractTests.test_config_publish_is_retained_qos_one_and_addressed_to_device) ... ok
+test_config_requires_all_outputs_and_integer_timings (test_week2_contract.Week2ContractTests.test_config_requires_all_outputs_and_integer_timings) ... ok
+test_customer_cannot_send_and_command_body_is_strict (test_week2_contract.Week2ContractTests.test_customer_cannot_send_and_command_body_is_strict) ... ok
+test_database_timestamp_columns_accept_naive_utc_values (test_week2_contract.Week2ContractTests.test_database_timestamp_columns_accept_naive_utc_values) ... ok
+test_database_utc_timestamps_are_marked_for_browser (test_week2_contract.Week2ContractTests.test_database_utc_timestamps_are_marked_for_browser) ... ok
+test_fe_routes_exist_with_expected_methods (test_week2_contract.Week2ContractTests.test_fe_routes_exist_with_expected_methods) ... ok
+test_firmware_interrupted_ack_is_failure (test_week2_contract.Week2ContractTests.test_firmware_interrupted_ack_is_failure) ... ok
+test_http_command_result_can_be_failed_when_mqtt_publish_fails (test_week2_contract.Week2ContractTests.test_http_command_result_can_be_failed_when_mqtt_publish_fails) ... ok
+test_late_ack_only_replaces_timeout_after_all_outputs_complete (test_week2_contract.Week2ContractTests.test_late_ack_only_replaces_timeout_after_all_outputs_complete) ... ok
+test_openapi_operation_ids_are_unique_for_alias_routes (test_week2_contract.Week2ContractTests.test_openapi_operation_ids_are_unique_for_alias_routes) ... ok
+test_put_config_saves_desired_without_claiming_device_applied_it (test_week2_contract.Week2ContractTests.test_put_config_saves_desired_without_claiming_device_applied_it) ... ok
+test_sent_cannot_overwrite_early_ack (test_week2_contract.Week2ContractTests.test_sent_cannot_overwrite_early_ack) ... ok
+test_websocket_sends_only_to_assigned_device_users (test_week2_contract.Week2ContractTests.test_websocket_sends_only_to_assigned_device_users) ... ok
+test_websocket_ticket_is_one_use (test_week2_contract.Week2ContractTests.test_websocket_ticket_is_one_use) ... ok
+test_01_provision_revoke_and_api_guards (test_week3_integration.Week3Integration.test_01_provision_revoke_and_api_guards) ... skipped 'Use run_week3_integration.py for isolated live checks'
+test_02_config_offline_invalid_late_and_old_ack (test_week3_integration.Week3Integration.test_02_config_offline_invalid_late_and_old_ack) ... skipped 'Use run_week3_integration.py for isolated live checks'
+test_03_publish_failure_never_marks_applied (test_week3_integration.Week3Integration.test_03_publish_failure_never_marks_applied) ... skipped 'Use run_week3_integration.py for isolated live checks'
+test_04_three_ack_completion_and_latency (test_week3_integration.Week3Integration.test_04_three_ack_completion_and_latency) ... skipped 'Use run_week3_integration.py for isolated live checks'
+test_05_timeout_and_late_ack (test_week3_integration.Week3Integration.test_05_timeout_and_late_ack) ... skipped 'Use run_week3_integration.py for isolated live checks'
+test_06_rule_chain_severity_cooldown_and_stale (test_week3_integration.Week3Integration.test_06_rule_chain_severity_cooldown_and_stale) ... skipped 'Use run_week3_integration.py for isolated live checks'
+test_07_event_redelivery_concurrent_and_restart (test_week3_integration.Week3Integration.test_07_event_redelivery_concurrent_and_restart) ... skipped 'Use run_week3_integration.py for isolated live checks'
+test_08_command_idempotency_concurrent_and_conflict (test_week3_integration.Week3Integration.test_08_command_idempotency_concurrent_and_conflict) ... skipped 'Use run_week3_integration.py for isolated live checks'
+test_09_history_filters_permissions_and_metrics (test_week3_integration.Week3Integration.test_09_history_filters_permissions_and_metrics) ... skipped 'Use run_week3_integration.py for isolated live checks'
+test_10_ws_ticket_permissions_change (test_week3_integration.Week3Integration.test_10_ws_ticket_permissions_change) ... skipped 'Use run_week3_integration.py for isolated live checks'
+test_11_ack_before_http_response_and_disabled_rule (test_week3_integration.Week3Integration.test_11_ack_before_http_response_and_disabled_rule) ... skipped 'Use run_week3_integration.py for isolated live checks'
+test_12_docker_restart_http_websocket_and_persistence (test_week3_integration.Week3Integration.test_12_docker_restart_http_websocket_and_persistence) ... skipped 'Use run_week3_integration.py for isolated live checks'
+test_13_ai_mqtt_to_rule_to_command_to_three_ack (test_week3_integration.Week3Integration.test_13_ai_mqtt_to_rule_to_command_to_three_ack) ... skipped 'Use run_week3_integration.py for isolated live checks'
+test_14_interrupted_publish_is_not_retried_blindly (test_week3_integration.Week3Integration.test_14_interrupted_publish_is_not_retried_blindly) ... skipped 'Use run_week3_integration.py for isolated live checks'
+
+----------------------------------------------------------------------
+Ran 42 tests in 0.466s
+
+OK (skipped=15)

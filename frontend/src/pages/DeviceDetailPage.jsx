@@ -106,10 +106,19 @@ function DeviceDetailPage({ user, realtime = NO_REALTIME, deviceId, summary, onB
     const controller = new AbortController();
     actionController.current = controller;
     try {
-      await runDeviceAction(deviceId, action, { signal: controller.signal });
+      const result = await runDeviceAction(deviceId, action, { signal: controller.signal });
       if (controller.signal.aborted) return;
       setActionNotice("BE đã xác nhận yêu cầu. Đang lấy lại trạng thái thiết bị.");
-      setFeedback({ tone: "success", title: `${ACTION_LABELS[action] || "Thao tác"} thành công`, message: `Đã nhận kết quả cho thiết bị ${device?.name || device?.device_code || "đã chọn"}. Đang tải lại trạng thái mới.` });
+      setFeedback({
+        tone: "success",
+        title: `${ACTION_LABELS[action] || "Thao tác"} thành công`,
+        message: action === "provision"
+          ? "Hãy lưu tài khoản này vào cấu hình của thiết bị. Mật khẩu chỉ hiện trong thông báo này."
+          : `Đã nhận kết quả cho thiết bị ${device?.name || device?.device_code || "đã chọn"}. Đang tải lại trạng thái mới.`,
+        credentials: action === "provision"
+          ? { username: result.mqtt_username, password: result.mqtt_password }
+          : null,
+      });
       setLoading(true);
       setReloadKey(value => value + 1);
     } catch (error) {

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "./AppShell.jsx";
 import FeedbackDialog from "./FeedbackDialog.jsx";
 import { commandAckLabel, commandStatus, commandValue } from "../services/commandDisplay.js";
-import { getCommand, sendTestAlert } from "../services/commands.js";
+import { getCommand, sendTestAlert, newCommandKey } from "../services/commands.js";
 import { TEST_ALERT_BODY, commandBelongsToDevice, commandFinished, keepNewerCommand, normalizeCommand, testAlertBlockReason, validateTestAlertParameters } from "../services/commandModel.js";
 import "../styles/commands.css";
 
@@ -26,6 +26,7 @@ function TestAlertSection({ user, realtime = NO_REALTIME, device, deviceId, onUn
   const resultController = useRef(null);
   const lastEventSequence = useRef(realtime.events.at(-1)?.sequence ?? 0);
   const pendingResults = useRef(new Map());
+  const pendingSubmission = useRef(null);
 
   useEffect(() => () => {
     submitController.current?.abort();
@@ -106,11 +107,19 @@ function TestAlertSection({ user, realtime = NO_REALTIME, device, deviceId, onUn
     setResultError("");
     const controller = new AbortController();
     submitController.current = controller;
+    const storageKey = `pending-test-alert:${user?.id}:${deviceId}`;
+    const bodyKey = JSON.stringify(parameters);
+    try { pendingSubmission.current = JSON.parse(sessionStorage.getItem(storageKey)) || pendingSubmission.current; } catch {}
+    if (pendingSubmission.current?.body !== bodyKey) pendingSubmission.current = { body: bodyKey, key: newCommandKey() };
+    try { sessionStorage.setItem(storageKey, JSON.stringify(pendingSubmission.current)); } catch {}
     try {
-      const response = await sendTestAlert(deviceId, { parameters, signal: controller.signal });
+      const response = await sendTestAlert(deviceId, { parameters, signal: controller.signal,
+        idempotencyKey: pendingSubmission.current.key });
       if (!commandBelongsToDevice(response, deviceId, device?.device_code)) {
         throw new Error("BE trả lệnh của thiết bị khác.");
       }
+      pendingSubmission.current = null;
+      try { sessionStorage.removeItem(storageKey); } catch {}
       const latest = keepNewerCommand(response, pendingResults.current.get(response.request_id));
       setCommand(latest);
       if (["FAILED", "TIMEOUT"].includes(latest.status) || latest.ack_status === "FAILED") {

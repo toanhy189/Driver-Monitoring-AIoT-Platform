@@ -76,3 +76,9 @@ compile_commands.json
 /firmware/esp32-alert-node/include/README
 /firmware/esp32-alert-node/lib/README
 /firmware/esp32-alert-node/test/README
+
+# Local backups made while reconciling teammates' changes
+/.local-backups/
+
+# Machine-specific source hashes; keep reports, contracts and test evidence tracked
+/docs/evidence/week3/source-manifest.json

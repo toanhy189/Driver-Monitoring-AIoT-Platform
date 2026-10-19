@@ -7,6 +7,7 @@ from app.models.alert import Alert
 from app.models.device import Device
 from app.models.user import User
 from app.models.user_device import UserDevice
+from app.models.command import Command
 from app.services.access import assigned_device
 from app.services.audit_service import log_action
 from app.services.time_utils import as_utc
@@ -15,9 +16,14 @@ from app.services.time_utils import as_utc
 router = APIRouter(tags=["alerts"])
 
 
-def _public(session: Session, alert: Alert) -> dict:
+def _public(session: Session, alert: Alert, user_id: int | None = None) -> dict:
     device = session.get(Device, alert.device_id)
     severity = alert.severity
+    command_query = select(Command).where(Command.alert_id == alert.id)
+    if user_id is not None:
+        command_query = command_query.join(UserDevice, UserDevice.device_id == Command.device_id).where(
+            UserDevice.user_id == user_id, UserDevice.unassigned_at.is_(None))
+    command = session.exec(command_query.order_by(Command.id).limit(1)).first()
     return {
         "alert_id": alert.id,
         "device_id": alert.device_id,
@@ -27,7 +33,8 @@ def _public(session: Session, alert: Alert) -> dict:
         "description": alert.description,
         "created_at": as_utc(alert.created_at),
         "status": alert.status,
-        "request_id": None,
+        "request_id": command.request_id if command else None,
+        "event_id": alert.source_event_id,
     }
 
 
@@ -57,7 +64,7 @@ def list_alerts(
     alerts = session.exec(
         query.order_by(Alert.created_at.desc()).offset(offset).limit(limit)
     ).all()
-    return [_public(session, alert) for alert in alerts]
+    return [_public(session, alert, current_user.id) for alert in alerts]
 
 
 @router.post("/alerts/{alert_id}/acknowledge")
@@ -71,7 +78,7 @@ def acknowledge_alert(
         raise HTTPException(status_code=404, detail="Alert not found")
     assigned_device(session, current_user.id, alert.device_id)
     if alert.status == "ACKNOWLEDGED":
-        return _public(session, alert)
+        return _public(session, alert, current_user.id)
     if alert.status != "NEW":
         raise HTTPException(status_code=409, detail="Alert cannot be acknowledged")
     alert.status = "ACKNOWLEDGED"
@@ -83,4 +90,4 @@ def acknowledge_alert(
         entity_id=str(alert.id), details={"alert_type": alert.alert_type},
     )
     session.commit()
-    return _public(session, alert)
+    return _public(session, alert, current_user.id)

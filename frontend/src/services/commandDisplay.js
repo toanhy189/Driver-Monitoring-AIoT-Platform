@@ -26,6 +26,7 @@ export function commandValue(value) {
 }
 
 const ACTION_LABELS = {
+  AUTO_ALERT: "Cảnh báo tự động",
   TEST_ALERT: "Kiểm tra cảnh báo",
   CAMERA_CHECK: "Kiểm tra camera",
   BUZZER_ON: "Bật còi",

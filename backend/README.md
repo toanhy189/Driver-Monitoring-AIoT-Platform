@@ -1,5 +1,7 @@
 # Backend tuần 2
 
+Phần tuần 3, hướng xử lý và kết quả kiểm chứng: [Logic code TV2](../docs/TV2-tuan-3-huong-xu-ly-va-logic-code.md), [Báo cáo có minh chứng](../docs/TV2-tuan-3-bao-cao-ket-qua.md). Chạy `python backend/scripts/migrate_week3.py` cho DB đã có tuần 2 trước khi mở bản BE mới. Rule Engine tự gửi lệnh mặc định tắt (`RULE_ENGINE_ENABLED=false`) để chờ nhóm chốt chính sách.
+
 Hợp đồng JSON, trạng thái lệnh/ACK và sự kiện realtime: [FE–BE tuần 2](../docs/week2-fe-be-contract.md).
 
 Chạy tại thư mục gốc dự án theo [hướng dẫn nhanh](../README.md#3-chạy-nhanh-trên-windows). Với PostgreSQL đã có dữ liệu, chạy `database/migration_fe_be_week2.sql` trước khi mở BE; Docker Compose có service `migrate` chạy tự động trước backend.
@@ -22,8 +24,8 @@ BE vẫn nhận topic AI `driver/telemetry`, `driver/events`, `driver/status` v�
 
 ## Giới hạn tích hợp thiết bị
 
-- Firmware hiện chưa subscribe cấu hình từ xa. PUT chỉ lưu **desired**; **applied** chỉ đổi khi thiết bị gửi ACK có `config_id` khớp. Vì vậy cấu hình đang chờ là trạng thái đúng.
-- Broker mẫu của Docker cho phép kết nối ẩn danh để giữ các client IoT/AI hiện tại. API provision trả 503 nếu chưa cấu hình công cụ quản lý credential/ACL của broker. Không coi đăng ký thiết bị là đã provision.
+- `PUT /api/devices/{id}/config` lưu **desired** rồi gửi `config_id` và timings tới `driver/{device_code}/config/update` (retained, QoS 1). Firmware `development` nhận cấu hình, kiểm tra và lưu vào flash; lệnh đang chạy kết thúc trước khi áp dụng cấu hình mới. Firmware gửi `APPLIED` hoặc `REJECTED` tới `driver/{device_code}/config/applied`. BE chỉ đổi **applied** khi ACK `APPLIED` có đúng mã thiết bị và `config_id`; lỗi xuất hiện trong `GET config`.
+- Broker Docker yêu cầu tài khoản và ACL. Xem hướng dẫn TV2-03 tại [deployment/mqtt/README.md](../deployment/mqtt/README.md). API provision trả thông tin đăng nhập một lần cho Admin.
 - Với database cũ, Admin cần đăng ký `vision-01` và gán đúng tài khoản trước khi Dashboard hiện telemetry của AI. Migration không tự gán camera cho người dùng khác.
-- Firmware trong repo đang chọn `TestMode::Button`. Để thử lệnh MQTT trên phần cứng, TV1 cần build/upload ở `TestMode::Mqtt`, dùng đúng `device_code` và broker.
+- Để thử MQTT và cấu hình trên phần cứng, build/upload môi trường PlatformIO `development`, dùng đúng `device_code`, broker và tài khoản MQTT. `TestMode::Button` chỉ áp dụng cho môi trường `test`.
 - Kiểm thử tự động không thay cho thử lệnh, ACK và cấu hình trên ESP32 thật.
