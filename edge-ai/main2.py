@@ -27,7 +27,7 @@ from eye import (
 )
 
 from mqtt_client import MQTTClient
-from config import DEVICE_CODE, EAR_THRESHOLD, EVENT_TOPIC, PERCLOS_THRESHOLD, TELEMETRY_TOPIC
+from config import DEVICE_CODE, EAR_THRESHOLD, EVENT_TOPIC, MODEL_VERSION, PERCLOS_THRESHOLD, TELEMETRY_TOPIC
 from head_pose import HeadPoseEstimator, HeadPoseTracker
 
 from edge_queue import init_db, add_to_queue
@@ -286,6 +286,7 @@ def publish_telemetry(
     payload = {
         "message_id": str(uuid.uuid4()),
         "device_code": DEVICE_CODE,
+        "model_version": MODEL_VERSION,
         "timestamp": current_timestamp(),
         "driver_state": confirmed_state,
         "candidate_state": state_data["candidate_state"],

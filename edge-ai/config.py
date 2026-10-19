@@ -19,7 +19,7 @@ MODEL_VERSION = "drowsiness-v3.0"
 STATUS_TOPIC = "driver/vision-01/status"
 TELEMETRY_TOPIC = "driver/vision-01/telemetry"
 EVENT_TOPIC = "driver/vision-01/events"
-ACK_TOPIC = "driver/vision-01/ack"
+ACK_TOPIC = "driver/vision-01/storage_ack"
 
 EAR_THRESHOLD = 0.20
 PERCLOS_THRESHOLD = 0.20
