@@ -1,0 +1,9 @@
+opencv-python 
+numpy 
+pandas 
+matplotlib 
+mediapipe 
+retina-face 
+mtcnn
+tensorflow
+tf-keras

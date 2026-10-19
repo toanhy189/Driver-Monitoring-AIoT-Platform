@@ -10,6 +10,9 @@ TASK_PATH = BASE_DIR / "face_landmarker.task"
 DATA_DIR = BASE_DIR / "data"
 DB_PATH = Path(os.getenv("AI_QUEUE_DB", str(DATA_DIR / "queue.db")))
 
+# Cấu hình video
+BACKEND_HOST = os.getenv("BACKEND_HOST", "http://localhost:8000")
+API_STR = os.getenv("API_STR", "/api")
 
 MQTT_BROKER = os.getenv("AI_MQTT_HOST", "localhost")
 MQTT_PORT = int(os.getenv("AI_MQTT_PORT", os.getenv("MQTT_PORT", "1883")))

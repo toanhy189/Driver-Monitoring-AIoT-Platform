@@ -6,573 +6,724 @@ Chức năng chính:
 - Xác định driver_state: ATTENTIVE / DISTRACTED / DROWSY / UNKNOWN.
 - Gửi telemetry định kỳ qua MQTT.
 - Gửi event khi trạng thái thay đổi.
-- Gửi DROWSY_THRESHOLD_REACHED khi DROWSY liên tục >= 3 giây.
+- Gửi THRESHOLD_REACHED khi liên tục state trên x giây.
 """
-import uuid
+
+import os
+import json
 
 import cv2
 import time
+import uuid
+
 from datetime import datetime, timezone
 
-from face_detection import FaceLandmarkDetector
+import logging
 
+from face_detection import FaceLandmarkDetector
 from eye import (
     calculate_average_ear,
     PerclosCalculator,
-    EyeClosureTracker
+    EyeClosureTracker,
 )
 
 from mqtt_client import MQTTClient
+from config import DEVICE_CODE, EAR_THRESHOLD, EVENT_TOPIC, MODEL_VERSION, PERCLOS_THRESHOLD, TELEMETRY_TOPIC
+from head_pose import HeadPoseEstimator, HeadPoseTracker
 
-from config import (
-    DEVICE_CODE, MODEL_VERSION,
-    EAR_THRESHOLD, PERCLOS_THRESHOLD,
-)
-
-from head_pose import (
-    HeadPoseEstimator, HeadPoseTracker
-)
+from edge_queue import init_db, add_to_queue
+from upload_video import create_video_writer, upload_video
 
 
-def main():
+# =========================
+# CONFIGURATION
+# =========================
 
-    # =========================
-    # CAMERA
-    # =========================
+CAMERA_INDEX = 0
+MAX_CAMERA_FAILURES = 5
 
-    cap = cv2.VideoCapture(0)
+MQTT_INTERVAL = 1.0
 
-    if not cap.isOpened():
-        print("Không thể mở webcam.")
+EYES_OPEN_RECOVERY_SECONDS = 1.0
+
+YAW_THRESHOLD = 0.20
+PITCH_THRESHOLD = 0.05
+CALIBRATION_SECONDS = 5.0
+DISTRACTED_DURATION_SECONDS = 2.0
+
+CONFIRM_SECONDS = {
+    "ATTENTIVE": 1.0,
+    "DISTRACTED": 0.3,
+    "DROWSY": 0.5,
+    "UNKNOWN": 0.5,
+}
+
+THRESHOLD_SECONDS = {
+    "DROWSY": 3.0,
+    "DISTRACTED": 3.0,
+}
+
+# DEBUG OVERLAY
+font = cv2.FONT_HERSHEY_SIMPLEX
+x = 15
+y = 25
+line_height = 25
+font_scale = 0.55
+thickness = 1
+
+# =========================
+# OFFLINE QUEUE
+# =========================
+if not init_db():
+    raise RuntimeError("Cannot initialize SQLite offline queue")
+
+logger = logging.getLogger(__name__)
+
+def send_message(mqtt_client, topic, data):
+    """Lưu message trước, sau đó thử gửi qua MQTT."""
+    message_id = data.get("message_id") or str(uuid.uuid4())
+    data["message_id"] = message_id
+
+    payload = json.dumps(data)
+
+    # Lưu vào SQLite trước khi gửi
+    if not add_to_queue(message_id, topic, payload):
+        logger.error("Message was not saved; skipping publish")
+        return False
+
+    # Nếu MQTT chưa kết nối, message vẫn nằm trong SQLite
+    if not mqtt_client.connected:
+        return False
+
+    # TODO: Chỉ xóa message khi đã nhận ACK từ backend
+    topicc = topic.split("/")[-1]
+    if topicc == "telemetry":
+        info = mqtt_client.publish_telemetry(data)
+    elif topicc == "events":
+        info = mqtt_client.publish_event(data)
+
+    return info is not None and info.rc == 0
+
+
+# =========================
+# UTILITY FUNCTIONS
+# =========================
+
+def current_timestamp():
+    """Lấy thời gian UTC theo định dạng ISO 8601."""
+    return datetime.now(timezone.utc).isoformat()
+
+
+def update_confirmed_state(driver_state, state_data, device_code):
+    """
+    Xác nhận trạng thái sau một khoảng thời gian ổn định.
+    Tạo STATE_CHANGED event khi trạng thái xác nhận thay đổi.
+    """
+    now = time.monotonic()
+
+    if driver_state != state_data["candidate_state"]:
+        state_data["candidate_state"] = driver_state
+        state_data["candidate_since"] = now
+
+    candidate = state_data["candidate_state"]
+    candidate_since = state_data["candidate_since"]
+
+    if candidate_since is None:
+        return None
+
+    confirm_seconds = state_data["confirm_seconds"][candidate]
+
+    if now - candidate_since < confirm_seconds:
+        return None
+
+    # Khởi tạo trạng thái xác nhận lần đầu và tạo event.
+    if state_data["confirmed_state"] is None:
+        state_data["confirmed_state"] = candidate
+        state_data["state_since"] = now
+
+        event = {
+            "message_id": str(uuid.uuid4()),
+            "sequence_number": state_data["event_sequence"],
+            "device_code": device_code,
+            "timestamp": current_timestamp(),
+            "event_type": "STATE_CHANGED",
+            "previous_state": None,
+            "state": candidate,
+            "previous_state_duration_ms": None,
+        }
+
+        state_data["event_sequence"] += 1
+        return event
+
+    # Trạng thái không thay đổi.
+    if candidate == state_data["confirmed_state"]:
+        return None
+
+    previous_state = state_data["confirmed_state"]
+    previous_duration = now - state_data["state_since"]
+
+    event = {
+        "message_id": str(uuid.uuid4()),
+        "sequence_number": state_data["event_sequence"],
+        "device_code": device_code,
+        "timestamp": current_timestamp(),
+        "event_type": "STATE_CHANGED",
+        "previous_state": previous_state,
+        "state": candidate,
+        "previous_state_duration_ms": round(
+            previous_duration * 1000
+        ),
+    }
+
+    state_data["event_sequence"] += 1
+    state_data["confirmed_state"] = candidate
+    state_data["state_since"] = now
+
+    return event
+
+
+def check_threshold_events(state_data, device_code):
+    """
+    Phát một threshold event khi trạng thái DROWSY hoặc DISTRACTED
+    được duy trì đủ lâu.
+
+    Thời gian chỉ được tính khi candidate_state và confirmed_state
+    cùng là trạng thái đang xét.
+    """
+    now = time.monotonic()
+    confirmed_state = state_data["confirmed_state"]
+    candidate_state = state_data["candidate_state"]
+
+    events = []
+
+    for state, threshold_seconds in state_data[
+        "threshold_seconds"
+    ].items():
+
+        # Không tiếp tục tính nếu trạng thái hiện tại đang chuyển đổi.
+        if (
+            confirmed_state != state
+            or candidate_state != state
+        ):
+            state_data["threshold_since"][state] = None
+            state_data["threshold_event_sent"][state] = False
+            continue
+
+        if state_data["threshold_since"][state] is None:
+            state_data["threshold_since"][state] = now
+
+        duration = now - state_data["threshold_since"][state]
+
+        if (
+            duration >= threshold_seconds
+            and not state_data["threshold_event_sent"][state]
+        ):
+            event = {
+                "message_id": str(uuid.uuid4()),
+                "sequence_number": state_data["event_sequence"],
+                "device_code": device_code,
+                "timestamp": current_timestamp(),
+                "event_type": f"{state}_THRESHOLD_REACHED",
+                "state": state,
+                "state_duration_ms": round(duration * 1000),
+            }
+
+            events.append(event)
+            state_data["event_sequence"] += 1
+            state_data["threshold_event_sent"][state] = True
+
+    return events
+
+
+def determine_driver_state(
+    perclos,
+    pose_status,
+    eyes_recovered,
+):
+    """Xác định trạng thái ứng viên của người lái."""
+
+    # Ưu tiên phát hiện buồn ngủ.
+    if (
+        perclos is not None
+        and perclos > PERCLOS_THRESHOLD
+        and not eyes_recovered
+    ):
+        return "DROWSY"
+
+    # Phát hiện quay đầu hoặc nhìn lệch kéo dài.
+    if pose_status and pose_status.get("is_distracted", False):
+        return "DISTRACTED"
+
+    # Chỉ coi là tỉnh táo khi head pose hợp lệ và đã hiệu chuẩn.
+    if (
+        pose_status
+        and pose_status.get("valid", False)
+        and not pose_status.get("calibrating", True)
+    ):
+        return "ATTENTIVE"
+
+    return "UNKNOWN"
+
+
+def publish_event(mqtt_client, event):
+    """Gửi event lên MQTT."""
+    if event is None:
         return
 
-    MAX_CAMERA_FAILURES = 5
-
-    # =========================
-    # FACE LANDMARK
-    # =========================
-
-    detector = FaceLandmarkDetector()
-
-    # =========================
-    # PERCLOS
-    # =========================
-    
-    perclos_calculator = PerclosCalculator(
-        ear_threshold=EAR_THRESHOLD,
-        window_seconds=10.0,
-        warmup_seconds=10.0
-    )
-
-    eye_tracker = EyeClosureTracker(
-        ear_threshold=EAR_THRESHOLD
-    )
-
-    # =========================
-    # MQTT
-    # =========================
-
-    mqtt_client = MQTTClient()
-
-    last_mqtt_time = 0
-    MQTT_INTERVAL = 1.0  # gửi MQTT mỗi 1 giây
-    # Theo dõi trạng thái hiện tại để phát event khi driver_state thay đổi
-    last_driver_state = None
-
-    # Thời điểm bắt đầu trạng thái hiện tại
-    state_since = None
-
-    # =========================
-    # DROWSY RULE EVENT
-    # =========================
-    # Thời điểm bắt đầu một episode DROWSY liên tục
-    drowsy_since = None
-
-    # Đảm bảo mỗi episode DROWSY chỉ gửi 1 rule event
-    drowsy_event_sent = False
-
-    # Ngưỡng thời gian DROWSY để kích hoạt Rule của TV2
-    DROWSY_EVENT_DURATION_MS = 3000
-
-    # Theo dõi thời gian mắt mở liên tục để xác nhận đã hồi phục khỏi DROWSY
-    eyes_open_since = None
-
-    # Mắt phải mở liên tục ít nhất 1 giây mới được xem là đã hồi phục
-    EYES_OPEN_RECOVERY_SECONDS = 1.0
-
-    # =========================
-    # HEAD POSE
-    # =========================
-
-    head_pose = HeadPoseEstimator()
-
-    head_pose_tracker = HeadPoseTracker(
-        yaw_threshold=0.20,
-        pitch_threshold=0.05,
-        calibration_seconds=5.0,
-        distracted_duration=2.0
-    )
-
-    # =========================
-    # MAIN LOOP
-    # =========================
-
-    camera_failures = 0
     try:
-        # Bộ đếm thứ tự event của thiết bị
-        event_sequence = 0
-        
-        while True:
-            ret, frame = cap.read()
+        send_message(mqtt_client, EVENT_TOPIC, event)
 
-            if not ret:
+    except Exception as exc:
+        print(f"[MQTT] Không gửi được event: {exc}")
+
+
+def publish_telemetry(
+    mqtt_client, state_data, face_detected,
+    ear, perclos, eye_closed, pose,
+):
+    """Gửi telemetry định kỳ, kể cả khi không phát hiện khuôn mặt."""
+
+    confirmed_state = state_data["confirmed_state"] or "UNKNOWN"
+
+    head_pose_data = {
+        "yaw": None,
+        "pitch": None,
+        "roll": None,
+    }
+
+    if pose is not None:
+        head_pose_data = {
+            "yaw": pose.get("yaw"),
+            "pitch": pose.get("pitch"),
+            "roll": pose.get("roll"),
+        }
+
+    payload = {
+        "message_id": str(uuid.uuid4()),
+        "device_code": DEVICE_CODE,
+        "model_version": MODEL_VERSION,
+        "timestamp": current_timestamp(),
+        "driver_state": confirmed_state,
+        "candidate_state": state_data["candidate_state"],
+        "face_detected": face_detected,
+        "ear": ear,
+        "perclos": perclos,
+        "eyes_closed": eye_closed,
+        "head_pose": head_pose_data,
+    }
+
+    try:
+        send_message(mqtt_client, TELEMETRY_TOPIC, payload)
+
+    except Exception as exc:
+        print(f"[MQTT] Không gửi được telemetry: {exc}")
+
+
+def draw_text(frame, text, y, color=(0, 255, 0)):
+    cv2.putText(
+        frame,
+        str(text),
+        (15, y),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.55,
+        color,
+        1,
+        cv2.LINE_AA
+    )
+    return y + 25
+
+# =========================
+# MAIN
+# =========================
+
+def main():
+    global y  # Dùng biến toàn cục để vẽ overlay
+
+    camera = None
+    mqtt_client = None
+    detector = None
+
+    video_writer = None
+    active_video_path = None
+    recording_state = "UNKNOWN"
+    recording_message_id = None
+
+    # Trạng thái dùng cho debounce và event.
+    state_data = {
+        "candidate_state": None,
+        "candidate_since": None,
+        "confirmed_state": None,
+        "state_since": None,
+
+        "confirm_seconds": CONFIRM_SECONDS,
+
+        "threshold_seconds": THRESHOLD_SECONDS,
+        "threshold_since": {
+            "DROWSY": None,
+            "DISTRACTED": None,
+        },
+        "threshold_event_sent": {
+            "DROWSY": False,
+            "DISTRACTED": False,
+        },
+
+        "event_sequence": 0,
+    }
+
+    try:
+        # Khởi tạo camera.
+        camera = cv2.VideoCapture(CAMERA_INDEX)
+
+        if not camera.isOpened():
+            raise RuntimeError("Không thể mở camera.")
+
+        # Khởi tạo các thành phần xử lý hình ảnh.
+        detector = FaceLandmarkDetector()
+
+        perclos_calculator = PerclosCalculator(
+            window_seconds=10.0,
+            warmup_seconds=10.0,
+        )
+
+        eye_tracker = EyeClosureTracker()
+
+        head_pose = HeadPoseEstimator()
+
+        head_pose_tracker = HeadPoseTracker(
+            yaw_threshold=YAW_THRESHOLD,
+            pitch_threshold=PITCH_THRESHOLD,
+            calibration_seconds=CALIBRATION_SECONDS,
+            distracted_duration=DISTRACTED_DURATION_SECONDS,
+        )
+
+        # Khởi tạo MQTT.
+        mqtt_client = MQTTClient()
+
+        print("[INFO] Hệ thống phát hiện buồn ngủ đã khởi động.")
+        print("[INFO] Nhấn Q để thoát.")
+
+        camera_failures = 0
+        last_mqtt_time = 0.0
+
+        eyes_open_since = None
+
+        while True:
+            success, frame = camera.read()
+
+            if not success:
                 camera_failures += 1
-                
+                print(
+                    f"[CAMERA] Không đọc được frame "
+                    f"({camera_failures}/{MAX_CAMERA_FAILURES})."
+                )
+
                 if camera_failures >= MAX_CAMERA_FAILURES:
-                    # Đánh dấu camera không khả dụng.
-                    print("Không thể đọc webcam.")
-                    mqtt_client.publish_status("CAMERA_FAILURE")
+                    print("[CAMERA] Dừng do camera liên tục gặp lỗi.")
+                    mqtt_client.publish_status("CAMERA_ERROR")
                     break
 
+                time.sleep(0.1)
                 continue
 
-            # Camera đọc frame thành công
             camera_failures = 0
+            frame_time = time.monotonic()
 
-            # heartbeat
-            if mqtt_client.connected:
-                now = time.monotonic()
+            # Giá trị mặc định cho frame không có khuôn mặt.
+            face_detected = False
+            face = None
+            ear = None
+            perclos = None
+            perclos_text = "PERCLOS: WARMING UP"
+            eye_closed = None
+            eye_status = None
+            pose = None
+            pose_status = None
+            yaw = None
+            pitch = None
+            roll = None
+            eyes_recovered = False
 
-                if now - mqtt_client.last_heartbeat >= mqtt_client.heartbeat_interval:
-                    mqtt_client.publish_status("ONLINE")
-                    mqtt_client.last_heartbeat = now
-            
-
-        #    frame_height, frame_width = frame.shape[:2]
+            # ---------------------------------
+            # 1. FACE DETECTION
+            # ---------------------------------
 
             faces = detector.process(frame)
 
             if faces:
-                face_landmarks = faces[0]
+                face_detected = True
+                face = faces[0]
 
-                # =========================
-                # EAR
-                # =========================
+                # ---------------------------------
+                # 2. EYE / EAR / PERCLOS
+                # ---------------------------------
 
-                ear = calculate_average_ear(
-                    face_landmarks
-                )
+                ear = calculate_average_ear(face)
+
                 eye_status = eye_tracker.update(ear)
+                eye_closed = eye_status["is_closed"]
 
-                # =========================
-                # PERCLOS
-                # =========================
                 perclos = perclos_calculator.update(ear)
 
-                if perclos is None:
-                    print(
-                        f"EAR={ear:.3f}, PERCLOS={perclos}"
-                    )
-
-                    perclos_text = "WARMUP"
-
-                else:
-                    perclos_text = f"{perclos:.3f}"
-                # =========================
-                # POSE
-                # =========================
-                pose = head_pose.estimate(face_landmarks)
-                pose_status = head_pose_tracker.update(pose)
-                
-                print( #xem trạng thái head pose để debug 
-                    "calibrating=", pose_status["calibrating"],
-                    "valid=", pose_status["valid"],
-                    "deviated=", pose_status["is_deviated"],
-                    "distracted=", pose_status["is_distracted"]
-                )
-
-                if pose is not None:
-                    yaw = pose["yaw"]
-                    pitch = pose["pitch"]
-                    roll = pose["roll"]
-                else:
-                    yaw = None
-                    pitch = None
-                    roll = None
-                
-                # =========================
-                # DRIVER STATE
-                # =========================
-
-                current_time = time.monotonic()
-
-                # Theo dõi thời gian mắt mở liên tục.
-                # Dùng để xác nhận driver đã hồi phục sau trạng thái DROWSY.
-                if eye_status["is_closed"]:
+                if eye_closed:
                     eyes_open_since = None
-                else:
-                    if eyes_open_since is None:
-                        eyes_open_since = current_time
+                elif eyes_open_since is None:
+                    eyes_open_since = frame_time
 
                 eyes_open_duration = (
-                    current_time - eyes_open_since
+                    frame_time - eyes_open_since
                     if eyes_open_since is not None
                     else 0.0
                 )
 
-                # Chỉ xem là đã hồi phục khi mắt mở liên tục đủ thời gian yêu cầu.
                 eyes_recovered = (
                     eyes_open_duration >= EYES_OPEN_RECOVERY_SECONDS
                 )
 
-                # Xác định trạng thái theo thứ tự:
-                # 1. DROWSY: PERCLOS cao và mắt chưa hồi phục.
-                # 2. DISTRACTED: đầu lệch khỏi tư thế bình thường đủ lâu.
-                # 3. ATTENTIVE: khuôn mặt hợp lệ, đã calibration và không thuộc 2 trường hợp trên.
-                # 4. UNKNOWN: chưa đủ dữ liệu để xác định trạng thái.
-                if (
-                    perclos is not None
-                    and perclos > PERCLOS_THRESHOLD
-                    and not eyes_recovered
-                ):
-                    driver_state = "DROWSY"
+                # ---------------------------------
+                # 3. HEAD POSE
+                # ---------------------------------
 
-                elif pose_status["is_distracted"]:
-                    driver_state = "DISTRACTED"
-
-                elif (
-                    pose_status["valid"]
-                    and not pose_status["calibrating"]
-                ):
-                    driver_state = "ATTENTIVE"
-
-                else:
-                    driver_state = "UNKNOWN"
-                    
-                # =========================
-                # DROWSY RULE EVENT 
-                # =========================
-
-                current_time = time.monotonic()
-
-                if driver_state == "DROWSY":
-
-                    # Bắt đầu một episode DROWSY mới
-                    if drowsy_since is None:
-                        drowsy_since = current_time
-                        drowsy_event_sent = False
-
-                    # Tính thời gian DROWSY liên tục của episode hiện tại
-                    drowsy_duration_ms = (current_time - drowsy_since) * 1000
-
-                    # Khi DROWSY liên tục >= 3 giây:
-                    # gửi 1 event cho TV2 để kiểm tra Rule.
-                    if (
-                        drowsy_duration_ms >= DROWSY_EVENT_DURATION_MS
-                        and not drowsy_event_sent
-                    ):
-                        event = {
-                            "event_id": str(uuid.uuid4()),
-                            "sequence_number": event_sequence,
-                            "device_code": DEVICE_CODE,
-                            "timestamp": datetime.now(
-                                timezone.utc
-                            ).isoformat(),
-                            "event_type": "DROWSY_THRESHOLD_REACHED",
-                            "state": "DROWSY",
-                            "state_duration_ms": round(
-                                drowsy_duration_ms
-                            )
-                        }
-                        event_sequence += 1
-                        mqtt_client.publish_event(event)
-                            # Đánh dấu episode này đã gửi event,
-                            # tránh gửi lặp lại ở các frame tiếp theo.
-                        drowsy_event_sent = True
-
-                else:
-                    # Driver đã thoát DROWSY -> kết thúc episode hiện tại.
-                    # Episode DROWSY tiếp theo sẽ được tính lại từ đầu.
-                    drowsy_since = None
-                    drowsy_event_sent = False
-
-                # =========================
-                # DRIVER STATE EVENT
-                # =========================
-
-                current_time = time.monotonic()
-
-                # Lưu trạng thái đầu tiên, chưa phát event vì chưa có trạng thái trước đó.
-                if last_driver_state is None:
-                    last_driver_state = driver_state
-                    state_since = current_time
-
-                # Chỉ phát event khi trạng thái thực sự thay đổi.
-                elif driver_state != last_driver_state:
-
-                    # Lưu trạng thái vừa kết thúc và thời gian trạng thái đó kéo dài.
-                    previous_state = last_driver_state
-                    previous_state_duration = current_time - state_since
-
-                    event = {
-                        "event_id": str(uuid.uuid4()),
-                        "sequence_number": event_sequence,
-                        "device_code": DEVICE_CODE,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "event_type": "STATE_CHANGED",
-
-                        # Trạng thái trước khi thay đổi
-                        "previous_state": previous_state,
-
-                        # Trạng thái mới
-                        "state": driver_state,
-
-                        # Thời gian trạng thái trước đã duy trì
-                        "previous_state_duration_ms": round(
-                            previous_state_duration * 1000
-                        )
-                    }
-                    event_sequence += 1
-
-                    mqtt_client.publish_event(event)
-
-                    # Cập nhật trạng thái mới để theo dõi episode tiếp theo.
-                    last_driver_state = driver_state
-                    state_since = current_time
-
-                # =========================
-                # TELEMETRY
-                # =========================
-
-                
-                current_time = time.time()
-
-                if current_time - last_mqtt_time >= MQTT_INTERVAL:
-                    # Telemetry gửi định kỳ cho TV2/frontend.
-                    # Khác với event: telemetry là dữ liệu trạng thái hiện tại,
-                    # không phải tín hiệu kích hoạt Rule.
-                    telemetry = {
-                        "device_code": DEVICE_CODE,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-
-                        "ear": round(ear, 3),
-                        "perclos": round(perclos, 3) if perclos is not None else None,
-
-                        "eye_closed": eye_status["is_closed"],
-                        "closed_duration_ms": round(
-                            eye_status["closed_duration_ms"], 1
-                        ),
-
-                        "driver_state": driver_state,
-
-                        "head_pose": {
-                            "yaw": round(yaw, 3) if yaw is not None else None,
-                            "pitch": round(pitch, 3) if pitch is not None else None,
-                            "roll": round(roll, 1) if roll is not None else None,
-                            "yaw_diff": round(
-                                pose_status["yaw_diff"], 3
-                            ) if pose_status["yaw_diff"] is not None else None,
-                            "pitch_diff": round(
-                                pose_status["pitch_diff"], 3
-                            ) if pose_status["pitch_diff"] is not None else None
-                        }
-                    }
-                    mqtt_client.publish_telemetry(telemetry)
-
-                    last_mqtt_time = current_time
-
-                # =========================
-                # HIỂN THỊ
-                # =========================
-                cv2.putText(
-                    frame,
-                    f"Eye closed: {eye_status['is_closed']}",
-                    (30, 145),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.7,
-                    (0, 255, 0),
-                    2
-                )
-
-                cv2.putText(
-                    frame,
-                    f"Closed: {eye_status['closed_duration_ms']:.0f} ms",
-                    (30, 180),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.7,
-                    (0, 255, 0),
-                    2
-                )
-
-
-                cv2.putText(
-                    frame,
-                    f"EAR: {ear:.3f}",
-                    (30, 40),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.8,
-                    (0, 255, 0),
-                    2
-                )
-
-                cv2.putText(
-                    frame,
-                    f"PERCLOS: {perclos_text}",
-                    (30, 75),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.8,
-                    (0, 255, 0),
-                    2
-                )
-
-                cv2.putText(
-                    frame,
-                    f"STATE: {driver_state}",
-                    (30, 110),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.8,
-                    (0, 255, 0),
-                    2
-                )
-
+                pose = head_pose.estimate(face)
+                pose_status = head_pose_tracker.update(pose)
                 if pose is not None:
+                    yaw = pose.get("yaw")
+                    pitch = pose.get("pitch")
+                    roll = pose.get("roll")
 
-                    cv2.putText(
-                        frame,
-                        f"Yaw ratio: {yaw:.3f}",
-                        (30, 315),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.7,
-                        (0, 255, 0),
-                        2
+                # ---------------------------------
+                # 4. RAW DRIVER STATE
+                # ---------------------------------
+
+                driver_state = determine_driver_state(
+                    perclos=perclos,
+                    pose_status=pose_status,
+                    eyes_recovered=eyes_recovered,
+                )
+
+                # Debug thông tin head pose.
+                # print(
+                #     "calibrating=", pose_status.get("calibrating"),
+                #     "valid=", pose_status.get("valid"),
+                #     "deviated=", pose_status.get("is_deviated"),
+                #     "distracted=", pose_status.get("is_distracted"),
+                # )
+
+                perclos_text = (
+                    f"PERCLOS: {perclos:.3f}"
+                    if perclos is not None
+                    else "PERCLOS: WARMING UP"
+                )
+
+            else:
+                # Không có khuôn mặt
+                driver_state = "UNKNOWN"
+                eyes_open_since = None
+
+            # ---------------------------------
+            # 5. CONFIRM STATE
+            # ---------------------------------
+
+            state_event = update_confirmed_state(
+                driver_state,
+                state_data,
+                DEVICE_CODE,
+            )
+
+            if state_event is not None:
+                # Đóng và upload video của trạng thái trước.
+                if video_writer is not None:
+                    video_writer.release()
+                    video_writer = None
+
+                    uploaded = upload_video(
+                        active_video_path,
+                        DEVICE_CODE,
+                        recording_state,
+                        recording_message_id,
                     )
 
-                    cv2.putText(
+                    if uploaded:
+                        try:
+                            os.remove(active_video_path)
+                        except OSError as exc:
+                            logger.error("Cannot delete uploaded video: %s", exc)
+                    else:
+                        logger.warning("Video retained locally: %s", active_video_path)
+                
+                active_video_path = None
+
+                # Event mới là event gắn với video mới.
+                recording_state = state_event["state"]
+                recording_message_id = state_event["message_id"]
+
+                video_writer, active_video_path = create_video_writer(
+                    frame,
+                    recording_state,
+                    camera,
+                )
+
+
+
+            publish_event(mqtt_client, state_event)
+
+            # ---------------------------------
+            # 6. THRESHOLD EVENTS
+            # ---------------------------------
+
+            threshold_events = check_threshold_events(
+                state_data,
+                DEVICE_CODE,
+            )
+
+            for event in threshold_events:
+                publish_event(mqtt_client, event)
+
+            # ---------------------------------
+            # 7. MQTT TELEMETRY
+            # ---------------------------------
+
+            if frame_time - last_mqtt_time >= MQTT_INTERVAL:
+                publish_telemetry(
+                    mqtt_client=mqtt_client,
+                    state_data=state_data,
+                    face_detected=face_detected,
+                    ear=ear,
+                    perclos=perclos,
+                    eye_closed=eye_closed,
+                    pose=pose,
+                )
+
+                last_mqtt_time = frame_time
+
+           
+            # ---------------------------------
+            # 8. DISPLAY
+            # ---------------------------------
+
+            y = 25
+
+            display_state = (
+                state_data["confirmed_state"] or "INITIALIZING"
+            )
+
+            y = draw_text(frame, f"State: {display_state}", y)
+
+            if face_detected:
+                y = draw_text(frame, f"EAR: {ear:.3f}", y)
+                y = draw_text(frame, perclos_text, y)
+                y = draw_text(frame, f"Candidate: {driver_state}", y)
+                y = draw_text(frame, f"Eye closed: {eye_closed}", y)
+
+                if eye_status is not None:
+                    y = draw_text(
                         frame,
-                        f"Pitch ratio: {pitch:.3f}",
-                        (30, 350),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.7,
-                        (0, 255, 0),
-                        2
+                        f"Closed: {eye_status['closed_duration_ms']:.0f} ms",
+                        y
                     )
 
-                    cv2.putText(
-                        frame,
-                        f"Roll: {roll:.1f}",
-                        (30, 385),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.7,
-                        (0, 255, 0),
-                        2
-                    )
+                if yaw is not None:
+                    y = draw_text(frame, f"Yaw ratio: {yaw:.3f}", y)
 
-                    if pose_status["calibrating"]:
+                if pitch is not None:
+                    y = draw_text(frame, f"Pitch ratio: {pitch:.3f}", y)
 
-                        cv2.putText(
+                if roll is not None:
+                    y = draw_text(frame, f"Roll: {roll:.1f}", y)
+
+                if pose_status is not None:
+                    if pose_status.get("calibrating", True):
+                        y = draw_text(
                             frame,
                             "HEAD CALIBRATING...",
-                            (30, 420),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            0.7,
-                            (0, 255, 255),
-                            2
+                            y,
+                            (0, 255, 255)
                         )
-
                     else:
+                        y = draw_text(frame, "HEAD CALIBRATED", y)
 
-                        cv2.putText(
-                            frame,
-                            "HEAD CALIBRATED",
-                            (30, 420),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            0.7,
-                            (0, 255, 0),
-                            2
-                        )
-                    if not pose_status["calibrating"]:
+                        for key, label in [
+                            ("yaw_diff", "Yaw diff"),
+                            ("pitch_diff", "Pitch diff"),
+                            ("deviation_duration", "Head deviation"),
+                        ]:
+                            value = pose_status.get(key)
 
-                        cv2.putText(
-                            frame,
-                            f"Yaw diff: {pose_status['yaw_diff']:.3f}",
-                            (30, 455),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            0.7,
-                            (255, 255, 255),
-                            2
-                        )
+                            if value is not None:
+                                if key == "deviation_duration":
+                                    text = f"{label}: {value:.1f}s"
+                                else:
+                                    text = f"{label}: {value:.3f}"
 
-                        cv2.putText(
-                            frame,
-                            f"Pitch diff: {pose_status['pitch_diff']:.3f}",
-                            (30, 490),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            0.7,
-                            (255, 255, 255),
-                            2
-                        )
-
-                        cv2.putText(
-                            frame,
-                            f"Head deviation: "
-                            f"{pose_status['deviation_duration']:.1f}s",
-                            (30, 525),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            0.7,
-                            (255, 255, 255),
-                            2
-                        )
-                # =========================
-                # LANDMARKS
-                # =========================
-
-                h, w, _ = frame.shape
-
-                for landmark in face_landmarks:
-
-                    x = int(landmark.x * w)
-                    y = int(landmark.y * h)
-
-                    cv2.circle(
-                        frame,
-                        (x, y),
-                        1,
-                        (0, 255, 0),
-                        -1
-                    )
-
-            # =========================
-            # NO FACE
-            # =========================
-
-            if not faces:
-                # Không phát hiện khuôn mặt -> không đủ dữ liệu để xác định trạng thái.
-                driver_state = "UNKNOWN"
-
-                # Kết thúc episode DROWSY hiện tại.
-                # Không được tiếp tục tính DROWSY khi không nhìn thấy mặt.
-                drowsy_since = None
-                drowsy_event_sent = False
-
-            # =========================
-            # HIỂN THỊ WEBCAM
-            # =========================
+                                y = draw_text(
+                                    frame,
+                                    text,
+                                    y,
+                                    (255, 255, 255)
+                                )
+            else:
+                y = draw_text(
+                    frame,
+                    "No face detected",
+                    y,
+                    (0, 165, 255)
+                )
 
             cv2.imshow("Drowsiness Detection", frame)
-            
-            # Q để thoát
+
+            if video_writer is not None:
+                video_writer.write(frame)
+
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
 
+    except KeyboardInterrupt:
+        print("\n[INFO] Người dùng dừng chương trình.")
+
+    except Exception as exc:
+        print(f"[ERROR] {exc}")
+        raise
+
     finally:
+        # Đóng video đang ghi và upload video đã hoàn tất.
+        if video_writer is not None:
+            video_writer.release()
+            video_writer = None
 
-        cap.release()
+            if active_video_path is not None:
+                uploaded = upload_video(
+                    active_video_path,
+                    DEVICE_CODE,
+                    recording_state,
+                    recording_message_id,
+                )
 
-        detector.close()
+                if uploaded:
+                    try:
+                        os.remove(active_video_path)
+                    except OSError as exc:
+                        logger.error(
+                            "Cannot delete uploaded video: %s",
+                            exc,
+                        )
+                else:
+                    logger.warning(
+                        "Video retained locally: %s",
+                        active_video_path,
+                    )
 
-        mqtt_client.close()
+        # Giải phóng các tài nguyên khác.
+        if camera is not None:
+            camera.release()
 
         cv2.destroyAllWindows()
+
+        if mqtt_client is not None:
+            try:
+                mqtt_client.close()
+            except Exception as exc:
+                logger.error("MQTT close error: %s", exc)
+
+        print("[INFO] Đã dừng hệ thống.")
 
 
 if __name__ == "__main__":
