@@ -3,6 +3,7 @@ from fastapi import HTTPException
 
 OUTPUTS = ("led", "buzzer", "motor")
 LEVELS = ("1", "2", "3")
+TIMING_RANGES = {"on_ms": (50, 5000), "off_ms": (50, 10000)}
 
 
 def validate_timings(value: object) -> dict:
@@ -21,10 +22,11 @@ def validate_timings(value: object) -> dict:
             result[output][level] = {}
             for field in ("on_ms", "off_ms"):
                 duration = pair.get(field)
-                if type(duration) is not int or not 0 <= duration <= 10000:
+                minimum, maximum = TIMING_RANGES[field]
+                if type(duration) is not int or not minimum <= duration <= maximum:
                     raise HTTPException(
                         status_code=422,
-                        detail=f"{output} level {level} {field} must be 0-10000 ms",
+                        detail=f"{output} level {level} {field} must be {minimum}-{maximum} ms",
                     )
                 result[output][level][field] = duration
     return result

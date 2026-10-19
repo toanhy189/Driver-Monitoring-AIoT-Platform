@@ -100,7 +100,6 @@ def _save_telemetry(session: Session, code: str, payload: dict) -> list[dict]:
                 "confidence": telemetry.confidence,
                 "model_version": telemetry.model_version,
                 "angle_x": telemetry.angle_x, "angle_y": telemetry.angle_y, "angle_z": telemetry.angle_z,
-                "model_version": telemetry.model_version,
             },
         },
         _device_event(device),

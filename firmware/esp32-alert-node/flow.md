@@ -61,7 +61,7 @@ PAYLOAD:
     }
 ```
 
-## Nhận ACK FAILED: INTENSITY_TOO_LOW (gửi 2 cái liên tiếp)
+## Nhận ACK FAILED: BUSY (gửi 2 cái liên tiếp, lệnh mới có mức thấp hơn)
 ```text
 TOPIC: 'driver/alert-01/command'
 PAYLOAD:
@@ -101,7 +101,7 @@ PAYLOAD:
 ```
 command: LED_ON, LED_OFF, BUZZER_ON,.., MOTOR_ON,..
 status: ACKNOWLEDGED, STARTED, COMPLETED, INTERRUPTED, FAILED
-error: INVALID_PAYLOAD, INTENSITY_TOO_LOW, INVALID_COMMAND, UNKNOWN_COMMAND
+error: INVALID_PAYLOAD, BUSY, INVALID_COMMAND, UNKNOWN_COMMAND
 
 # Luồng hoạt động chi tiết
 ```mermaid
@@ -141,7 +141,7 @@ flowchart TD
     V -->|Không| W["Bắt đầu command mới"]
     V -->|Có| AA{"Intensity mới >= intensity hiện tại?"}
 
-    AA -->|Không| AB["Gửi FAILED<br>INTENSITY_TOO_LOW"]
+    AA -->|Không| AB["Gửi FAILED<br>BUSY"]
     AA -->|Có| AC["Gửi INTERRUPTED<br>command cũ"]
     AC --> W
 

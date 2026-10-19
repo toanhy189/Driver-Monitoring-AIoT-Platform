@@ -14,10 +14,12 @@ test_backend_role_boundaries_match_three_week2_roles (test_week2_contract.Week2C
 test_config_applied_event_must_match_saved_desired_id (test_week2_contract.Week2ContractTests.test_config_applied_event_must_match_saved_desired_id) ... ok
 test_config_publish_failure_is_visible_without_claiming_applied (test_week2_contract.Week2ContractTests.test_config_publish_failure_is_visible_without_claiming_applied) ... ok
 test_config_publish_is_retained_qos_one_and_addressed_to_device (test_week2_contract.Week2ContractTests.test_config_publish_is_retained_qos_one_and_addressed_to_device) ... ok
+test_config_ranges_match_current_firmware (test_week2_contract.Week2ContractTests.test_config_ranges_match_current_firmware) ... ok
 test_config_requires_all_outputs_and_integer_timings (test_week2_contract.Week2ContractTests.test_config_requires_all_outputs_and_integer_timings) ... ok
 test_customer_cannot_send_and_command_body_is_strict (test_week2_contract.Week2ContractTests.test_customer_cannot_send_and_command_body_is_strict) ... ok
 test_database_timestamp_columns_accept_naive_utc_values (test_week2_contract.Week2ContractTests.test_database_timestamp_columns_accept_naive_utc_values) ... ok
 test_database_utc_timestamps_are_marked_for_browser (test_week2_contract.Week2ContractTests.test_database_utc_timestamps_are_marked_for_browser) ... ok
+test_each_http_method_and_path_has_one_handler (test_week2_contract.Week2ContractTests.test_each_http_method_and_path_has_one_handler) ... ok
 test_fe_routes_exist_with_expected_methods (test_week2_contract.Week2ContractTests.test_fe_routes_exist_with_expected_methods) ... ok
 test_firmware_interrupted_ack_is_failure (test_week2_contract.Week2ContractTests.test_firmware_interrupted_ack_is_failure) ... ok
 test_http_command_result_can_be_failed_when_mqtt_publish_fails (test_week2_contract.Week2ContractTests.test_http_command_result_can_be_failed_when_mqtt_publish_fails) ... ok
@@ -41,8 +43,10 @@ test_11_ack_before_http_response_and_disabled_rule (test_week3_integration.Week3
 test_12_docker_restart_http_websocket_and_persistence (test_week3_integration.Week3Integration.test_12_docker_restart_http_websocket_and_persistence) ... skipped 'Use run_week3_integration.py for isolated live checks'
 test_13_ai_mqtt_to_rule_to_command_to_three_ack (test_week3_integration.Week3Integration.test_13_ai_mqtt_to_rule_to_command_to_three_ack) ... skipped 'Use run_week3_integration.py for isolated live checks'
 test_14_interrupted_publish_is_not_retried_blindly (test_week3_integration.Week3Integration.test_14_interrupted_publish_is_not_retried_blindly) ... skipped 'Use run_week3_integration.py for isolated live checks'
+test_15_concurrent_first_config_put_preserves_latest_revision (test_week3_integration.Week3Integration.test_15_concurrent_first_config_put_preserves_latest_revision) ... skipped 'Use run_week3_integration.py for isolated live checks'
+test_16_firmware_reboot_ack_reports_failure (test_week3_integration.Week3Integration.test_16_firmware_reboot_ack_reports_failure) ... skipped 'Use run_week3_integration.py for isolated live checks'
 
 ----------------------------------------------------------------------
-Ran 42 tests in 0.466s
+Ran 46 tests in 0.556s
 
-OK (skipped=15)
+OK (skipped=17)

@@ -356,6 +356,19 @@ class Week3Integration(unittest.TestCase):
         self.assertTrue(result.json()["has_more"])
         self.assertEqual(result.json()["items"][0]["model_version"], "model-a")
         self.assertTrue(result.json()["items"][0]["recorded_at"].endswith("Z"))
+        legacy_path = f"/api/{self.source_id}/telemetry/history"
+        legacy = self.client.get(legacy_path, params={
+            "from_time": (now - timedelta(minutes=3)).replace(tzinfo=timezone.utc)
+                .astimezone(timezone(timedelta(hours=7))).isoformat(),
+            "to_time": now.replace(tzinfo=timezone.utc).isoformat(), "limit": 100,
+        }, headers=self.auth)
+        self.assertEqual(legacy.status_code, 200, legacy.text)
+        self.assertEqual(legacy.json()["total_samples"], 3)
+        self.assertEqual(legacy.json()["device_code"], self.source_code)
+        self.assertEqual(legacy.json()["items"], sorted(legacy.json()["items"], key=lambda row: row["recorded_at"]))
+        self.assertEqual(self.client.get(legacy_path + "?from_time=2026-10-01T00:00:00", headers=self.auth).status_code, 422)
+        self.assertEqual(self.client.get(legacy_path, headers={"Authorization": "Bearer " +
+            create_access_token(stranger_id, timedelta(minutes=5))}).status_code, 404)
         stats = self.client.get(path + "/metrics?model_version=model-a", headers=self.auth)
         self.assertEqual(stats.status_code, 200, stats.text)
         self.assertEqual(stats.json()["telemetry"]["count"], 2)
@@ -371,6 +384,7 @@ class Week3Integration(unittest.TestCase):
         for query in ("limit=201", "offset=-1", "from=2026-10-01T00:00:00", "from=2026-01-01T00:00:00Z&to=2026-10-01T00:00:00Z"):
             self.assertEqual(self.client.get(path + "/telemetry/history?" + query, headers=self.auth).status_code, 422)
         record("TV2-18/19", {"model_filter_count": 2, "utc": True, "other_user": 404, "bad_filters": 422,
+                              "legacy_chart_api": "UTC offset converted; latest samples ascending; other user denied",
                               "metrics": stats.json()})
 
     def test_10_ws_ticket_permissions_change(self):
@@ -558,6 +572,47 @@ class Week3Integration(unittest.TestCase):
             self.assertEqual(command.status, "TIMEOUT")
             self.assertIn("Delivery unknown", command.error_message)
         record("TV2-17/13", "A crash after durable PUBLISHING marker -> no resend from a new session; timeout reports delivery unknown")
+
+
+    def test_15_concurrent_first_config_put_preserves_latest_revision(self):
+        peer, _ = self.provision()
+        path = f"/api/devices/{self.target_id}/config"
+        barrier = threading.Barrier(2)
+
+        def send(value):
+            barrier.wait(timeout=5)
+            return self.client.put(path, headers=self.auth, json={"timings": timings(value)})
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            responses = list(pool.map(send, (100, 300)))
+        self.assertEqual([response.status_code for response in responses], [200, 200])
+        current = self.client.get(path, headers=self.auth).json()
+        self.assertEqual(current["desired"]["revision"], 2)
+        with Session(engine) as session:
+            self.assertEqual(len(session.exec(select(Config).where(Config.device_id == self.target_id)).all()), 1)
+        peer.subscribe(f"driver/{self.target_code}/config/update")
+        _, retained, _ = peer.messages.get(timeout=5)
+        self.assertEqual(json.loads(retained)["config_id"], current["config_id"])
+        record("TV2-07/09", {"concurrent_first_put": "both HTTP 200; one config row; revision 2",
+                             "retained": "matches latest desired config_id"})
+
+    def test_16_firmware_reboot_ack_reports_failure(self):
+        peer, _ = self.provision()
+        peer.subscribe(f"driver/{self.target_code}/command")
+        response = self.command()
+        self.assertEqual(response.status_code, 201, response.text)
+        child = json.loads(peer.messages.get(timeout=5)[1])
+        peer.publish(f"driver/{self.target_code}/ack", {
+            "request_id": child["request_id"], "device_code": self.target_code,
+            "status": "INTERRUPTED", "elapsed_ms": 0, "error": "REBOOTED",
+        })
+        parent_id = response.json()["request_id"]
+        wait_for(lambda: self.get_command(parent_id)["status"] == "FAILED")
+        parent = self.get_command(parent_id)
+        self.assertEqual(parent["error_message"], "REBOOTED")
+        self.assertNotEqual(parent["ack_status"], "COMPLETED")
+        record("TV2-12/13", {"firmware_ack": "INTERRUPTED/REBOOTED",
+                              "parent_status": parent["status"], "error_message": parent["error_message"]})
 
 
 class EvidenceResult(unittest.TextTestResult):

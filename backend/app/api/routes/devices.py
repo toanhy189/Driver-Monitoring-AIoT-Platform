@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, Response
+from datetime import datetime, timezone
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlmodel import Session, select
 
 from app.api.deps import require_admin, require_viewer
@@ -8,10 +9,11 @@ from app.models.telemetry import Telemetry
 from app.models.user import User
 from app.models.user_device import UserDevice
 from app.schemas.device import DeviceRegisterRequest, DeviceResponse, DeviceStatusRequest, ProvisionResponse
-from app.schemas.telemetry import TelemetryResponse
+from app.schemas.telemetry import TelemetryHistoryItem, TelemetryHistoryResponse, TelemetryResponse
 from app.services.access import assigned_device, assigned_devices
 from app.services.mqtt_provision_service import provision_device
 from app.services.mqtt_revoke_service import revoke_device
+from app.services.time_utils import as_utc
 
 
 router = APIRouter(tags=["devices"])
@@ -77,6 +79,56 @@ def get_current_telemetry(
         face_detected=telemetry.face_detected,
         head_pose=telemetry.head_pose,
         model_version=telemetry.model_version,
+    )
+
+
+@router.get("/{device_id}/telemetry/history", response_model=TelemetryHistoryResponse)
+def get_telemetry_history(
+    device_id: int,
+    from_time: datetime | None = None,
+    to_time: datetime | None = None,
+    limit: int = Query(default=100, ge=1, le=200),
+    current_user: User = Depends(require_viewer),
+    session: Session = Depends(get_session),
+):
+    device = assigned_device(session, current_user.id, device_id)
+    for value in (from_time, to_time):
+        if value is not None and (value.tzinfo is None or value.utcoffset() is None):
+            raise HTTPException(status_code=422, detail="from_time/to_time must include a UTC offset")
+    if from_time is not None and to_time is not None and from_time >= to_time:
+        raise HTTPException(status_code=422, detail="Expected from_time < to_time")
+    query = select(Telemetry).where(Telemetry.device_id == device_id)
+    if from_time:
+        query = query.where(Telemetry.recorded_at >= from_time.astimezone(timezone.utc).replace(tzinfo=None))
+    if to_time:
+        query = query.where(Telemetry.recorded_at < to_time.astimezone(timezone.utc).replace(tzinfo=None))
+
+    # Query descending to get the most recent samples up to limit
+    items_desc = session.exec(query.order_by(Telemetry.recorded_at.desc(), Telemetry.id.desc()).limit(limit)).all()
+    # Reverse to ascending chronological order for timeline / charts
+    items_asc = list(reversed(items_desc))
+    total_samples = len(items_asc)
+    latest_item = items_desc[0] if items_desc else None
+
+    return TelemetryHistoryResponse(
+        device_id=device.id,
+        device_code=device.device_code,
+        total_samples=total_samples,
+        model_version=latest_item.model_version if latest_item else None,
+        last_updated=as_utc(latest_item.recorded_at) if latest_item else None,
+        items=[
+            TelemetryHistoryItem(
+                id=t.id,
+                recorded_at=t.recorded_at,
+                ear=t.ear,
+                perclos=t.perclos,
+                driver_state=t.driver_state,
+                confidence=t.confidence,
+                face_detected=t.face_detected,
+                model_version=t.model_version,
+            )
+            for t in items_asc
+        ],
     )
 
 

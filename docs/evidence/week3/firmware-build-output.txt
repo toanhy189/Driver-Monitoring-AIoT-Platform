@@ -19,21 +19,14 @@ Dependency Graph
 |-- Preferences @ 2.0.0
 |-- WiFi @ 2.0.0
 Building in release mode
-Compiling .pio\build\development\src\app\config_manager.cpp.o
-Linking .pio\build\development\firmware.elf
 Retrieving maximum program size .pio\build\development\firmware.elf
 Checking size .pio\build\development\firmware.elf
 Advanced Memory Usage is available via "PlatformIO Home > Project Inspect"
-RAM:   [=         ]  13.9% (used 45576 bytes from 327680 bytes)
-Flash: [======    ]  59.0% (used 773645 bytes from 1310720 bytes)
-Building .pio\build\development\firmware.bin
-esptool.py v4.11.0
-Creating esp32 image...
-Merged 27 ELF sections
-Successfully created esp32 image.
-========================= [SUCCESS] Took 17.12 seconds =========================
+RAM:   [=         ]  14.4% (used 47180 bytes from 327680 bytes)
+Flash: [======    ]  60.3% (used 790961 bytes from 1310720 bytes)
+========================= [SUCCESS] Took 6.58 seconds =========================
 
 Environment    Status    Duration
 -------------  --------  ------------
-development    SUCCESS   00:00:17.123
-========================= 1 succeeded in 00:00:17.123 =========================
+development    SUCCESS   00:00:06.582
+========================= 1 succeeded in 00:00:06.582 =========================

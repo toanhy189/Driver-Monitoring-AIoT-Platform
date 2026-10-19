@@ -49,3 +49,16 @@ test("tuần 3: API lịch sử dùng ID, UTC, phiên bản AI và giới hạn"
   assert.match(calls[3].url, /devices\/2\/metrics/);
   assert.equal(calls[0].options.headers.Authorization, "Bearer test-token");
 });
+
+test("biểu đồ TV4 giữ response cũ và gọi route riêng, không trùng API phân trang", async () => {
+  let calledUrl;
+  const snapshot = { device_id: 2, total_samples: 1, items: [{ id: 1, recorded_at: "2026-10-19T01:00:00Z" }] };
+  const api = await moduleFor("../src/services/telemetryApi.js", { fetch: async url => {
+    calledUrl = url; return response(snapshot);
+  } });
+  const result = await api.getTelemetryHistory(2, { fromTime: "2026-10-19T00:00:00Z", limit: 100 });
+  assert.match(calledUrl, /\/api\/2\/telemetry\/history\?/);
+  assert.equal(new URL(calledUrl).searchParams.get("from_time"), "2026-10-19T00:00:00Z");
+  assert.equal(result.total_samples, 1);
+  assert.equal(result.items[0].id, 1);
+});

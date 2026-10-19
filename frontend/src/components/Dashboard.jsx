@@ -127,6 +127,7 @@ function Dashboard({ user, realtime = NO_REALTIME, onLogout, onUnauthorized, onO
 
   return <DashboardView
     user={user} onLogout={onLogout} onOpenDevices={onOpenDevices} onOpenCommands={onOpenCommands} onOpenAlerts={onOpenAlerts}
+    onUnauthorized={onUnauthorized} realtime={realtime} selectedDevice={selectedDevice}
     wsConnected={realtime.connected} devices={devices} measurementDevices={measurementDevices} devicesLoading={devicesLoading}
     devicesError={devicesError} selectedDeviceId={selectedDeviceId} onSelectDevice={setSelectedDeviceId}
     telemetry={telemetry} telemetrySource={telemetrySource} telemetryStale={!realtime.connected}

@@ -1,5 +1,6 @@
 #pragma once
 #include <ArduinoJson.h>
+#include <cstdint>
 #include "device_config.h"
 
 struct DeviceState
@@ -9,6 +10,8 @@ struct DeviceState
     
     char requestId[64];
     char intensity[32];
+    // [TV1-13 - thêm] Hash payload đi cùng request_id để ghi đúng kết quả vào NVS.
+    uint32_t reqHash;
 
     unsigned long startTime, duration;
 
@@ -21,9 +24,10 @@ struct DeviceState
 };
 
 // quyết định xem ghi đè lệnh k
+// !!! đang có khai báo khác trong hàm thật ở .cpp
 static void switchDevice(
-    DeviceState& device, const DeviceConfig& config,
-    unsigned long duration, const char* intensity
+ /*DeviceState& device, const DeviceConfig& config,
+    unsigned long duration, const char* intensity*/   
 );
 
 // update state của 1 device
@@ -48,5 +52,3 @@ static void handleDeviceOff(
 
 // onMessage() gọi cái này
 void runCommand(JsonDocument& doc);
-
-

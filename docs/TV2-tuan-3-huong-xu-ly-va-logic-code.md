@@ -56,11 +56,11 @@ Test MQTT dùng tài khoản thử, gửi tin đúng topic và thử gửi chéo
 
 ## 4. TV2-07 đến TV2-10: cấu hình từ web tới ESP32
 
-Code chính: [configs.py](../backend/app/api/routes/configs.py), [config_publish_service.py](../backend/app/services/config_publish_service.py), [_save_applied_config trong mqtt_service.py](../backend/app/services/mqtt_service.py), [config_manager.cpp](../firmware/esp32-alert-node/src/app/config_manager.cpp).
+Code chính: [configs.py](../backend/app/api/routes/configs.py), [config_publish_service.py](../backend/app/services/config_publish_service.py), [_save_applied_config trong mqtt_service.py](../backend/app/services/mqtt_service.py), [config_store.cpp của TV1](../firmware/esp32-alert-node/src/app/config_store.cpp).
 
 ### 4.1. Hình dạng dữ liệu đang triển khai
 
-FE gọi `PUT /api/devices/{id}/config`, body có `timings`: ba đầu ra `led`, `buzzer`, `motor`; mỗi đầu ra có ba mức `1`, `2`, `3`; mỗi mức có hai số nguyên `on_ms`, `off_ms` trong khoảng 0–10000.
+FE gọi `PUT /api/devices/{id}/config`, body có `timings`: ba đầu ra `led`, `buzzer`, `motor`; mỗi đầu ra có ba mức `1`, `2`, `3`. `on_ms` là số nguyên 50–5000; `off_ms` là số nguyên 50–10000. Giới hạn FE/BE đã được đồng bộ với firmware TV1 tại commit main `5e06f10`.
 
 Ví dụ một phần để dễ đọc; request thật phải có đủ cả ba đầu ra và ba mức:
 
@@ -79,7 +79,7 @@ BE thêm `config_id`, `device_code` và `revision` khi gửi MQTT:
 ### 4.2. Thứ tự BE xử lý
 
 1. Kiểm tra quyền Admin/Employee, đúng Alert Node, chưa ngừng sử dụng và body hợp lệ.
-2. Khóa dòng cấu hình trong DB, tăng `revision`, tạo `config_id` mới rồi lưu desired với trạng thái `PENDING_APPLICATION`.
+2. Khóa dòng thiết bị và cấu hình trong DB, tăng `revision`, tạo `config_id` mới rồi lưu desired với trạng thái `PENDING_APPLICATION`. Khóa thiết bị còn chặn hai request cùng tạo bản cấu hình đầu tiên.
 3. Giữ thứ tự publish bằng khóa dòng: nếu một request mới hơn đã thay desired thì request cũ không được gửi đè tin retained.
 4. Gửi tới `driver/{code}/config/update` với QoS 1 và `retain=true`. Retained nghĩa là broker giữ cấu hình cuối để thiết bị nhận khi kết nối lại.
 5. Nếu publish lỗi, API trả `503`; DB giữ desired để xem lại, trạng thái `PUBLISH_FAILED`; applied không được tự đổi.
@@ -87,13 +87,16 @@ BE thêm `config_id`, `device_code` và `revision` khi gửi MQTT:
 
 ### 4.3. Thứ tự firmware xử lý
 
-1. Môi trường PlatformIO `development` đăng ký `command` và `config/update` với QoS 1; vùng nhận MQTT tăng lên 2048 byte.
-2. `decodeConfig()` kiểm tra mã thiết bị, mã cấu hình, revision và đủ bảng thời gian. Mức 1/2/3 được đổi vào các trường WEAK/MEDIUM/STRONG của cấu hình thiết bị.
-3. Revision cũ bị từ chối với `STALE_CONFIG`. Cùng ID nhưng thời gian khác bị từ chối với `DUPLICATE_ID_MISMATCH`.
-4. Dùng `Preferences` để ghi cấu hình vào flash — bộ nhớ còn dữ liệu sau khi ngắt điện. Ghi không thành công trả `STORAGE_ERROR`.
-5. Nếu đang chạy lệnh, giữ cấu hình mới chờ. `runConfigManager()` chỉ thay cấu hình khi `commandsIdle()` báo cả ba đầu ra đã kết thúc.
-6. Sau khi sẵn sàng dùng cấu hình mới, gửi `APPLIED` về `driver/{code}/config/applied`. PubSubClient gửi ở QoS 0; firmware lặp lại ACK APPLIED ba lần, cách nhau 5 giây, và xác nhận lại khi nhận cấu hình trùng. Đây là cách giảm mất ACK, không phải bảo đảm QoS 1.
-7. Khi khởi động lại, `loadSavedConfig()` đọc cấu hình từ flash.
+Nhánh này giữ firmware tuần 3 của TV1 từ main `5e06f10`; không sử dụng bộ `config_manager` cũ của TV2 song song.
+
+1. Môi trường PlatformIO `development` đăng ký `command` và `config/update` với QoS 1; vùng nhận MQTT là 1024 byte.
+2. `parseConfig()` và `parseDeviceTimings()` kiểm tra mã cấu hình và đủ bảng thời gian; mức 1/2/3 tương ứng WEAK/MEDIUM/STRONG.
+3. Dùng `Preferences` ghi cấu hình vào flash — bộ nhớ còn dữ liệu sau ngắt điện. Ghi lỗi trả `STORAGE_ERROR`; lưu được mới đổi RAM và gửi `APPLIED`.
+4. Lệnh đang chạy đã giữ riêng `startMs/endMs` khi bắt đầu nên tiếp tục theo timing cũ. Lệnh tiếp theo lấy timing mới.
+5. `APPLIED/REJECTED` được gửi tới `driver/{code}/config/applied` bằng QoS 0. Firmware hiện xác nhận lại ID đã áp dụng khi nhận trùng; chưa có vòng lặp ba lần gửi ACK config.
+6. Khi khởi động lại, `loadSavedConfig()` đọc và kiểm tra bản ghi flash.
+
+**Còn cần TV1 thống nhất:** firmware hiện chưa kiểm tra `revision` để từ chối config cũ đến lại; cùng ID thì trả APPLIED trước khi so sánh toàn bộ nội dung. BE có lưu revision và bỏ ACK cũ, nhưng việc đó không chứng minh ESP32 đã chống áp dụng lại config cũ. Vì vậy TV2-10 chưa hoàn tất toàn bộ phần tích hợp.
 
 ```json
 {"device_code":"alert-01","config_id":"cfg-...","status":"APPLIED","error":null}
@@ -108,6 +111,8 @@ Code chính: [commands.py](../backend/app/api/routes/commands.py), [command_disp
 `TEST_ALERT` tạo một lệnh cha, ví dụ `cmd-10`, và ba lệnh con `cmd-10-led`, `cmd-10-buzzer`, `cmd-10-motor`. BE gửi ba lệnh tương thích firmware. Hai ACK con `COMPLETED` chưa đủ; cả ba hoàn tất mới có `status=ACKNOWLEDGED`, `ack_status=COMPLETED`.
 
 BE đối chiếu mã lệnh con và thiết bị trên topic trước khi ghi ACK. Các cập nhật đi lùi như `STARTED` sau `COMPLETED`, ACK trùng hoặc ACK của thiết bị khác không làm lùi kết quả. Nếu ACK tới ngay khi BE còn chờ publish hoặc chưa trả HTTP, bộ publish đọc lại dòng DB rồi cập nhật, giữ ACK mới hơn.
+
+ACK `INTERRUPTED` được BE ghi thành kết quả thất bại, giữ mã lỗi như `REBOOTED`, không báo COMPLETED. Test 16 đã kiểm tra payload này qua broker thật với ESP32 giả lập. Firmware TV1 có request log để phục hồi sau reboot; bằng chứng phần cứng của TV1 xem [bàn giao firmware](../firmware/esp32-alert-node/tuan3-ban_giao.md).
 
 Sau thời gian mặc định 30 giây mà chưa có đủ ACK, BE đặt `TIMEOUT`. Hai ACK hoàn tất đến muộn vẫn giữ TIMEOUT; khi cả ba đã hoàn tất, BE mới có thể sửa thành COMPLETED. `TIMEOUT` thể hiện chưa xác định kết quả cuối.
 
@@ -151,6 +156,8 @@ Sự kiện cũ do lưu offline rồi gửi lại được giữ trong lịch s�
 
 Cooldown mẫu: 30 giây; sự kiện quá 60 giây không tạo lệnh tự động. Đây là thông số thử, **chưa được TV1/TV3 xác nhận**.
 
+**Giới hạn cần chốt với AI:** AI hiện được viết theo hướng gửi một event khi buồn ngủ đạt 3 giây. Một event đó không cho BE biết tình trạng tiếp tục kéo dài đến 6/10 giây. Các test mức 2/3 dùng event giả lập chứa thời lượng tương ứng. Nhóm cần chốt nhịp gửi event và cách tăng mức; cooldown hiện chặn mọi event tiếp theo trong khoảng chờ, chưa có ngoại lệ cho tăng mức. Sự kiện mất tập trung quá lâu chưa nằm trong schema BE. Topic AI vẫn giữ `driver/events`; chưa chuyển sang `driver/{code}/events`.
+
 Mỗi mức có thêm `outputs`, chọn một hoặc nhiều phần tử `led`, `buzzer`, `motor`. Mẫu mặc định dùng cả ba đầu ra ở cả ba mức với cường độ khác nhau; nhóm có thể đổi danh sách tải của từng mức trong policy. TEST_ALERT thủ công vẫn luôn kiểm tra cả ba tải.
 
 Admin được gán cả hai thiết bị có thể xem/sửa qua `GET/PUT /api/devices/{vision_id}/rule`. PUT nhận `target_device_id`, `enabled`, và `policy` có `levels`, `cooldown_seconds`, `max_event_age_seconds`. Bảng levels phải đủ 1/2/3 với ngưỡng tăng dần. `effective_enabled` phản ánh cả công tắc môi trường và cấu hình liên kết. Xem schema đầy đủ trong [OpenAPI](evidence/week3/openapi.json).
@@ -186,6 +193,8 @@ Admin, Employee, Customer đều chỉ được xem thiết bị đang được 
 Các tham số: `from`, `to` có múi giờ; `model_version`; `limit` 1–200; `offset` 0–10000; `order=asc|desc`. Mặc định xem 24 giờ gần nhất; khoảng tối đa 31 ngày; `from` được tính vào khoảng, `to` không tính. Response thời gian dùng UTC. Ba API danh sách trả `{items, limit, offset, has_more}`. Metrics tổng hợp toàn khoảng đã lọc, không lấy số liệu từ một trang danh sách.
 
 Ví dụ: `/api/devices/2/telemetry/history?from=2026-10-18T00:00:00Z&to=2026-10-19T00:00:00Z&model_version=v1&limit=50`.
+
+Để giữ biểu đồ AI mới của TV4, `GET /api/{id}/telemetry/history` trả response riêng `{device_id, device_code, total_samples, model_version, last_updated, items}`. Route này lấy tối đa 200 mẫu mới nhất rồi sắp tăng dần; dùng `from_time/to_time` có múi giờ, không đặt khoảng 24 giờ mặc định. FE `telemetryApi.js` gọi route này. API phân trang ở bảng trên vẫn dùng `/api/devices/{id}/...`, không có hai handler trùng đường dẫn.
 
 FE thêm mục **Lịch sử và thống kê thiết bị** trong trang chi tiết. Người dùng mở mục này để chọn Số đo/Diễn biến/Lệnh/Thống kê và lọc thời gian, phiên bản AI. Giá trị thời gian nhập theo máy người dùng được chuyển thành UTC trước khi gọi BE.
 
@@ -259,10 +268,10 @@ python backend/scripts/export_week3_handoff.py
 
 Script verify lưu output BE/FE/build vào `docs/evidence/week3`. Cần Node dependencies đã cài và PlatformIO ở đường dẫn cài chuẩn nếu dùng `--firmware`. Test Docker tạo container BE riêng, dùng DB thử, restart container đó rồi dọn container; không restart broker hoặc BE đang dùng của nhóm.
 
-Trên ESP32 thật, điền tài khoản MQTT/IP/cổng vào file riêng `network_config.h`, build/upload môi trường `development`, lưu cấu hình trên web rồi kiểm tra Serial `Saved → Applied → APPLIED ACK`; khởi động lại kiểm tra `Restored ... from flash`. Kiểm tra tải vật lý và chống thực thi command trùng cần TV1 thực hiện trên board.
+Trên ESP32 thật, điền tài khoản MQTT/IP/cổng vào file riêng `network_config.h`, build/upload môi trường `development`, lưu cấu hình trên web rồi kiểm tra ACK APPLIED; khởi động lại kiểm tra Serial `[CONFIG] loaded config_id=...`. Đối chiếu checklist của [TV1](../firmware/esp32-alert-node/tuan3-ban_giao.md); kiểm tra tải vật lý và chống thực thi command trùng vẫn cần board thật.
 
 ## 13. TV2-23: các phần bàn giao
 
-Hai tài liệu này, migration tuần 3, OpenAPI JSON, ACL mẫu, mã nguồn, bộ test và output nằm trong repo. [source-manifest.json](evidence/week3/source-manifest.json) ghi mã băm file để đối chiếu đúng phiên bản đã kiểm tra. Không có mật khẩu `.env` trong các bản bàn giao.
+Hai tài liệu này, migration tuần 3, OpenAPI JSON, ACL mẫu, mã nguồn, bộ test và output nằm trong repo. Đối chiếu phiên bản qua lịch sử commit Git của nhánh `feature/backend-week3`. `.env`, cấu hình mạng riêng, bản sao firmware cũ và file băm nguồn riêng của máy được ignore; tài liệu báo cáo và minh chứng kiểm tra được giữ trong Git.
 
 Nhóm cần hoàn tất xác nhận bảng mức/cooldown, hợp đồng config cuối cùng với TV1, tên các ca W3 và test phần cứng trước khi đánh dấu hoàn tất toàn bộ phần tích hợp.

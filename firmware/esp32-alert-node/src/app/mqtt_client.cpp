@@ -2,10 +2,15 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
+#include <cstring>
+#include <ctime>
 
 #include "config.h"
+// [CONFIG - thêm] Định tuyến config qua kho NVS riêng, tách khỏi luồng lệnh thiết bị.
+#include "config_store.h"
 #include "mqtt_client.h"
 #include "command_handler.h"
+#include "request_log.h"
 
 #if __has_include("network_config.h")
 #include "network_config.h"
@@ -19,6 +24,8 @@ PubSubClient mqtt(wifiClient);
 unsigned long lastWifiAttempt = 0;
 unsigned long lastMqttAttempt = 0;
 bool wifiWasConnected = false;
+bool ntpConfigured = false;
+bool timeSyncReported = false;
 
 void startWifi()
 {
@@ -37,12 +44,36 @@ void printWifiIP()
     Serial.println(WiFi.localIP());
 }
 
-void initMqtt(){
+void initMqtt()
+{
     Serial.println("[BOOT] alert-01 started.");
     startWifi();
     mqtt.setServer(MQTT_HOST, MQTT_PORT);
     mqtt.setCallback(onMessage);
     lastMqttAttempt = millis();
+
+    mqtt.setSocketTimeout(3);   // giây
+    mqtt.setKeepAlive(15);
+    // [CONFIG - sửa] Payload đủ 3 tải x 3 mức cần buffer 1024 byte, lớn hơn mặc định 256.
+    if (!mqtt.setBufferSize(1024))
+    {
+        Serial.println("[MQTT] Failed to allocate 1024-byte buffer");
+    }
+}
+
+static void handleConfigUpdate(byte* payload, unsigned int length)
+{
+    // Parse theo đúng số byte MQTT; JSON hỏng bị từ chối, không làm đổi config đang dùng.
+    JsonDocument doc;
+    DeserializationError parseError = deserializeJson(doc, payload, length);
+    if (parseError)
+    {
+        Serial.printf("[CONFIG] Invalid JSON: %s\n", parseError.c_str());
+        sendConfigAck(nullptr, "REJECTED", "INVALID_JSON");
+        return;
+    }
+
+    onConfigMessage(doc);
 }
 
 void runMqtt()
@@ -69,6 +100,20 @@ void runMqtt()
     {
         wifiWasConnected = true;
         printWifiIP();
+        if (!ntpConfigured)
+        {
+            configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+            ntpConfigured = true;
+            Serial.println("[TIME] SNTP configured");
+        }
+    }
+
+    time_t currentTime = time(nullptr);
+    if (!timeSyncReported && currentTime > 1700000000)
+    {
+        timeSyncReported = true;
+        Serial.printf("[TIME] SNTP synchronized epoch=%lu\n",
+                      static_cast<unsigned long>(currentTime));
     }
 
     if (!mqtt.connected())
@@ -97,20 +142,28 @@ void runMqtt()
 
             if (connected)
             {
-                char onlineMessage[128];
+                char onlineMessage[192];
+                // Báo ID đang dùng ngay cả trước heartbeat định kỳ đầu tiên.
                 snprintf(
                     onlineMessage,
                     sizeof(onlineMessage),
-                    "{\"device_code\":\"%s\",\"status\":\"ALIVE\",\"firmware_version\":\"%s\"}",
+                    "{\"device_code\":\"%s\",\"status\":\"ALIVE\",\"firmware_version\":\"%s\",\"config_id\":\"%s\"}",
                     DEVICE_CODE,
-                    FIRMWARE_VERSION
+                    FIRMWARE_VERSION,
+                    currentConfigId()
                 );
 
                 Serial.println("connected");
-                bool subscribed = mqtt.subscribe(COMMAND_TOPIC);
-                bool published = mqtt.publish(STATUS_TOPIC, onlineMessage);
-                Serial.printf("[MQTT] subscribe=%s, publish=%s\n",
-                            subscribed ? "OK" : "FAIL", published ? "OK" : "FAIL");
+                bool commandSubscribed = mqtt.subscribe(COMMAND_TOPIC, 1);
+                // [CONFIG - thêm] QoS 1 nhận config retained ngay khi subscribe/reconnect.
+                bool configSubscribed = mqtt.subscribe(CONFIG_TOPIC, 1);
+                bool published = mqtt.publish(STATUS_TOPIC, onlineMessage, true);//thêm 'true'
+                Serial.printf("[MQTT] subscribe command=%s config=%s, publish=%s\n",
+                              commandSubscribed ? "OK" : "FAIL",
+                              configSubscribed ? "OK" : "FAIL",
+                              published ? "OK" : "FAIL");
+                // [TV1-13 - thêm] Phát lại ACK INTERRUPTED cho lệnh đang chạy dở trước reboot.
+                reqLogPublishPending();
             }
             else
             {
@@ -128,6 +181,19 @@ void onMessage(char *topic, byte *payload, unsigned int length)
 {
     Serial.print("[MQTT] Topic: ");
     Serial.println(topic);
+
+    // [CONFIG - thêm] Định tuyến theo topic trước; config không đi vào command ACK/handler.
+    if (strcmp(topic, CONFIG_TOPIC) == 0)
+    {
+        Serial.println("[CONFIG] Received update");
+        handleConfigUpdate(payload, length);
+        return;
+    }
+    if (strcmp(topic, COMMAND_TOPIC) != 0)
+    {
+        Serial.println("[MQTT] Ignoring message on unexpected topic");
+        return;
+    }
 
     // Payload có thể không kết thúc bằng null: đọc đúng length byte.
     String message = "";
@@ -159,17 +225,54 @@ void sendHeartbeat(){
     response["device_code"] = DEVICE_CODE;
     response["status"] = "ALIVE";
     response["firmware_version"] = FIRMWARE_VERSION;
+    // [CONFIG - thêm] Backend có thể đối chiếu config thiết bị đang thực sự chạy.
+    response["config_id"] = currentConfigId();
 
     serializeJson(response, Serial);
     Serial.println();
 
-    char buffer[128];
+    // [CONFIG - sửa] Tăng buffer để chứa thêm config_id trong heartbeat.
+    char buffer[192];
     serializeJson(response, buffer);
 
     mqtt.publish(STATUS_TOPIC, buffer);
 }
 
-void sendAcks(
+void sendConfigAck(const char* config_id, const char* status, const char* error)
+{
+    // [CONFIG - thêm] Phản hồi APPLIED/REJECTED cùng ID và mã lỗi trên config/applied.
+    JsonDocument response;
+    if (config_id != nullptr)
+        response["config_id"] = config_id;
+    response["device_code"] = DEVICE_CODE;
+    response["status"] = status;
+    if (error != nullptr)
+        response["error"] = error;
+
+    char buffer[256];
+    size_t length = serializeJson(response, buffer, sizeof(buffer));
+    if (length == 0)
+    {
+        Serial.println("[CONFIG] Failed to serialize config response");
+        return;
+    }
+
+    if (!mqtt.publish(CONFIG_APPLIED_TOPIC, buffer))
+    {
+        Serial.printf("[CONFIG] Failed to publish %s for config_id=%s\n",
+                      status,
+                      config_id != nullptr ? config_id : "(missing)");
+        return;
+    }
+
+    Serial.printf("[CONFIG] %s config_id=%s%s%s\n",
+                  status,
+                  config_id != nullptr ? config_id : "(missing)",
+                  error != nullptr ? " error=" : "",
+                  error != nullptr ? error : "");
+}
+
+bool sendAcks(
     const char *request_id,
     const char *status, const unsigned long elapsed_ms,
     const char *error
@@ -190,8 +293,11 @@ void sendAcks(
     serializeJson(response, buffer);
     Serial.println();
 
-    mqtt.publish(ACK_TOPIC, buffer);
+    bool published = mqtt.publish(ACK_TOPIC, buffer);
+    if (!published)
+        Serial.println("[MQTT] Failed to publish command ACK");
 
     Serial.println("===================");
     Serial.println();
+    return published;
 }

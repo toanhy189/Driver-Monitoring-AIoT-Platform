@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import AppShell, { ConnectionBadge, Icon } from "../components/AppShell.jsx";
 import FeedbackDialog from "../components/FeedbackDialog.jsx";
 import { getDeviceConfig, updateDeviceConfig } from "../services/config.js";
-import { CONFIG_LEVELS, CONFIG_OUTPUTS, MAX_TIMING_MS, configStatus, draftFromTimings, emptyDraft, timingsFromDraft } from "../services/configModel.js";
+import { CONFIG_LEVELS, CONFIG_OUTPUTS, MIN_TIMING_MS, MAX_ON_TIMING_MS, MAX_TIMING_MS, configStatus, draftFromTimings, emptyDraft, timingsFromDraft } from "../services/configModel.js";
 import { deviceApiError } from "../services/deviceDisplay.js";
 import { hasPermission } from "../services/permissions.js";
 import { matchesDevice } from "../services/realtime.js";
@@ -188,7 +188,7 @@ function RemoteConfigPage({ user, realtime = NO_REALTIME, deviceId, deviceCode, 
           {CONFIG_OUTPUTS.map(output => <section className="config-output" key={output.key} aria-label={output.label}>
             <h3>{output.label}</h3>
             <div className="config-fields">{["on_ms", "off_ms"].map(field => <label key={field}>Thời gian {field === "on_ms" ? "bật" : "tắt"} (ms)<input
-              type="number" inputMode="numeric" min="0" max={MAX_TIMING_MS} step="1"
+              type="number" inputMode="numeric" min={MIN_TIMING_MS} max={field === "on_ms" ? MAX_ON_TIMING_MS : MAX_TIMING_MS} step="1"
               aria-label={`${output.label} mức ${selectedLevel}, thời gian ${field === "on_ms" ? "bật" : "tắt"} (ms)`}
               value={draft[output.key][selectedLevel][field]}
               onChange={event => edit(output.key, selectedLevel, field, event.target.value)}
@@ -196,7 +196,7 @@ function RemoteConfigPage({ user, realtime = NO_REALTIME, deviceId, deviceCode, 
             /></label>)}</div>
           </section>)}
         </div>
-        <p className="config-unit-note">1000 ms = 1 giây. Mỗi giá trị từ 0 đến {MAX_TIMING_MS} ms.</p>
+        <p className="config-unit-note">1000 ms = 1 giây. Thời gian bật từ {MIN_TIMING_MS} đến {MAX_ON_TIMING_MS} ms; thời gian tắt từ {MIN_TIMING_MS} đến {MAX_TIMING_MS} ms.</p>
         {changedOnServer && <p className="notice-error" role="alert">Cấu hình trên BE đã đổi trong lúc bạn đang sửa. Hãy bỏ thay đổi hoặc tải lại trước khi lưu.</p>}
         {saveError && <p className="notice-error" role="alert">{saveError}</p>}
         {notice && <p className="notice-success" role="status">{notice}</p>}

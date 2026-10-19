@@ -69,6 +69,9 @@ def update_device_config(
     session: Session = Depends(get_session),
 ):
     device = assigned_device(session, current_user.id, device_id)
+    # Serialize first creation too: no Config row exists to lock on the first PUT.
+    device = session.exec(select(Device).where(Device.id == device_id).with_for_update()
+                          .execution_options(populate_existing=True)).one()
     if device.device_type != "ALERT_NODE":
         raise HTTPException(status_code=409, detail="Device is not an alert node")
     if device.lifecycle_state == "DECOMMISSIONED":

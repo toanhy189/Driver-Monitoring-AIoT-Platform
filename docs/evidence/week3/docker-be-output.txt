@@ -2,13 +2,13 @@ INFO:     Started server process [1]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-INFO:     172.17.0.1:35976 - "WebSocket /ws/telemetry?ticket=<redacted>" [accepted]
+INFO:     172.17.0.1:38900 - "WebSocket /ws/telemetry?ticket=<redacted>" [accepted]
 INFO:     connection open
-INFO:     172.17.0.1:35990 - "WebSocket /ws/telemetry?ticket=<redacted>" [accepted]
+INFO:     172.17.0.1:38914 - "WebSocket /ws/telemetry?ticket=<redacted>" [accepted]
 INFO:     connection open
-INFO:     172.17.0.1:36004 - "WebSocket /ws/telemetry?ticket=<redacted>" 403
+INFO:     172.17.0.1:38924 - "WebSocket /ws/telemetry?ticket=<redacted>" 403
 INFO:     connection rejected (403 Forbidden)
-INFO:     172.17.0.1:38952 - "WebSocket /ws/telemetry?ticket=<redacted>" 403
+INFO:     172.17.0.1:38926 - "WebSocket /ws/telemetry?ticket=<redacted>" 403
 INFO:     connection rejected (403 Forbidden)
 INFO:     Shutting down
 INFO:     Waiting for application shutdown.
@@ -18,5 +18,5 @@ INFO:     Started server process [1]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-INFO:     172.17.0.1:39478 - "WebSocket /ws/telemetry?ticket=<redacted>" [accepted]
+INFO:     172.17.0.1:39560 - "WebSocket /ws/telemetry?ticket=<redacted>" [accepted]
 INFO:     connection open

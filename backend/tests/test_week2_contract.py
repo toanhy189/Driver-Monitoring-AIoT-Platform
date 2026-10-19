@@ -78,6 +78,25 @@ class FakeSession:
 
 
 class Week2ContractTests(unittest.TestCase):
+    def test_each_http_method_and_path_has_one_handler(self):
+        routes = [(method, route.path) for route in app.routes
+                  for method in getattr(route, "methods", ())]
+        self.assertEqual(len(routes), len(set(routes)))
+
+    def test_config_ranges_match_current_firmware(self):
+        for field, minimum, maximum in (("on_ms", 50, 5000), ("off_ms", 50, 10000)):
+            for value in (minimum, maximum, minimum - 1, maximum + 1, True):
+                timings = {output: {str(level): {"on_ms": 100, "off_ms": 200}
+                           for level in (1, 2, 3)} for output in ("led", "buzzer", "motor")}
+                timings["led"]["1"][field] = value
+                with self.subTest(field=field, value=value):
+                    if type(value) is int and minimum <= value <= maximum:
+                        self.assertEqual(validate_timings(timings)["led"]["1"][field], value)
+                    else:
+                        with self.assertRaises(HTTPException) as rejected:
+                            validate_timings(timings)
+                        self.assertEqual(rejected.exception.status_code, 422)
+
     def test_openapi_operation_ids_are_unique_for_alias_routes(self):
         schema = app.openapi()
         identifiers = [operation["operationId"] for methods in schema["paths"].values()
@@ -236,7 +255,7 @@ class Week2ContractTests(unittest.TestCase):
              patch("app.api.routes.configs.publish_config", return_value=True) as publish, \
              patch("app.api.routes.configs.log_action"):
             response = update_device_config(
-                2, ConfigUpdateRequest(timings=timings), user, FakeSession()
+                2, ConfigUpdateRequest(timings=timings), user, FakeSession(device=device)
             )
         self.assertEqual(response["status"], "PENDING_APPLICATION")
         self.assertEqual(config.desired_config["config_id"], response["config_id"])
@@ -293,7 +312,7 @@ class Week2ContractTests(unittest.TestCase):
              patch("app.api.routes.configs.log_action"):
             with self.assertRaises(HTTPException) as failure:
                 update_device_config(2, ConfigUpdateRequest(timings=timings),
-                                     SimpleNamespace(id=1), FakeSession())
+                                     SimpleNamespace(id=1), FakeSession(device=device))
         self.assertEqual(failure.exception.status_code, 503)
         self.assertEqual(config.desired_config["status"], "PUBLISH_FAILED")
         self.assertIsNone(config.applied_config)

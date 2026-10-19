@@ -72,9 +72,21 @@ test("không báo đã áp dụng trước khi config_id khớp; sai schema ho�
   draft.led[1].on_ms = "100.5";
   assert.throws(() => config.timingsFromDraft(draft), /số nguyên/);
   draft.led[1].on_ms = "10001";
-  assert.throws(() => config.timingsFromDraft(draft), /10000/);
+  assert.throws(() => config.timingsFromDraft(draft), /5000/);
   draft.led[1].on_ms = "-1";
   assert.throws(() => config.timingsFromDraft(draft), /số nguyên/);
+});
+
+test("giới hạn thời gian cấu hình khớp firmware TV1 tuần 3", async () => {
+  const config = await loadModule("../src/services/configModel.js");
+  for (const [field, minimum, maximum] of [["on_ms", 50, 5000], ["off_ms", 50, 10000]]) {
+    for (const value of [minimum, maximum, minimum - 1, maximum + 1]) {
+      const candidate = timings();
+      candidate.led[1][field] = value;
+      if (value >= minimum && value <= maximum) assert.equal(config.validateTimings(candidate).led[1][field], value);
+      else assert.throws(() => config.validateTimings(candidate), /phải là số nguyên/);
+    }
+  }
 });
 
 test("Customer xem form nhưng không có nút lưu; Admin chỉ được lưu sau khi tải cấu hình", async () => {
