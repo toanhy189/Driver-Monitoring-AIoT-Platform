@@ -1,8 +1,10 @@
 # Báo cáo kết quả thực hiện Backend tuần 3 — TV2
 
-**Cập nhật:** 19/10/2026, múi giờ Asia/Bangkok. **Phạm vi:** TV2-05 đến TV2-23 theo ảnh nhiệm vụ. **Nhánh bàn giao:** `feature/backend-week3`, đã đồng bộ các thay đổi FE/firmware của main đến `5e06f10`.
+**Cập nhật:** 19/10/2026, múi giờ Asia/Bangkok. **Phạm vi:** TV2-01 đến TV2-23; gồm các việc hoàn thiện tuần 2 và phần phát triển tuần 3. **Nhánh bàn giao:** `feature/backend-week3`, đã đồng bộ các thay đổi FE/firmware của main đến `5e06f10`.
 
 **Lần chạy tích hợp kết thúc:** 19/10/2026 16:14:54 (UTC+07:00).
+
+TV2-01 đến TV2-04 được bổ sung bằng cách đối chiếu code và minh chứng của lần chạy trên. Việc bổ sung tài liệu không tạo thêm kết quả test và không nâng các mục còn thiếu bằng chứng thành hoàn tất.
 
 **Kết luận:** phần code BE và các ca kiểm tra bên dưới đạt. Chưa thể đánh dấu hoàn thành toàn bộ tuần 3 vì còn chốt chính sách AI, hợp đồng với TV1/TV4 và kiểm tra phần cứng. Bảng nhiệm vụ ở mục 2 ghi rõ từng giới hạn; mục 7 dành cho người tiếp nhận BE tuần sau.
 
@@ -33,6 +35,10 @@ Các test live tạo database riêng tên `codex_w3_...`, tài khoản MQTT th�
 
 | Mã | Phần đã thực hiện và kiểm chứng | Trạng thái và giới hạn |
 | --- | --- | --- |
+| **TV2-01** | Compose có PostgreSQL, Mosquitto, BE, FE; BE chờ migration và tạo tài khoản MQTT. Test tích hợp dùng PostgreSQL/broker thật, BE Docker riêng; FE build đạt; migration tuần 3 đã chạy trên DB đang cấu hình và chạy lại trên DB thử | **Một phần**: các thành phần và migration có minh chứng, nhưng chưa có kết quả mở FE trong bộ Compose đầy đủ rồi thao tác qua FE → BE → MQTT/DB. `config -q` chỉ kiểm tra cấu hình, không chứng minh cả hệ thống đã chạy cùng nhau. Xem mục 3.6. |
+| **TV2-02** | Có health/login/me, lọc thiết bị theo gán, kiểm tra role, vé WS và lọc sự kiện theo quyền. Test 12 kiểm tra health/login Admin qua HTTP thật, WS được gán/không được gán và thu hồi quyền; test thông thường kiểm tra ranh giới cả ba role | **Một phần**: chưa có ma trận đăng nhập → API → WS thật đầy đủ cho cả Admin, Employee, Customer. Có test role Employee trong code nhưng không được coi là đã chạy trọn luồng Employee qua HTTP/WS. Xem mục 3.6. |
+| **TV2-03** | Broker Docker tắt anonymous, dùng tài khoản và ACL; có bước tạo tài khoản BE/AI và API cấp tài khoản thiết bị. Test ACL thật xác nhận BE/AI đăng nhập được, kết nối không tài khoản bị chặn và thiết bị bị thu hồi không đăng nhập lại được | **Đạt phía BE/broker**. [ACL PASS](evidence/week3/acl-output.txt), [test provision/revoke 01](evidence/week3/integration-results.json). Chưa xác nhận chương trình AI và ESP32 thật đều đã nạp tài khoản và kết nối vào đúng broker Docker. |
+| **TV2-04** | ACL thiết bị giới hạn command/config đọc và status/ACK/applied ghi theo mã riêng; AI có quyền gửi ba topic AI chung hiện tại. Test broker thật kiểm tra nhận lệnh/config đúng nơi, chặn đọc/gửi chéo và chặn AI gửi ACK/applied của ESP32 | **Đạt các ca quyền topic đã test** trên tài khoản thiết bị tạm dùng cùng mẫu ACL. Chưa có kiểm chứng toàn bộ quyền trực tiếp bằng firmware `alert-01` và chương trình `vision-01` thật; xem danh sách quyền thực tế và giới hạn topic chung ở tài liệu logic mục 3.4. |
 | **TV2-05** | Broker chặn thiết bị đọc lệnh/config hoặc gửi ACK/applied của thiết bị khác; AI không được giả làm ESP32 | **Đạt phía broker**. Test ACL thật có kết quả PASS. |
 | **TV2-06** | Provision tạo tài khoản thật, trả mật khẩu một lần; decommission thu hồi kết nối và chặn HTTP command/config | **Đạt phía BE/broker**. Test 01: provision 200, kết nối bị ngắt, login cũ bị từ chối, thao tác sau thu hồi trả 409. |
 | **TV2-07** | PUT lưu desired, config_id và revision; gửi config/update QoS 1 retained; giới hạn bật/tắt khớp firmware TV1 mới; hai PUT đầu đồng thời không tạo trùng dòng | **Code và test đạt; chờ TV1 xác nhận hợp đồng cuối**. Test 02/15 và kiểm tra publisher. |
@@ -96,10 +102,23 @@ Sau restart, API vẫn trả lệnh COMPLETED, config đã applied, lịch sử,
 
 Test 15 gửi đồng thời hai PUT cấu hình đầu tiên: cả hai HTTP 200, DB chỉ có một dòng cấu hình, revision cuối bằng 2; tin retained khớp config_id desired cuối. Test 16 gửi `INTERRUPTED` với lỗi `REBOOTED` qua broker thật: lệnh cha chuyển FAILED, giữ lỗi REBOOTED và không báo COMPLETED. Hai ca này được ghi trong integration-results.json.
 
+### 3.6. Minh chứng và phần cần kiểm tra tiếp của TV2-01 đến TV2-04
+
+| Mã | Minh chứng có thể mở để đối chiếu | Việc còn lại trước khi nghiệm thu đầy đủ |
+| --- | --- | --- |
+| TV2-01 | [Compose](../deployment/docker-compose.yml), [config hợp lệ](evidence/week3/compose-results.json), [migration DB](evidence/week3/migration-results.json), [FE build](evidence/week3/frontend-build-output.txt), test 12 trong [kết quả tích hợp](evidence/week3/integration-results.json) | Chạy đủ FE/BE/PostgreSQL/Mosquitto từ Compose và thao tác trên trình duyệt. Test migration nâng từ tuần 2 và chạy lại đã có; khi áp dụng cho DB khác cần kiểm tra dữ liệu trước/sau tại DB đó. |
+| TV2-02 | [Test role và hợp đồng](../backend/tests/test_week2_contract.py), [unit PASS](evidence/week3/unit-output.txt), test 09/10/12 trong [kết quả tích hợp](evidence/week3/integration-results.json), [log WS đã che vé](evidence/week3/docker-be-output.txt) | Đăng nhập thật từng role, xem thiết bị được gán, gọi API thiết bị không được gán; kiểm tra quyền gửi lệnh/sửa cấu hình và sự kiện WS. Admin cũng phải được gán thiết bị, không mặc định xem toàn bộ. |
+| TV2-03 | [Cấu hình broker](../deployment/mqtt/mosquitto.conf), [khởi tạo tài khoản](../backend/app/services/mqtt_bootstrap.py), [ACL PASS](evidence/week3/acl-output.txt), test 01 provision/revoke | TV1/TV3 dùng credential riêng trên ESP32/AI thật, đúng IP/cổng; lưu bằng chứng kết nối và nhận/gửi tin đã che mật khẩu. Broker Docker dùng cổng 1884 trên Windows, khác broker Windows cổng 1883 nếu còn chạy. |
+| TV2-04 | [Mẫu quyền](evidence/week3/acl-policy.json), [test broker thật](../backend/tests/test_mqtt_security_integration.py), [ACL PASS](evidence/week3/acl-output.txt) | Kiểm tra lại quyền thực tế của hai tài khoản sau khi nạp firmware/AI; nếu đổi topic AI thì sửa cả ACL đang có ở broker và routing BE trước khi test lại. |
+
+Test 12 tạo tài khoản Admin và Customer thử; kiểm tra thêm việc đổi Admin sang Customer bị chặn gửi lệnh. Nó chưa thay cho một bộ test ba tài khoản riêng đủ mọi chức năng. Test ACL dùng mã thiết bị tạm `tv2-security-...`, không điều khiển board `alert-01` thật.
+
 ## 4. Các thay đổi code chính
 
 | Nhóm code | File tiêu biểu |
 | --- | --- |
+| Môi trường và migration tuần 2 | [docker-compose.yml](../deployment/docker-compose.yml), [migration_fe_be_week2.sql](../database/migration_fe_be_week2.sql), Dockerfile BE/FE và [hướng dẫn triển khai](../deployment/README.md) |
+| Đăng nhập, quyền API và tài khoản MQTT | [users.py](../backend/app/api/routes/users.py), [deps.py](../backend/app/api/deps.py), [access.py](../backend/app/services/access.py), [mqtt_bootstrap.py](../backend/app/services/mqtt_bootstrap.py), [mqtt_security.py](../backend/app/services/mqtt_security.py) |
 | Schema/migration tuần 3 | [migration_be_week3.sql](../database/migration_be_week3.sql), [ai_event.py](../backend/app/models/ai_event.py), các trường command/config/telemetry |
 | Rule Engine | [rule_engine.py](../backend/app/services/rule_engine.py), [rules.py schema](../backend/app/schemas/rules.py), [rules.py API](../backend/app/api/routes/rules.py) |
 | Gửi lệnh và idempotency | [command_dispatch.py](../backend/app/services/command_dispatch.py), [commands.py](../backend/app/api/routes/commands.py), [background_tasks.py](../backend/app/services/background_tasks.py) |
@@ -113,6 +132,8 @@ Test 15 gửi đồng thời hai PUT cấu hình đầu tiên: cả hai HTTP 200
 AI tiếp tục dùng topic/payload đang có; code tuần 3 đọc và lưu thêm thông tin cần thiết từ sự kiện. Các lệnh gửi ESP32 vẫn là LED_ON/BUZZER_ON/MOTOR_ON và intensity WEAK/MEDIUM/STRONG đang được firmware hiểu.
 
 ## 5. Những việc cần nhóm xác nhận và test tiếp
+
+Với TV2-01 đến TV2-04, cần hoàn tất bằng chứng chạy đủ bộ Compose, ma trận HTTP/WS ba role và xác nhận tài khoản/quyền topic từ TV1/TV3 theo mục 3.6.
 
 1. TV1/TV3 xác nhận ngưỡng severity, cooldown, thời lượng tải, tuổi sự kiện được phép điều khiển và quan hệ camera → ESP32; sau đó mới bật Rule Engine ngoài môi trường test.
 2. TV1 xác nhận schema config đang dùng, nạp firmware development lên ESP32 thật và thử nhận/lưu/reboot/applied; bổ sung chống config cũ đến lại và kiểm tra nội dung khi trùng ID. Lệnh đang chạy giữ timing đã lấy khi bắt đầu; cần xác nhận trên board thật.
@@ -133,7 +154,7 @@ Các lệnh tái hiện đã ghi trong tài liệu logic. Phiên bản mã ngu�
 
 ## 7. Người phụ trách BE tuần sau bắt đầu từ đâu?
 
-1. **Chạy lại môi trường:** lấy nhánh bàn giao, cấu hình `.env` riêng, chạy migration tuần 2 rồi tuần 3 theo hướng dẫn. Kiểm tra đăng nhập, health và broker. Không chạy `create.sql` trên DB có dữ liệu.
+1. **Chạy lại môi trường và bổ sung TV2-01…04:** lấy nhánh bàn giao, cấu hình `.env` riêng, chạy migration tuần 2 rồi tuần 3 theo hướng dẫn. Kiểm tra health, đầy đủ FE/BE/DB/broker, HTTP/WS ba role và quyền topic với TV1/TV3 theo mục 3.6. Không chạy `create.sql` trên DB có dữ liệu.
 2. **Chốt với TV3:** loại event, trường `device_id` đang chứa mã Vision Node, thời điểm gửi tiếp khi buồn ngủ kéo dài, sự kiện mất tập trung và đề xuất topic theo thiết bị. Chưa đổi topic AI trong bản này; khi đổi cần cập nhật cả routing BE và ACL đang có tại broker.
 3. **Chốt với TV1/TV3:** mức cảnh báo, thời lượng/tải, liên kết camera–ESP32, cooldown có cho tăng mức hay không và giới hạn tuổi sự kiện. Sau khi test mới bật công tắc toàn hệ thống và binding; không bật chỉ vì test giả lập đã đạt.
 4. **Hoàn tất cấu hình với TV1:** xử lý revision/config trùng ID như TV2-10; thử mất mạng, reboot, config cũ và config khi lệnh đang chạy. ACK hiện QoS 0; BE chưa tự gửi lại lệnh khi mất ACK. Nếu chọn retry cùng request_id, cần chốt thời gian/số lần và kiểm chứng request log firmware trước.

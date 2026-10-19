@@ -1,6 +1,6 @@
 # TV2 tuần 3 — Hướng xử lý và giải thích logic code
 
-Tài liệu dành cho thành viên phụ trách Backend, bao phủ TV2-05 đến TV2-23 trong bảng nhiệm vụ. Code đang ở nhánh `feature/backend-week3`. Bản báo cáo và minh chứng đi kèm: [Kết quả thực hiện](TV2-tuan-3-bao-cao-ket-qua.md).
+Tài liệu dành cho thành viên phụ trách Backend, bao phủ TV2-01 đến TV2-23 trong bảng nhiệm vụ: hoàn thiện tuần 2 và phát triển tuần 3. Code đang ở nhánh `feature/backend-week3`. Bản báo cáo và minh chứng đi kèm: [Kết quả thực hiện](TV2-tuan-3-bao-cao-ket-qua.md).
 
 Nhóm **chưa chốt severity, cooldown và bảng W3**. Vì vậy bảng mức cảnh báo dưới đây là đề xuất để kiểm thử. `RULE_ENGINE_ENABLED=false` là mặc định: BE vẫn lưu sự kiện/cảnh báo hợp lệ, còn việc tự tạo lệnh điều khiển chỉ được bật sau khi nhóm xác nhận chính sách và kiểm tra thiết bị.
 
@@ -35,7 +35,93 @@ flowchart LR
 
 HTTP thành công chỉ cho biết BE đã xử lý yêu cầu. Broker nhận tin chỉ chứng minh BE đã gửi được tin tới broker. Để hiển thị **thiết bị đã hoàn tất/đã áp dụng**, BE phải nhận ACK phù hợp từ thiết bị.
 
-## 3. TV2-05 và TV2-06: tài khoản thật và quyền MQTT
+## 3. TV2-01 đến TV2-06: môi trường, đăng nhập và quyền MQTT
+
+### 3.1. TV2-01: chạy các thành phần và nâng cấp DB có dữ liệu
+
+Code chính: [docker-compose.yml](../deployment/docker-compose.yml), [Dockerfile BE](../deployment/backend/Dockerfile), [Dockerfile FE](../deployment/frontend/Dockerfile), [migration tuần 2](../database/migration_fe_be_week2.sql), [migration tuần 3](../database/migration_be_week3.sql).
+
+Docker Compose là file hướng dẫn Docker mở các chương trình của dự án và nối chúng với nhau. Mỗi chương trình chạy trong một container, có thể hiểu là một môi trường chạy riêng.
+
+| Thành phần | Nhiệm vụ và thứ tự chạy |
+| --- | --- |
+| `postgres` | Chứa DB. Dữ liệu nằm trong vùng lưu `postgres_data`, tách khỏi container. Compose chờ DB báo sẵn sàng trước khi chạy migration. |
+| `migrate` | Chạy SQL tuần 2 rồi tuần 3 bằng `psql`; gặp lỗi thì dừng. Đây là thay đổi DB, không phải bộ test. |
+| `mqtt-init` → `mosquitto` → `mqtt-setup` | Tạo kho tài khoản lần đầu nếu chưa có, mở broker rồi tạo tài khoản/quyền BE và AI. Kho tài khoản nằm trong `mqtt_data`. |
+| `backend` | Chờ `migrate` và `mqtt-setup` chạy thành công rồi mới mở API. Trong Docker, BE dùng tên `postgres`, `mosquitto` để kết nối hai dịch vụ này. |
+| `frontend` | Build giao diện rồi phục vụ ở cổng 5173 trên máy. Trình duyệt gọi BE ở cổng 8000. `depends_on: backend` chỉ bảo đảm thứ tự mở container, không kiểm tra API đã sẵn sàng. |
+
+**Với DB cũ:** giữ vùng dữ liệu hiện có và chạy migration để bổ sung bảng/cột/chỉ mục. Không chạy `database/create.sql` thủ công trên DB có dữ liệu vì file đó tạo lại schema. Các file `create.sql/insert.sql` gắn vào PostgreSQL chỉ tự chạy khi khởi tạo vùng dữ liệu mới; DB đang dùng phải nâng cấp qua migration.
+
+Lệnh chạy riêng bước nâng cấp:
+
+```powershell
+docker compose --env-file .env -f deployment/docker-compose.yml run --rm migrate
+```
+
+`--rm` xóa container tạm sau khi chạy; các thay đổi đã ghi vào DB vẫn còn. Chạy lại được với hai migration hiện tại; khi có migration mới phải chạy bước nâng cấp tương ứng trước bản BE mới. Cách tạo `.env`, mở cả bộ Compose và kiểm tra dịch vụ xem [deployment/README.md](../deployment/README.md).
+
+**Cách xác nhận TV2-01:** không chỉ nhìn `config -q`. Cần mở đủ FE/BE/DB/broker, gọi `/api/health`, đăng nhập từ web và kiểm tra một thao tác đi qua FE → BE → DB/MQTT. Minh chứng hiện có xác nhận các thành phần, build và DB/BE/MQTT thật; chưa đủ để coi toàn bộ FE trong Compose đã được nghiệm thu chung.
+
+### 3.2. TV2-02: đăng nhập, quyền API và WebSocket của ba role
+
+Code chính: [users.py](../backend/app/api/routes/users.py), [deps.py](../backend/app/api/deps.py), [access.py](../backend/app/services/access.py), [ws.py](../backend/app/api/routes/ws.py), [websocket.py](../backend/app/api/routes/websocket.py), [websocket_manager.py](../backend/app/services/websocket_manager.py).
+
+1. `GET /api/health` trả phản hồi cho biết API đang nhận yêu cầu; endpoint này không yêu cầu đăng nhập và không kiểm tra kết nối DB/MQTT.
+2. `POST /api/login` nhận username/password. BE tìm user và so sánh mật khẩu nhập với bản hash; đúng thì cấp token, sai trả 401. Hash là bản biến đổi một chiều, không phải mật khẩu có thể giải mã để đọc lại.
+3. FE gửi `Authorization: Bearer <token>` khi gọi API có bảo vệ. BE kiểm tra chữ ký/hạn token, lấy user theo ID và đọc role hiện tại từ DB. `GET /api/me` trả thông tin tài khoản, không trả hash mật khẩu.
+4. `require_admin/operator/viewer` quyết định role được làm thao tác nào. `assigned_device(s)` kiểm tra thêm quan hệ `user_devices` chưa bị thu hồi. **Admin cũng cần được gán thiết bị**; có role không thay cho có quyền trên thiết bị cụ thể.
+5. FE gọi `POST /api/ws-ticket`, rồi mở `/ws/telemetry?ticket=...`. Vé dùng một lần, có hạn. Trước mỗi sự kiện, BE kiểm tra lại role và thiết bị được gán để chỉ gửi dữ liệu đúng tài khoản. Phần xử lý reconnect và giới hạn bộ nhớ xem mục 10.
+
+| Role trong DB | Xem thiết bị/API/WS được gán | Gửi lệnh, sửa config, xác nhận cảnh báo | Đăng ký/cấp kết nối/đổi vòng đời |
+| --- | --- | --- | --- |
+| Admin | Có | Có, nếu thỏa điều kiện của thiết bị | Có |
+| Employee | Có | Có, nếu thỏa điều kiện của thiết bị | Không |
+| Customer | Có | Không | Không |
+
+Role không đủ cho thao tác trả 403; thiết bị không được gán trả 404; token sai/hết hạn trả 401. Riêng WebSocket, việc mở kết nối bị từ chối thể hiện ở bước bắt tay, không có response JSON như HTTP thông thường.
+
+**Ma trận cần kiểm tra:** đăng nhập lần lượt từng role → `/api/me` → danh sách thiết bị → API thiết bị được gán/không được gán → thao tác được phép/bị cấm → WS có vé/không có vé và lọc sự kiện theo gán. Dùng dữ liệu thử, hai phiên trình duyệt riêng và một thiết bị chỉ gán cho một tài khoản để kiểm tra không gửi nhầm. Không cần ESP32 thật để kiểm tra lọc WS; có thể phát tin MQTT thử bằng tài khoản được phép.
+
+Minh chứng hiện có: test role của cả ba nhóm trong [test_week2_contract.py](../backend/tests/test_week2_contract.py), test tích hợp 09/10/12 trong [kết quả kiểm tra](evidence/week3/integration-results.json). Chưa có bộ đăng nhập và HTTP/WS thật đầy đủ cho cả ba tài khoản, đặc biệt Employee; vì vậy báo cáo TV2-02 vẫn là một phần.
+
+### 3.3. TV2-03: tạo tài khoản MQTT và bật ACL tại broker
+
+Code chính: [prepare_env.py](../deployment/mqtt/prepare_env.py), [init.sh](../deployment/mqtt/init.sh), [mosquitto.conf](../deployment/mqtt/mosquitto.conf), [mqtt_bootstrap.py](../backend/app/services/mqtt_bootstrap.py), [mqtt_security.py](../backend/app/services/mqtt_security.py).
+
+Tài khoản web và tài khoản MQTT là hai loại khác nhau. Tài khoản web dùng đăng nhập giao diện; tài khoản MQTT cho BE, AI, ESP32 đăng nhập vào chương trình trung chuyển tin. ACL quy định sau khi đăng nhập, mỗi tài khoản được gửi/nhận tin ở địa chỉ topic nào.
+
+1. `prepare_env.py` bổ sung mật khẩu ngẫu nhiên còn thiếu vào `.env` riêng của máy. Không ghi mật khẩu thật vào tài liệu hoặc file mẫu.
+2. `mqtt-init` chỉ tạo `dynamic-security.json` khi kho tài khoản chưa tồn tại. File này nằm trong vùng lưu Docker `mqtt_data`.
+3. Mosquitto dùng `allow_anonymous false` và phần quản lý tài khoản Dynamic Security. Kết nối không tài khoản bị từ chối.
+4. `mqtt-setup` chạy `mqtt_bootstrap.setup()`: mặc định chặn gửi/nhận/đăng ký topic, sau đó tạo role và tài khoản BE/AI nếu chưa có. Tên mặc định là `backend`, `vision-01`; giá trị thực lấy từ `.env`.
+5. `BrokerSecurity` đăng nhập bằng tài khoản quản trị broker và gửi yêu cầu tạo/thu hồi tài khoản qua topic điều khiển riêng. HTTP provision không tự ghi một tên vào DB rồi coi là đã cấp: phải được broker xử lý thành công trước, như mục 3.5.
+
+**Chạy lại setup không phải đồng bộ mọi thay đổi ACL:** `ensure_identity()` chỉ tạo tài khoản/role còn thiếu. Sửa danh sách quyền trong code rồi chạy lại chưa tự thay ACL của role đã có; khi đổi topic phải cập nhật quyền đang lưu ở broker và test lại.
+
+Broker Docker mở **1884 trên Windows**, bên trong container là **1883**. BE chạy trong Docker dùng `mosquitto:1883`; BE/AI trên Windows dùng host/cổng trong `.env`; ESP32 dùng IP máy chạy broker và cổng 1884. Nếu máy còn Mosquitto riêng ở 1883, kết nối được vào đó chưa chứng minh đã dùng broker Docker có ACL.
+
+Minh chứng [ACL PASS](evidence/week3/acl-output.txt) kiểm tra broker thật: BE/AI đăng nhập được, anonymous bị chặn, thiết bị có quyền riêng và bị ngắt khi thu hồi. Bước TV1/TV3 điền credential vào ESP32/AI thật và chạy toàn luồng vẫn cần xác nhận.
+
+### 3.4. TV2-04: quyền thực tế của Alert Node và Vision Node
+
+Code chính: `device_acls()` trong [mqtt_security.py](../backend/app/services/mqtt_security.py), role `edge-ai` trong [mqtt_bootstrap.py](../backend/app/services/mqtt_bootstrap.py). Bản quyền mẫu không có mật khẩu: [acl-policy.json](evidence/week3/acl-policy.json).
+
+Với Alert Node có mã `alert-01`, mẫu ACL hiện tại cho phép:
+
+| Hướng | Topic được phép |
+| --- | --- |
+| Nhận từ BE | `driver/alert-01/command`, `driver/alert-01/config/update` |
+| Gửi trạng thái/kết quả | `driver/alert-01/status`, `driver/alert-01/ack`, `driver/alert-01/config/applied` |
+| Quyền bổ sung của mẫu thiết bị hiện tại | Gửi `driver/alert-01/telemetry`, `driver/alert-01/heartbeat` |
+
+Thiết bị không được dùng quyền của mình để đọc lệnh/config hoặc gửi ACK/applied vào nhánh của mã thiết bị khác. BE cần cả quyền đăng ký topic và nhận tin; đăng ký xong nhưng không được nhận cũng chưa đạt yêu cầu đọc.
+
+Với tài khoản AI mặc định `vision-01`, quyền hiện tại là **chỉ gửi** `driver/telemetry`, `driver/events`, `driver/status`; không cấp quyền đọc. Các topic AI này đang dùng chung, khác nhánh riêng của ESP32. ACL tại broker giới hạn tên topic, không kiểm tra mã nguồn bên trong JSON. Vì vậy chưa có bảo đảm mỗi camera chỉ được khai báo chính mã của nó trong payload; nếu thêm nhiều camera cần chốt topic theo mã và kiểm tra topic/payload tương ứng ở BE.
+
+Test [test_mqtt_security_integration.py](../backend/tests/test_mqtt_security_integration.py) dùng tài khoản thiết bị tạm theo cùng mẫu ACL: nhận command/config đúng topic, gửi ACK/applied đúng topic, bị chặn khi đọc/gửi chéo và AI không được gửi ACK/applied của thiết bị. Kết quả này chứng minh các ca quyền topic đã chạy trên broker thật; chưa thay cho thử đầy đủ với firmware `alert-01` và chương trình AI `vision-01` thật.
+
+### 3.5. TV2-05 và TV2-06: kiểm tra gửi chéo, cấp và thu hồi tài khoản
 
 Code chính: [mqtt_security.py](../backend/app/services/mqtt_security.py), [mqtt_provision_service.py](../backend/app/services/mqtt_provision_service.py), [mqtt_revoke_service.py](../backend/app/services/mqtt_revoke_service.py), [devices.py](../backend/app/api/routes/devices.py).
 
