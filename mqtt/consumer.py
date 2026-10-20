@@ -59,6 +59,7 @@ def start_mqtt_consumer():
     client.on_connect = on_connect
     client.on_message = on_message
 
+    print(f"Connecting to MQTT broker: {MQTT_HOST}:{MQTT_PORT}")
     client.connect(MQTT_HOST, MQTT_PORT, 60)
 
     client.loop_forever()

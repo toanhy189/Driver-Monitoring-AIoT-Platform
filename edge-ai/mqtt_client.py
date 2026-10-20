@@ -177,6 +177,10 @@ class MQTTClient:
             message_id = ack.get("message_id")
             status = ack.get("status")
 
+            print("=====================================================", flush=True)
+            print(f"[MQTT DEBUG] Received ACK: \n{ack}", flush=True)
+            print("=====================================================", flush=True)
+            
             if not isinstance(message_id, str) or not message_id:
                 logger.warning("Received ACK without message_id.")
                 return
@@ -290,48 +294,21 @@ class MQTTClient:
     # Gửi telemetry
     # =========================
     def publish_telemetry(self, data):
-
-        if not self.connected:
-            return
+        if not self.connected: return
 
         payload = json.dumps(data)
 
-        self.client.publish(
-            TELEMETRY_TOPIC,
-            payload
-        )
-
-        print(
-            json.dumps(
-                data,
-                indent=4
-            )
-        )
-
+        self.client.publish(TELEMETRY_TOPIC,payload)
 
     # =========================
     # Gửi event
     # =========================
     def publish_event(self, data):
-
-        if not self.connected:
-            return
+        if not self.connected: return
 
         payload = json.dumps(data)
 
-        self.client.publish(
-            EVENT_TOPIC,
-            payload
-        )
-
-        print("EVENT:")
-
-        print(
-            json.dumps(
-                data,
-                indent=4
-            )
-        )
+        self.client.publish(EVENT_TOPIC, payload)
 
 
     # Dong MQTT khi chuong trinh ket thuc binh thuong

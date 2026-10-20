@@ -51,7 +51,7 @@ Khi nhận message, consumer:
 Đã thử chạy:
 
 ```cmd
-set PYTHONPATH=backend
+$env:PYTHONPATH = "$PWD\backend"
 python -m mqtt.consumer
 ```
 

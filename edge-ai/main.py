@@ -10,13 +10,10 @@ Chức năng chính:
 """
 
 import os
-import json
 
 import cv2
 import time
 import uuid
-
-from datetime import datetime, timezone
 
 import logging
 
@@ -28,11 +25,13 @@ from eye import (
 )
 
 from mqtt_client import MQTTClient
-from config import DEVICE_CODE, EAR_THRESHOLD, EVENT_TOPIC, MODEL_VERSION, PERCLOS_THRESHOLD, TELEMETRY_TOPIC
+from config import DEVICE_CODE, EAR_THRESHOLD, PERCLOS_THRESHOLD
 from head_pose import HeadPoseEstimator, HeadPoseTracker
 
-from edge_queue import init_db, add_to_queue
-from upload_video import create_video_writer, upload_video
+from edge_queue import init_db
+from service.message.publisher import publish_event, publish_telemetry
+from service.video.upload import create_video_writer, upload_video
+from service.utils import current_timestamp, draw_text
 
 
 # =========================
@@ -79,40 +78,10 @@ if not init_db():
 
 logger = logging.getLogger(__name__)
 
-def send_message(mqtt_client, topic, data):
-    """Lưu message trước, sau đó thử gửi qua MQTT."""
-    message_id = data.get("message_id") or str(uuid.uuid4())
-    data["message_id"] = message_id
-
-    payload = json.dumps(data)
-
-    # Lưu vào SQLite trước khi gửi
-    if not add_to_queue(message_id, topic, payload):
-        logger.error("Message was not saved; skipping publish")
-        return False
-
-    # Nếu MQTT chưa kết nối, message vẫn nằm trong SQLite
-    if not mqtt_client.connected:
-        return False
-
-    # TODO: Chỉ xóa message khi đã nhận ACK từ backend
-    topicc = topic.split("/")[-1]
-    if topicc == "telemetry":
-        info = mqtt_client.publish_telemetry(data)
-    elif topicc == "events":
-        info = mqtt_client.publish_event(data)
-
-    return info is not None and info.rc == 0
-
 
 # =========================
 # UTILITY FUNCTIONS
 # =========================
-
-def current_timestamp():
-    """Lấy thời gian UTC theo định dạng ISO 8601."""
-    return datetime.now(timezone.utc).isoformat()
-
 
 def update_confirmed_state(driver_state, state_data, device_code):
     """
@@ -149,7 +118,6 @@ def update_confirmed_state(driver_state, state_data, device_code):
             "event_type": "STATE_CHANGED",
             "previous_state": None,
             "state": candidate,
-            "previous_state_duration_ms": None,
         }
 
         state_data["event_sequence"] += 1
@@ -160,7 +128,6 @@ def update_confirmed_state(driver_state, state_data, device_code):
         return None
 
     previous_state = state_data["confirmed_state"]
-    previous_duration = now - state_data["state_since"]
 
     event = {
         "message_id": str(uuid.uuid4()),
@@ -169,10 +136,7 @@ def update_confirmed_state(driver_state, state_data, device_code):
         "timestamp": current_timestamp(),
         "event_type": "STATE_CHANGED",
         "previous_state": previous_state,
-        "state": candidate,
-        "previous_state_duration_ms": round(
-            previous_duration * 1000
-        ),
+        "state": candidate
     }
 
     state_data["event_sequence"] += 1
@@ -264,73 +228,19 @@ def determine_driver_state(
 
     return "UNKNOWN"
 
-
-def publish_event(mqtt_client, event):
-    """Gửi event lên MQTT."""
-    if event is None:
-        return
-
-    try:
-        send_message(mqtt_client, EVENT_TOPIC, event)
-
-    except Exception as exc:
-        print(f"[MQTT] Không gửi được event: {exc}")
-
-
-def publish_telemetry(
-    mqtt_client, state_data, face_detected,
-    ear, perclos, eye_closed, pose,
-):
-    """Gửi telemetry định kỳ, kể cả khi không phát hiện khuôn mặt."""
-
-    confirmed_state = state_data["confirmed_state"] or "UNKNOWN"
-
-    head_pose_data = {
-        "yaw": None,
-        "pitch": None,
-        "roll": None,
-    }
-
-    if pose is not None:
-        head_pose_data = {
-            "yaw": pose.get("yaw"),
-            "pitch": pose.get("pitch"),
-            "roll": pose.get("roll"),
-        }
-
-    payload = {
+def create_session_ended_event(state_data, device_code):
+    """Tạo event khi phiên Edge AI kết thúc."""
+    event = {
         "message_id": str(uuid.uuid4()),
-        "device_code": DEVICE_CODE,
-        "model_version": MODEL_VERSION,
+        "sequence_number": state_data["event_sequence"],
+        "device_code": device_code,
         "timestamp": current_timestamp(),
-        "driver_state": confirmed_state,
-        "candidate_state": state_data["candidate_state"],
-        "face_detected": face_detected,
-        "ear": ear,
-        "perclos": perclos,
-        "eyes_closed": eye_closed,
-        "head_pose": head_pose_data,
+        "event_type": "SESSION_ENDED",
+        "final_state": state_data["confirmed_state"],
     }
 
-    try:
-        send_message(mqtt_client, TELEMETRY_TOPIC, payload)
-
-    except Exception as exc:
-        print(f"[MQTT] Không gửi được telemetry: {exc}")
-
-
-def draw_text(frame, text, y, color=(0, 255, 0)):
-    cv2.putText(
-        frame,
-        str(text),
-        (15, y),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.55,
-        color,
-        1,
-        cv2.LINE_AA
-    )
-    return y + 25
+    state_data["event_sequence"] += 1
+    return event
 
 # =========================
 # MAIN
@@ -341,6 +251,7 @@ def main():
 
     camera = None
     mqtt_client = None
+    session_started = False
     detector = None
 
     video_writer = None
@@ -398,6 +309,7 @@ def main():
 
         # Khởi tạo MQTT.
         mqtt_client = MQTTClient()
+        session_started = True
 
         print("[INFO] Hệ thống phát hiện buồn ngủ đã khởi động.")
         print("[INFO] Nhấn Q để thoát.")
@@ -542,13 +454,17 @@ def main():
                         recording_message_id,
                     )
 
-                    if uploaded:
-                        try:
-                            os.remove(active_video_path)
-                        except OSError as exc:
-                            logger.error("Cannot delete uploaded video: %s", exc)
-                    else:
-                        logger.warning("Video retained locally: %s", active_video_path)
+                    if active_video_path is not None:
+                        if uploaded:
+                            try:
+                                os.remove(active_video_path)
+                            except OSError as exc:
+                                logger.error("Cannot delete uploaded video: %s", exc)
+                        else:
+                            logger.warning(
+                                "Video retained locally: %s",
+                                active_video_path,
+                            )
                 
                 active_video_path = None
 
@@ -710,6 +626,17 @@ def main():
                         "Video retained locally: %s",
                         active_video_path,
                     )
+
+        # Gửi event kết thúc phiên trước khi đóng MQTT.
+        if session_started and mqtt_client is not None:
+            try:
+                event = create_session_ended_event(
+                    state_data,
+                    DEVICE_CODE,
+                )
+                publish_event(mqtt_client, event)
+            except Exception as exc:
+                logger.error("Cannot publish SESSION_ENDED: %s", exc)
 
         # Giải phóng các tài nguyên khác.
         if camera is not None:
