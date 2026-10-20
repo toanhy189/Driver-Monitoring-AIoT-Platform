@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from sqlmodel import Session, select
 
 from app.core.db import engine
@@ -23,10 +25,10 @@ def save_telemetry(device_code: str, data: dict):
             ear=data.get("ear"),
             perclos=data.get("perclos"),
             driver_state=data.get("driver_state"),  #trạng thái tài xê
-            angle_x=data.get("angle_x"),
-            angle_y=data.get("angle_y"),
-            angle_z=data.get("angle_z"),
-            confidence=data.get("confidence"),
+            face_detected=data.get("face_detected"),
+            head_pose=data.get("head_pose"),
+            model_version=data.get("model_version"),
+            received_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
 
         session.add(telemetry)
