@@ -88,4 +88,7 @@ compile_commands.json
 /edge-ai/data/*.db-journal
 /edge-ai/data/*.db-wal
 /edge-ai/data/*.db-shm
+
+# Private video uploads; metadata and migrations stay in Git.
+/storage/
 /edge-ai/recordings

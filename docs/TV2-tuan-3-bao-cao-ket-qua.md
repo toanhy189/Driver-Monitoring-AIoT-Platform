@@ -1,5 +1,9 @@
 # Báo cáo kết quả thực hiện Backend tuần 3 — TV2
 
+**Bổ sung 21/10/2026:** [kết quả cập nhật event/video và môi trường](BE-ai-event-video-ket-qua.md).
+Các bảng ngày 19/10 bên dưới là kết quả đợt bàn giao trước; minh chứng trong
+`docs/evidence/week3` đã được cập nhật bằng lần kiểm tra mới nhất.
+
 **Cập nhật:** 19/10/2026, múi giờ Asia/Bangkok. **Phạm vi:** TV2-01 đến TV2-23; gồm các việc hoàn thiện tuần 2 và phần phát triển tuần 3. **Nhánh bàn giao:** `feature/backend-week3`, đồng bộ main đến `bf08133` gồm FE, firmware TV1 và Edge AI mới. Nguyên nhân conflict và kết quả đối chiếu ba phần ở mục 8.
 
 **Lần chạy tích hợp kết thúc:** 19/10/2026 22:31:40 (UTC+07:00), trên broker và DB thử riêng.

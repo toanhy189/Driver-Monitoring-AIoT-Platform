@@ -1,67 +1,142 @@
-✔ lịch sử cảnh báo GET và xác nhận đã xem POST đúng API, token, ID (63.962ms)
-✔ cảnh báo cùng alert_id được gộp, không tạo dòng trùng (17.6554ms)
-✔ trang cảnh báo có trạng thái tải và Customer không có nút xác nhận (81.2079ms)
-✔ loại và trạng thái cảnh báo được diễn đạt bằng tiếng Việt (8.506ms)
-✔ GET ghép URL một lần, gắn token, chuyển AbortSignal (141.3841ms)
-✔ POST login gửi JSON và không gắn token cũ (50.118ms)
-✔ 401, 403 và 422 giữ HTTP status cùng thông báo từ BE (31.977ms)
-✔ 204 không có body trả null; JSON hỏng báo lỗi kèm status (14.7318ms)
-✔ lỗi mạng có thông báo dễ đọc, hủy request giữ AbortError (16.8148ms)
-✔ chặn đường dẫn thiếu / hoặc lặp lại /api (7.1674ms)
-✔ getDevices giữ kiểm tra dữ liệu và gửi Bearer token qua apiRequest (10.1258ms)
-✔ getDevices thiếu token báo 401, còn thiếu quyền giữ 403 (15.0483ms)
-✔ /me xác nhận token và trả đúng role từ backend (60.1208ms)
-✔ /me từ chối token hết hạn hoặc response thiếu role (49.0422ms)
-✔ Test Alert chỉ POST khi gọi hàm, dùng ID DB, token và body tạm đã chốt trong FE (82.6937ms)
-✔ form kiểm tra gửi đúng thông số đã nhập và chặn giá trị sai trước khi POST (11.4178ms)
-✔ lịch sử và chi tiết lệnh dùng GET; response thiếu hoặc sai request_id bị từ chối (9.8985ms)
-✔ chỉ ACK COMPLETED mới hiện hoàn tất; ACCEPTED và SENT vẫn đang chờ (22.4461ms)
-✔ HTTP thành công vẫn giữ trạng thái FAILED do BE trả và từ chối response sai thiết bị (20.9581ms)
-✔ FE khóa Test Alert khi không có quyền, sai loại, bảo trì, offline hoặc thiếu trạng thái (9.5391ms)
-✔ trang chi tiết đặt nút kiểm tra trước thông số; biểu mẫu chỉ mở khi bấm (60.9852ms)
-✔ GET/PUT cấu hình dùng ID DB, token và ba mức bật/tắt cho từng tải (64.36ms)
-✔ không báo đã áp dụng trước khi config_id khớp; sai schema hoặc thời gian bị từ chối (10.8951ms)
-✔ giới hạn thời gian cấu hình khớp firmware TV1 tuần 3 (11.4189ms)
-✔ Customer xem form nhưng không có nút lưu; Admin chỉ được lưu sau khi tải cấu hình (52.865ms)
-✔ API chi tiết và đăng ký dùng ID DB, Bearer token và JSON (57.5024ms)
-✔ bốn thao tác vòng đời gọi đúng URL; lỗi không tạo trạng thái thành công (13.5672ms)
-✔ provision chỉ thành công khi BE trả tài khoản MQTT của thiết bị (11.1842ms)
-✔ response 2xx phải chứa đúng thiết bị trước khi FE báo đăng ký hoặc đổi trạng thái thành công (11.0193ms)
-✔ tin cập nhật thay record cùng ID, không thêm dòng mới (10.0966ms)
-✔ nút vòng đời chỉ mở ở trạng thái BE cho phép (8.8889ms)
-✔ trang chi tiết dùng dữ liệu có thật và ẩn thao tác với Customer (55.0171ms)
-✔ Dashboard ban đầu không hiển thị số đo mẫu hoặc kết luận tỉnh táo (98.6278ms)
-✔ thẻ thiết bị dùng status của BE dù WebSocket đang kết nối (9.0983ms)
-✔ không thấy mặt thì thẻ tài xế không hiện tỉnh táo (9.6235ms)
-✔ thẻ giữ trạng thái gần nhất kèm ghi chú khi dữ liệu cũ (8.3843ms)
-✔ WebSocket chuyển payload chỉ có mã và phát sự kiện đóng đúng tên (11.2717ms)
-✔ trang cảnh báo có URL riêng (5.0499ms)
-✔ Back/Forward quay giữa tổng quan, danh sách và đúng thiết bị (1.1581ms)
-✔ URL chi tiết mở trực tiếp không tự quay khỏi web; đổi tài khoản không giữ thông tin cũ (0.5276ms)
-✔ Customer chỉ xem; Employee gửi lệnh và sửa cấu hình; Admin quản lý thiết bị (1.3854ms)
-✔ role lạ hoặc thiếu role không được cấp quyền (0.3649ms)
-✔ WebSocket nhận telemetry cũ và phân loại gói tuần 2 (3.2443ms)
-✔ sự kiện phải khớp thiết bị đang xem (0.4705ms)
-✔ reconnect chờ tăng dần và dừng ở 30 giây (0.3787ms)
-✔ giữ ID số và mã thực tế BE cung cấp, không gán mã theo ID (4.1949ms)
-✔ không dùng mã thiết bị hoặc chuỗi số thay ID DB (3.7457ms)
-✔ nhận payload chỉ có device_code theo tài liệu bàn giao trên main (0.3601ms)
-✔ có mã hợp lệ vẫn không chấp nhận ID sai kiểu; thiếu cả ID và mã thì từ chối (3.7675ms)
-✔ không suy ra driver_state từ EAR/PERCLOS khi BE chưa cung cấp (3.0015ms)
-✔ thiếu số đo, null hoặc sai kiểu không bị đổi thành số 0 (0.6223ms)
-✔ chỉ nhận ba trạng thái đã chốt; trạng thái lạ không làm lỗi UI (11.8781ms)
-✔ không giữ dữ liệu tin cũ khi tin mới thiếu trường (0.4323ms)
-✔ từ chối payload hoặc mã thiết bị sai định dạng (0.6994ms)
-✔ face_detected=false không hiện tỉnh táo; confidence null không thành phần trăm (0.6812ms)
-✔ số đo giữ phiên bản AI do BE trả và không tự đặt phiên bản khi thiếu (37.6362ms)
-✔ tuần 3: gửi cùng khóa idempotency và không tự retry POST khi mất kết nối (16.309ms)
-✔ tuần 3: API lịch sử dùng ID, UTC, phiên bản AI và giới hạn (7.6003ms)
-✔ biểu đồ TV4 giữ response cũ và gọi route riêng, không trùng API phân trang (5.2964ms)
+✔ lịch sử cảnh báo GET và xác nhận đã xem POST đúng API, token, ID (1620.6563ms)
+✔ cảnh báo cùng alert_id được gộp, không tạo dòng trùng (10.6666ms)
+✔ trang cảnh báo có trạng thái tải và Customer không có nút xác nhận (94.6691ms)
+✔ loại và trạng thái cảnh báo được diễn đạt bằng tiếng Việt (7.0985ms)
+✔ GET ghép URL một lần, gắn token, chuyển AbortSignal (2046.0548ms)
+✔ POST login gửi JSON và không gắn token cũ (7.8848ms)
+✔ 401, 403 và 422 giữ HTTP status cùng thông báo từ BE (24.9184ms)
+✔ 204 không có body trả null; JSON hỏng báo lỗi kèm status (20.6008ms)
+✔ lỗi mạng có thông báo dễ đọc, hủy request giữ AbortError (18.2518ms)
+✔ chặn đường dẫn thiếu / hoặc lặp lại /api (8.6345ms)
+✔ getDevices giữ kiểm tra dữ liệu và gửi Bearer token qua apiRequest (11.2022ms)
+✔ getDevices thiếu token báo 401, còn thiếu quyền giữ 403 (22.5324ms)
+✔ /me xác nhận token và trả đúng role từ backend (2043.2304ms)
+✔ /me từ chối token hết hạn hoặc response thiếu role (12.2681ms)
+✖ Test Alert chỉ POST khi gọi hàm, dùng ID DB, token và body tạm đã chốt trong FE (1646.3515ms)
+✔ form kiểm tra gửi đúng thông số đã nhập và chặn giá trị sai trước khi POST (10.8047ms)
+✖ lịch sử và chi tiết lệnh dùng GET; response thiếu hoặc sai request_id bị từ chối (12.8738ms)
+✔ chỉ ACK COMPLETED mới hiện hoàn tất; ACCEPTED và SENT vẫn đang chờ (24.2259ms)
+✔ HTTP thành công vẫn giữ trạng thái FAILED do BE trả và từ chối response sai thiết bị (18.2474ms)
+✔ FE khóa Test Alert khi không có quyền, sai loại, bảo trì, offline hoặc thiếu trạng thái (15.1038ms)
+✔ trang chi tiết đặt nút kiểm tra trước thông số; biểu mẫu chỉ mở khi bấm (51.7588ms)
+✔ GET/PUT cấu hình dùng ID DB, token và ba mức bật/tắt cho từng tải (1632.7271ms)
+✔ không báo đã áp dụng trước khi config_id khớp; sai schema hoặc thời gian bị từ chối (12.7642ms)
+✔ giới hạn thời gian cấu hình khớp firmware TV1 tuần 3 (12.2605ms)
+✔ Customer xem form nhưng không có nút lưu; Admin chỉ được lưu sau khi tải cấu hình (93.8206ms)
+✔ API chi tiết và đăng ký dùng ID DB, Bearer token và JSON (1611.7855ms)
+✔ bốn thao tác vòng đời gọi đúng URL; lỗi không tạo trạng thái thành công (16.4266ms)
+✔ provision chỉ thành công khi BE trả tài khoản MQTT của thiết bị (10.6048ms)
+✔ response 2xx phải chứa đúng thiết bị trước khi FE báo đăng ký hoặc đổi trạng thái thành công (12.1215ms)
+✔ tin cập nhật thay record cùng ID, không thêm dòng mới (7.4113ms)
+✔ nút vòng đời chỉ mở ở trạng thái BE cho phép (9.2956ms)
+✔ trang chi tiết dùng dữ liệu có thật và ẩn thao tác với Customer (107.2128ms)
+✔ Dashboard ban đầu không hiển thị số đo mẫu hoặc kết luận tỉnh táo (1733.079ms)
+✔ thẻ thiết bị dùng status của BE dù WebSocket đang kết nối (9.2241ms)
+✔ không thấy mặt thì thẻ tài xế không hiện tỉnh táo (8.5434ms)
+✔ thẻ giữ trạng thái gần nhất kèm ghi chú khi dữ liệu cũ (7.1782ms)
+✖ WebSocket chuyển payload chỉ có mã và phát sự kiện đóng đúng tên (32.1081ms)
+✔ trang cảnh báo có URL riêng (3.4263ms)
+✔ Back/Forward quay giữa tổng quan, danh sách và đúng thiết bị (1.0163ms)
+✔ URL chi tiết mở trực tiếp không tự quay khỏi web; đổi tài khoản không giữ thông tin cũ (0.5005ms)
+✔ Customer chỉ xem; Employee gửi lệnh và sửa cấu hình; Admin quản lý thiết bị (1.4368ms)
+✔ role lạ hoặc thiếu role không được cấp quyền (0.2699ms)
+✔ WebSocket nhận telemetry cũ và phân loại gói tuần 2 (2.6002ms)
+✔ sự kiện phải khớp thiết bị đang xem (0.7498ms)
+✔ reconnect chờ tăng dần và dừng ở 30 giây (0.3187ms)
+✔ giữ ID số và mã thực tế BE cung cấp, không gán mã theo ID (2.7665ms)
+✔ không dùng mã thiết bị hoặc chuỗi số thay ID DB (1.975ms)
+✔ nhận payload chỉ có device_code theo tài liệu bàn giao trên main (0.3387ms)
+✔ có mã hợp lệ vẫn không chấp nhận ID sai kiểu; thiếu cả ID và mã thì từ chối (0.4629ms)
+✔ không suy ra driver_state từ EAR/PERCLOS khi BE chưa cung cấp (0.2983ms)
+✔ thiếu số đo, null hoặc sai kiểu không bị đổi thành số 0 (0.3423ms)
+✔ chỉ nhận ba trạng thái đã chốt; trạng thái lạ không làm lỗi UI (0.3972ms)
+✔ không giữ dữ liệu tin cũ khi tin mới thiếu trường (0.299ms)
+✔ từ chối payload hoặc mã thiết bị sai định dạng (0.5091ms)
+✔ face_detected=false không hiện tỉnh táo; confidence null không thành phần trăm (1.3909ms)
+✔ số đo giữ phiên bản AI do BE trả và không tự đặt phiên bản khi thiếu (1856.5899ms)
+✔ tuần 3: gửi cùng khóa idempotency và không tự retry POST khi mất kết nối (101.3466ms)
+✖ tuần 3: API lịch sử dùng ID, UTC, phiên bản AI và giới hạn (43.6104ms)
+✖ biểu đồ TV4 giữ response cũ và gọi route riêng, không trùng API phân trang (14.3242ms)
 ℹ tests 59
 ℹ suites 0
-ℹ pass 59
-ℹ fail 0
+ℹ pass 54
+ℹ fail 5
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 527.9141
+ℹ duration_ms 2467.8064
+
+✖ failing tests:
+
+test at frontend\tests\commands.test.mjs:30:1
+✖ Test Alert chỉ POST khi gọi hàm, dùng ID DB, token và body tạm đã chốt trong FE (1646.3515ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + '/api/devices/2/commands'
+  - 'http://localhost:8000/api/devices/2/commands'
+
+      at TestContext.<anonymous> (file:///D:/NAM%204/KI%20I/IOT/BTL/Driver%20Monitoring%20AIoT%20Platform/frontend/tests/commands.test.mjs:41:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1110:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '/api/devices/2/commands',
+    expected: 'http://localhost:8000/api/devices/2/commands',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at frontend\tests\commands.test.mjs:79:1
+✖ lịch sử và chi tiết lệnh dùng GET; response thiếu hoặc sai request_id bị từ chối (12.8738ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + '/api/commands?device_id=2'
+  - 'http://localhost:8000/api/commands?device_id=2'
+
+      at TestContext.<anonymous> (file:///D:/NAM%204/KI%20I/IOT/BTL/Driver%20Monitoring%20AIoT%20Platform/frontend/tests/commands.test.mjs:94:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1110:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:785:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '/api/commands?device_id=2',
+    expected: 'http://localhost:8000/api/commands?device_id=2',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at frontend\tests\merge-compatibility.test.mjs:73:1
+✖ WebSocket chuyển payload chỉ có mã và phát sự kiện đóng đúng tên (32.1081ms)
+  ReferenceError: window is not defined
+      at createTelemetrySocket (evalmachine.<anonymous>:87:20)
+      at TestContext.<anonymous> (file:///D:/NAM%204/KI%20I/IOT/BTL/Driver%20Monitoring%20AIoT%20Platform/frontend/tests/merge-compatibility.test.mjs:86:18)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1110:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:785:7)
+
+test at frontend\tests\week3.test.mjs:41:1
+✖ tuần 3: API lịch sử dùng ID, UTC, phiên bản AI và giới hạn (43.6104ms)
+  TypeError: Invalid URL
+      at new URL (node:internal/url:819:25)
+      at TestContext.<anonymous> (file:///D:/NAM%204/KI%20I/IOT/BTL/Driver%20Monitoring%20AIoT%20Platform/frontend/tests/week3.test.mjs:50:17)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1110:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:785:7) {
+    code: 'ERR_INVALID_URL',
+    input: '/api/devices/2/telemetry/history?limit=50&offset=0&from=2026-10-18T03%3A00%3A00.000Z&model_version=model-v1'
+  }
+
+test at frontend\tests\week3.test.mjs:60:1
+✖ biểu đồ TV4 giữ response cũ và gọi route riêng, không trùng API phân trang (14.3242ms)
+  TypeError: Invalid URL
+      at new URL (node:internal/url:819:25)
+      at TestContext.<anonymous> (file:///D:/NAM%204/KI%20I/IOT/BTL/Driver%20Monitoring%20AIoT%20Platform/frontend/tests/week3.test.mjs:68:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1110:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:785:7) {
+    code: 'ERR_INVALID_URL',
+    input: '/api/2/telemetry/history?from_time=2026-10-19T00%3A00%3A00Z&limit=100'
+  }

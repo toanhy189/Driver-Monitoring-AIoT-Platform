@@ -10,6 +10,9 @@ services:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       MQTT_HOST: mosquitto
       MQTT_PORT: 1883
+      AI_VIDEO_DIR: /app/storage/videos
+    volumes:
+      - video_data:/app/storage/videos
     ports:
       - "8000:8000"
     depends_on:
@@ -56,10 +59,11 @@ services:
     volumes:
       - ../database/migration_fe_be_week2.sql:/migrations/week2.sql:ro
       - ../database/migration_be_week3.sql:/migrations/week3.sql:ro
+      - ../database/migration_ai_videos.sql:/migrations/videos.sql:ro
     depends_on:
       postgres:
         condition: service_healthy
-    command: ["psql", "-h", "postgres", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}", "-v", "ON_ERROR_STOP=1", "-f", "/migrations/week2.sql", "-f", "/migrations/week3.sql"]
+    command: ["psql", "-h", "postgres", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}", "-v", "ON_ERROR_STOP=1", "-f", "/migrations/week2.sql", "-f", "/migrations/week3.sql", "-f", "/migrations/videos.sql"]
 
   mosquitto:
     image: eclipse-mosquitto:2
@@ -99,3 +103,4 @@ services:
 volumes:
   postgres_data:
   mqtt_data:
+  video_data:

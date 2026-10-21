@@ -1,8 +1,32 @@
+=====================================================
+[MQTT] Sending message to topic 'driver/vision-w3-adc2dfb16a/telemetry':
+{"message_id": "ea250aba-cc00-45a5-9d1d-d7718e5d624e", "device_code": "vision-w3-adc2dfb16a", "model_version": "drowsiness-v3.0", "timestamp": "2026-10-21T14:09:54.770564+00:00", "driver_state": "DROWSY", "candidate_state": "DROWSY", "face_detected": false, "ear": null, "perclos": null, "eyes_closed": null, "head_pose": {"yaw": null, "pitch": null, "roll": null}}
+=====================================================
+=====================================================
+[MQTT] Sending message to topic 'driver/vision-w3-adc2dfb16a/events':
+{"message_id": "17862cb4-2b6a-4ae1-be79-32ec800082ca", "sequence_number": 0, "device_code": "vision-w3-adc2dfb16a", "timestamp": "2026-10-21T14:09:54.777567+00:00", "event_type": "DROWSY_THRESHOLD_REACHED", "state": "DROWSY", "state_duration_ms": 3207}
+=====================================================
+=====================================================
+[MQTT] Sending message to topic 'driver/vision-w3-adc2dfb16a/events':
+{"message_id": "4a7ff508-e311-407b-b906-51e38eaeadb9", "sequence_number": 1, "device_code": "vision-w3-adc2dfb16a", "timestamp": "2026-10-21T14:09:54.782524+00:00", "event_type": "SESSION_ENDED", "final_state": "DROWSY"}
+=====================================================
 MQTT client started
-MQTT client ID: vision-w3-e6c980c391-edaf7820
+MQTT client ID: vision-w3-adc2dfb16a-c7d5422d
 MQTT client started
-MQTT client ID: vision-w3-e6c980c391-0fadd2f9
+MQTT client ID: vision-w3-adc2dfb16a-c6fa1ea3
 [MQTT DEBUG] on_connect called, rc=Success
 [MQTT] Connected successfully
+=====================================================
+[MQTT DEBUG] Received ACK:
+{'message_id': 'ea250aba-cc00-45a5-9d1d-d7718e5d624e', 'status': 'SAVED'}
+=====================================================
+=====================================================
+[MQTT DEBUG] Received ACK:
+{'message_id': '17862cb4-2b6a-4ae1-be79-32ec800082ca', 'status': 'SAVED'}
+=====================================================
+=====================================================
+[MQTT DEBUG] Received ACK:
+{'message_id': '4a7ff508-e311-407b-b906-51e38eaeadb9', 'status': 'SAVED'}
+=====================================================
 MQTT disconnected
-{"probe": "PASS", "queued_before": 2, "pending_after_storage_ack": 0, "builder_source": "edge-ai/main2.py", "camera_opened": false}
+{"probe": "PASS", "queued_before": 3, "pending_after_storage_ack": 0, "builder_source": "edge-ai/main.py + service/message/publisher.py", "camera_opened": false}

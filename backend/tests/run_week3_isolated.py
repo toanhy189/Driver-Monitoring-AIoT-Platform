@@ -17,7 +17,7 @@ EVIDENCE = ROOT / "docs/evidence/week3"
 
 
 def docker(*args):
-    result = subprocess.run(["docker", *args], capture_output=True, text=True, timeout=50)
+    result = subprocess.run(["docker", *args], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=50)
     if result.returncode:
         raise RuntimeError("Docker test fixture failed: " + result.stderr)
     return result.stdout.strip()
@@ -37,6 +37,7 @@ def main():
                "AI_MQTT_PASSWORD": secrets.token_urlsafe(24), "AI_DEVICE_CODE": "vision-01",
                "W3_DOCKER_TESTS": "1", "W3_TEST_NETWORK": network,
                "W3_TEST_MQTT_DOCKER_HOST": name, "W3_BROKER_SCOPE": "isolated disposable broker",
+               "W3_BACKEND_IMAGE": "codex-w3-backend-test:latest",
                "PYTHONIOENCODING": "utf-8"}
         credentials = temporary / "init.env"
         credentials.write_text("\n".join(key + "=" + env[key] for key in
@@ -47,6 +48,12 @@ def main():
         env["MQTT_PORT"] = str(port)
         created_network = False
         try:
+            # Rebuild dependencies when requirements change; mounting code into an old image is insufficient.
+            build = subprocess.run(["docker", "build", "-t", env["W3_BACKEND_IMAGE"], "-f",
+                str(ROOT / "deployment/backend/Dockerfile"), str(ROOT)], capture_output=True, text=True,
+                encoding="utf-8", errors="replace", timeout=600)
+            if build.returncode:
+                raise RuntimeError("Test backend image build failed: " + build.stderr[-1500:])
             docker("network", "create", network)
             created_network = True
             docker("run", "--rm", "--env-file", str(credentials),

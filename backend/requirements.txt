@@ -7,3 +7,4 @@ python-jose[cryptography]
 pwdlib[argon2]
 uvicorn[standard]
 paho-mqtt
+python-multipart

@@ -1,5 +1,6 @@
 test_existing_broker_role_is_updated_without_resetting_account (test_edge_ai_contract.EdgeAiContractTests.test_existing_broker_role_is_updated_without_resetting_account) ... ok
-test_mismatched_topic_source_is_rejected_before_db_access (test_edge_ai_contract.EdgeAiContractTests.test_mismatched_topic_source_is_rejected_before_db_access) ... ok
+test_mismatched_topic_source_is_rejected_before_db_access (test_edge_ai_contract.EdgeAiContractTests.test_mismatched_topic_source_is_rejected_before_db_access) ... AI ingest rejected: reason=TOPIC_SOURCE_MISMATCH topic='driver/vision-01/events'
+ok
 test_new_config_preserves_environment_authentication (test_edge_ai_contract.EdgeAiContractTests.test_new_config_preserves_environment_authentication) ... ok
 test_new_event_aliases_and_distracted_observation (test_edge_ai_contract.EdgeAiContractTests.test_new_event_aliases_and_distracted_observation) ... ok
 test_vision_role_only_receives_own_storage_ack (test_edge_ai_contract.EdgeAiContractTests.test_vision_role_only_receives_own_storage_ack) ... ok
@@ -55,8 +56,13 @@ test_18_storage_ack_requires_successful_db_commit (test_week3_integration.Week3I
 test_19_ai_redelivery_restart_and_historical_snapshot (test_week3_integration.Week3Integration.test_19_ai_redelivery_restart_and_historical_snapshot) ... skipped 'Use run_week3_integration.py for isolated live checks'
 test_20_actual_edge_queue_and_mqtt_client_without_camera (test_week3_integration.Week3Integration.test_20_actual_edge_queue_and_mqtt_client_without_camera) ... skipped 'Use run_week3_integration.py for isolated live checks'
 test_21_new_ai_topic_rule_command_ack_and_fe_contract (test_week3_integration.Week3Integration.test_21_new_ai_topic_rule_command_ack_and_fe_contract) ... skipped 'Use run_week3_integration.py for isolated live checks'
+test_22_session_ended_receipt_and_schema_diagnostics (test_week3_integration.Week3Integration.test_22_session_ended_receipt_and_schema_diagnostics) ... skipped 'Use run_week3_integration.py for isolated live checks'
+test_23_video_auth_upload_retry_download_and_event_order (test_week3_integration.Week3Integration.test_23_video_auth_upload_retry_download_and_event_order) ... skipped 'Use run_week3_integration.py for isolated live checks'
+test_24_video_validation_rollback_and_decommission (test_week3_integration.Week3Integration.test_24_video_validation_rollback_and_decommission) ... skipped 'Use run_week3_integration.py for isolated live checks'
+test_25_concurrent_video_retries_and_device_scope (test_week3_integration.Week3Integration.test_25_concurrent_video_retries_and_device_scope) ... skipped 'Use run_week3_integration.py for isolated live checks'
+test_26_setup_readiness_and_repeat_apply (test_week3_integration.Week3Integration.test_26_setup_readiness_and_repeat_apply) ... skipped 'Use run_week3_integration.py for isolated live checks'
 
 ----------------------------------------------------------------------
-Ran 56 tests in 0.227s
+Ran 61 tests in 0.220s
 
-OK (skipped=22)
+OK (skipped=27)

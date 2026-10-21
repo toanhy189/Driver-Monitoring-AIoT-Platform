@@ -26,7 +26,7 @@ def main():
              *ROOT.glob("frontend/tests/*.mjs"), *ROOT.glob("firmware/esp32-alert-node/src/app/*.cpp"),
              *[path for path in ROOT.glob("firmware/esp32-alert-node/include/*.h") if path.name != "network_config.h"],
              ROOT / "deployment/docker-compose.yml", ROOT / "deployment/backend/Dockerfile",
-             ROOT / "database/migration_be_week3.sql"]
+             ROOT / "database/migration_be_week3.sql", ROOT / "database/migration_ai_videos.sql"]
     manifest = {"generated_at": datetime.now(timezone.utc).isoformat(),
         "branch": subprocess.check_output(["git", "branch", "--show-current"], cwd=ROOT, text=True).strip(),
         "base_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),

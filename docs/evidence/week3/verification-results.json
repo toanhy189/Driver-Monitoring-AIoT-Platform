@@ -1,5 +1,5 @@
 {
-  "executed_at": "2026-10-19T15:34:20.236659+00:00",
+  "executed_at": "2026-10-21T14:10:39.321835+00:00",
   "checks": [
     {
       "check": "unit",
@@ -7,14 +7,10 @@
     },
     {
       "check": "frontend-tests",
-      "exit_code": 0
+      "exit_code": 1
     },
     {
       "check": "frontend-build",
-      "exit_code": 0
-    },
-    {
-      "check": "firmware-build",
       "exit_code": 0
     }
   ]

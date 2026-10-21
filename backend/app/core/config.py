@@ -48,5 +48,7 @@ class Settings(BaseSettings):
     MAX_WS_TICKETS: int = Field(default=10000, ge=1, le=100000)
     MAX_WS_CONNECTIONS: int = Field(default=500, ge=1, le=10000)
     WS_TICKET_TTL_SECONDS: int = Field(default=30, ge=1, le=300)
+    AI_VIDEO_DIR: Path = BASE_DIR / "storage" / "videos"
+    AI_VIDEO_MAX_BYTES: int = Field(default=104857600, ge=1024, le=1073741824)
 
 settings = Settings()

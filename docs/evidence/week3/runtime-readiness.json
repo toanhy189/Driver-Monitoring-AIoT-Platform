@@ -1,8 +1,16 @@
 {
-  "checked_at": "2026-10-19T15:32:52.925629+00:00",
-  "application_receipts_table_exists": false,
-  "live_backend_storage_ack_permission": false,
-  "live_ai_scoped_events_permission": false,
+  "checked_at": "2026-10-21T14:12:26.145378+00:00",
+  "missing_tables": [],
+  "device_code": "vision-01",
+  "device_registered": true,
+  "source_ready": true,
+  "database_ready": true,
+  "missing_permissions": [],
+  "disabled_accounts": [],
+  "broker_ready": true,
   "rule_engine_enabled": false,
-  "live_acl_changed_by_this_check": false
+  "applied_with_user_authorization": true,
+  "passwords_changed": false,
+  "test_databases_remaining": 0,
+  "existing_device_preserved": true
 }

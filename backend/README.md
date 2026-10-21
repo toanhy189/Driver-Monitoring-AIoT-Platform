@@ -1,5 +1,13 @@
 # Backend tuần 2 và tuần 3
 
+## Nhận event và video AI (21/10/2026)
+
+[Hợp đồng event/video, xác thực, cách đồng bộ môi trường và kiểm tra](../docs/ai-ingest-video-contract.md).
+BE nhận thêm SESSION_ENDED, trả SAVED sau khi lưu DB; API upload MP4 dùng HTTP Basic
+bằng tài khoản MQTT của Vision Node. AI cần thêm `auth=(MQTT_USERNAME, MQTT_PASSWORD)`
+vào requests.post upload. Chạy `python backend/scripts/setup_ai_ingest.py` để kiểm tra
+DB/thiết bị/ACL; `--apply --assign-user TEN_ADMIN` áp dụng migration và cấu hình thật.
+
 Phần tuần 3, hướng xử lý và kết quả kiểm chứng: [Logic code TV2](../docs/TV2-tuan-3-huong-xu-ly-va-logic-code.md), [Báo cáo có minh chứng](../docs/TV2-tuan-3-bao-cao-ket-qua.md). Chạy `python backend/scripts/migrate_week3.py` cho DB đã có tuần 2 trước khi mở bản BE mới. Rule Engine tự gửi lệnh mặc định tắt (`RULE_ENGINE_ENABLED=false`) để chờ nhóm chốt chính sách.
 
 Hợp đồng JSON, trạng thái lệnh/ACK và sự kiện realtime: [FE–BE tuần 2](../docs/week2-fe-be-contract.md).
