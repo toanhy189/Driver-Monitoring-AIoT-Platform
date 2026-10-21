@@ -76,6 +76,10 @@ thickness = 1
 if not init_db():
     raise RuntimeError("Cannot initialize SQLite offline queue")
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
 logger = logging.getLogger(__name__)
 
 

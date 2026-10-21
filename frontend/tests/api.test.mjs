@@ -31,7 +31,7 @@ test("GET ghép URL một lần, gắn token, chuyển AbortSignal", async () =>
   });
   const signal = new AbortController().signal;
   const data = await apiRequest("/devices", { token: "abc", signal });
-  assert.equal(calls[0][0], "http://localhost:8000/api/devices");
+  assert.equal(calls[0][0], "/api/devices");
   assert.equal(calls[0][1].method, "GET");
   assert.equal(calls[0][1].headers.Authorization, "Bearer abc");
   assert.equal(calls[0][1].signal, signal);
@@ -50,7 +50,7 @@ test("POST login gửi JSON và không gắn token cũ", async () => {
   const response = await apiRequest("/login", {
     method: "POST", body: { username: "a", password: "b" },
   });
-  assert.equal(request.url, "http://localhost:8000/api/login");
+  assert.equal(request.url, "/api/login");
   assert.equal(request.options.headers.Authorization, undefined);
   assert.equal(request.options.headers["Content-Type"], "application/json");
   assert.deepEqual(JSON.parse(request.options.body), { username: "a", password: "b" });
@@ -115,7 +115,7 @@ test("getDevices giữ kiểm tra dữ liệu và gửi Bearer token qua apiRequ
     },
   });
   const devices = await getDevices();
-  assert.equal(request.url, "http://localhost:8000/api/devices");
+  assert.equal(request.url, "/api/devices");
   assert.equal(request.options.headers.Authorization, "Bearer token-1");
   assert.equal(devices[0].device_code, "alert-01");
   assert.equal(devices[0].isStale, false);

@@ -44,11 +44,11 @@ test("API chi tiết và đăng ký dùng ID DB, Bearer token và JSON", async (
 
   const device = await service.getDeviceDetail(2);
   assert.equal(device.device_code, "alert-01");
-  assert.equal(calls[0].url, "http://localhost:8000/api/devices/2");
+  assert.equal(calls[0].url, "/api/devices/2");
   assert.equal(calls[0].options.headers.Authorization, "Bearer token");
 
   await service.registerDevice({ device_code: " vision-01 ", name: "Camera", model: "Vision" });
-  assert.equal(calls[1].url, "http://localhost:8000/api/devices");
+  assert.equal(calls[1].url, "/api/devices");
   assert.equal(calls[1].options.method, "POST");
   assert.equal(JSON.parse(calls[1].options.body).device_code, "vision-01");
 });
@@ -67,10 +67,10 @@ test("bốn thao tác vòng đời gọi đúng URL; lỗi không tạo trạng 
     await assert.rejects(service.runDeviceAction(2, action), error => error.status === 404);
   }
   assert.deepEqual(calls.map(call => call.url), [
-    "http://localhost:8000/api/devices/2/provision",
-    "http://localhost:8000/api/devices/2/activate",
-    "http://localhost:8000/api/devices/2/maintenance",
-    "http://localhost:8000/api/devices/2/decommission",
+    "/api/devices/2/provision",
+    "/api/devices/2/activate",
+    "/api/devices/2/maintenance",
+    "/api/devices/2/decommission",
   ]);
   assert.ok(calls.every(call => call.options.method === "POST"));
   await assert.rejects(service.runDeviceAction(0, "activate"), /ID thiết bị/);

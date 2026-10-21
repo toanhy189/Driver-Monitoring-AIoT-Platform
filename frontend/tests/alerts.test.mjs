@@ -46,8 +46,8 @@ test("lịch sử cảnh báo GET và xác nhận đã xem POST đúng API, toke
   const updated = await alerts.acknowledgeAlert("2");
   assert.equal(alerts.canAcknowledgeAlert(updated), false);
   assert.equal(alerts.canAcknowledgeAlert({ alert_id: "3", status: "OPEN" }), false);
-  assert.equal(calls[0].url, "http://localhost:8000/api/alerts");
-  assert.equal(calls[1].url, "http://localhost:8000/api/alerts/2/acknowledge");
+  assert.equal(calls[0].url, "/api/alerts");
+  assert.equal(calls[1].url, "/api/alerts/2/acknowledge");
   assert.equal(calls[1].options.method, "POST");
   assert.ok(calls.every(call => call.options.headers.Authorization === "Bearer token"));
 });

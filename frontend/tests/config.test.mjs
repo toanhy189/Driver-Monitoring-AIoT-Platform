@@ -47,7 +47,7 @@ test("GET/PUT cấu hình dùng ID DB, token và ba mức bật/tắt cho từng
   assert.equal(current.desired.buzzer[3].on_ms, 300);
   assert.equal(config.configStatus(current).kind, "pending");
   assert.equal(await config.updateDeviceConfig(2, timings()), "cfg-002");
-  assert.equal(calls[0].url, "http://localhost:8000/api/devices/2/config");
+  assert.equal(calls[0].url, "/api/devices/2/config");
   assert.equal(calls[0].options.method, "GET");
   assert.equal(calls[1].options.method, "PUT");
   assert.equal(calls[1].options.headers.Authorization, "Bearer token");

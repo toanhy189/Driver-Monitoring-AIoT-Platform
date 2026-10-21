@@ -1,4 +1,3 @@
-const host = (import.meta.env.VITE_BACKEND_HOST || "http://localhost:8000").replace(/\/+$/, "");
 const prefix = `/${(import.meta.env.VITE_API_STR || "/api").replace(/^\/+|\/+$/g, "")}`;
 
 // Các service truyền đường dẫn sau /api, ví dụ "/devices".
@@ -14,7 +13,7 @@ export async function apiRequest(path, { method = "GET", body, token, signal, he
 
   let response;
   try {
-    response = await fetch(`${host}${prefix}${path}`, {
+    response = await fetch(`${prefix}${path}`, {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),

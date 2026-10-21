@@ -32,7 +32,7 @@ test("/me xác nhận token và trả đúng role từ backend", async () => {
     return response(200, { id: 1, username: "an", role: "Customer" });
   });
   const user = await getCurrentUser({ token: "abc" });
-  assert.equal(request.url, "http://localhost:8000/api/me");
+  assert.equal(request.url, "/api/me");
   assert.equal(request.options.headers.Authorization, "Bearer abc");
   assert.equal(user.role, "Customer");
 });

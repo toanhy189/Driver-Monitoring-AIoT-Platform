@@ -87,10 +87,25 @@ def remove_from_queue(message_ids):
 
     try:
         with get_connection() as conn:
-            conn.executemany("""
-                DELETE FROM offline_queue
-                WHERE message_id = ?
-            """, [(message_id,) for message_id in message_ids])
+            for message_id in message_ids:
+                cursor = conn.execute(
+                    """
+                    DELETE FROM offline_queue
+                    WHERE message_id = ?
+                    """,
+                    (message_id,),
+                )
+
+                if cursor.rowcount > 0:
+                    logger.info(
+                        "Removed message %s from offline queue.",
+                        message_id,
+                    )
+                else:
+                    logger.warning(
+                        "Message %s was not found in offline queue.",
+                        message_id,
+                    )
 
         return True
 
@@ -188,6 +203,7 @@ def remove_video_from_queue(video_id):
                 WHERE video_id = ?
             """, (video_id,))
 
+        logger.info(f"Video {video_id} removed from queue.")
         return True
 
     except (sqlite3.Error, OSError):
