@@ -7,10 +7,11 @@ from pydantic import AliasChoices, BaseModel, Field, StrictInt, field_validator,
 class AiEventRequest(BaseModel):
     event_id: str = Field(min_length=1, max_length=80, validation_alias=AliasChoices("event_id", "message_id"))
     device_id: str = Field(min_length=1, max_length=100, validation_alias=AliasChoices("device_id", "device_code"))
-    event_type: Literal["DROWSY_THRESHOLD_REACHED", "DISTRACTED_THRESHOLD_REACHED", "STATE_CHANGED"]
+    event_type: Literal["DROWSY_THRESHOLD_REACHED", "DISTRACTED_THRESHOLD_REACHED", "STATE_CHANGED", "SESSION_ENDED"]
     timestamp: datetime
     model_version: str | None = Field(default=None, max_length=80)
     state: str | None = Field(default=None, max_length=30)
+    final_state: Literal["ATTENTIVE", "DISTRACTED", "DROWSY", "UNKNOWN"] | None = None
     state_duration_ms: StrictInt | None = Field(default=None, ge=0, le=86400000)
 
     @field_validator("timestamp")

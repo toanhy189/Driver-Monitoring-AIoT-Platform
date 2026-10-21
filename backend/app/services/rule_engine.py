@@ -50,12 +50,13 @@ def process_event(session: Session, payload: dict, *, commit: bool = True) -> li
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     event = AiEvent(event_id=data.event_id, device_id=source.id, event_type=data.event_type,
                     occurred_at=data.timestamp.astimezone(timezone.utc).replace(tzinfo=None),
-                    received_at=now, model_version=data.model_version, state=data.state,
+                    received_at=now, model_version=data.model_version,
+                    state=data.final_state if data.event_type == "SESSION_ENDED" else data.state,
                     state_duration_ms=data.state_duration_ms, payload_hash=digest, payload=payload)
     session.add(event)
     try:
         session.flush()
-        if data.event_type == "STATE_CHANGED":
+        if data.event_type in {"STATE_CHANGED", "SESSION_ENDED"}:
             finish()
             return []
         if data.event_type == "DISTRACTED_THRESHOLD_REACHED":

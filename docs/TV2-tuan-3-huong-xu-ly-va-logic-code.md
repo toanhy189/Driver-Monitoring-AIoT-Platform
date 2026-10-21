@@ -1,5 +1,10 @@
 # TV2 tuần 3 — Hướng xử lý và giải thích logic code
 
+**Bổ sung 21/10/2026:** [hợp đồng và logic event/video mới](ai-ingest-video-contract.md).
+AI trên main mới dùng `main.py` và `service/message/publisher.py`, đã bỏ main2.py.
+BE nhận SESSION_ENDED, có API upload riêng và công cụ đồng bộ DB/ACL/thiết bị.
+Môi trường máy hiện tại đã áp dụng theo yêu cầu người dùng; xem [kết quả mới](BE-ai-event-video-ket-qua.md).
+
 Tài liệu dành cho thành viên phụ trách Backend, bao phủ TV2-01 đến TV2-23 trong bảng nhiệm vụ: hoàn thiện tuần 2 và phát triển tuần 3. Code đang ở nhánh `feature/backend-week3`. Bản báo cáo và minh chứng đi kèm: [Kết quả thực hiện](TV2-tuan-3-bao-cao-ket-qua.md).
 
 Nhóm **chưa chốt severity, cooldown và bảng W3**. Vì vậy bảng mức cảnh báo dưới đây là đề xuất để kiểm thử. `RULE_ENGINE_ENABLED=false` là mặc định: BE vẫn lưu sự kiện/cảnh báo hợp lệ, còn việc tự tạo lệnh điều khiển chỉ được bật sau khi nhóm xác nhận chính sách và kiểm tra thiết bị.

@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 import paho.mqtt.client as mqtt
 from pydantic import ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session, select
 
 from app.core.config import settings
@@ -143,7 +144,11 @@ def _save_queued_ai(session: Session, code: str, topic: str, kind: str, payload:
     if not isinstance(message_id, str) or not 1 <= len(message_id) <= 80:
         return []
     source = session.exec(select(Device).where(Device.device_code == code).with_for_update()).first()
-    if source is None or source.device_type != "VISION_NODE" or source.lifecycle_state == "DECOMMISSIONED":
+    if source is None:
+        logger.warning("AI ingest rejected: reason=UNKNOWN_DEVICE device=%r topic=%r", code, topic)
+        return []
+    if source.device_type != "VISION_NODE" or source.lifecycle_state == "DECOMMISSIONED":
+        logger.warning("AI ingest rejected: reason=DEVICE_NOT_ALLOWED device=%r topic=%r", code, topic)
         return []
     try:
         digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
@@ -154,7 +159,7 @@ def _save_queued_ai(session: Session, code: str, topic: str, kind: str, payload:
     acknowledgement = {"type": "ingest.saved", "data": {"device_code": code, "message_id": message_id}}
     if saved:
         if saved.topic != topic or saved.payload_hash != digest:
-            logger.warning("Ignoring reused AI message ID with different content")
+            logger.warning("AI ingest rejected: reason=MESSAGE_ID_CONFLICT device=%r message_id=%r", code, message_id)
             return []
         return [acknowledgement]
     try:
@@ -172,9 +177,11 @@ def _save_queued_ai(session: Session, code: str, topic: str, kind: str, payload:
             if event is None or event.device_id != source.id or event.payload_hash != event_payload_hash(payload, data):
                 session.rollback()
                 return []
-    except ValidationError:
+    except ValidationError as error:
         session.rollback()
-        logger.warning("Ignoring invalid queued AI message")
+        fields = [(item["loc"], item["type"]) for item in error.errors()]
+        logger.warning("AI ingest rejected: reason=INVALID_SCHEMA device=%r message_id=%r fields=%r",
+                       code, message_id, fields)
         return []
     session.add(AiMessageReceipt(device_id=source.id, message_id=message_id, topic=topic, payload_hash=digest))
     session.commit()  # Must succeed before the MQTT callback can publish SAVED.
@@ -296,6 +303,7 @@ def process_message(topic: str, payload: dict) -> list[dict]:
         # The ACL protects the topic; reject an inconsistent source inside the JSON too.
         for field in ("device_code", "device_id"):
             if payload.get(field) is not None and payload[field] != parts[1]:
+                logger.warning("AI ingest rejected: reason=TOPIC_SOURCE_MISMATCH topic=%r", topic)
                 return []
     with Session(engine) as session:
         if topic == "driver/telemetry":
@@ -343,6 +351,10 @@ def on_message(client, userdata, msg):
                 manager.send_from_thread(event)
     except (UnicodeDecodeError, json.JSONDecodeError):
         logger.warning("Ignoring invalid MQTT JSON on %s", msg.topic)
+    except SQLAlchemyError as error:
+        sqlstate = getattr(getattr(error, "orig", None), "sqlstate", None)
+        logger.error("MQTT database failure: topic=%r error=%s sqlstate=%s; check AI migrations. SAVED was not sent.",
+                     msg.topic, type(error).__name__, sqlstate)
     except Exception:
         logger.exception("Failed to process MQTT message on %s", msg.topic)
 

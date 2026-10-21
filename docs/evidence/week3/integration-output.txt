@@ -1,3 +1,4 @@
+AI ingest not ready: {'missing_tables': [], 'device_code': 'vision-01', 'device_registered': False, 'source_ready': False, 'database_ready': False}; run backend/scripts/setup_ai_ingest.py
 test_01_provision_revoke_and_api_guards (__main__.Week3Integration.test_01_provision_revoke_and_api_guards) ... ok
 test_02_config_offline_invalid_late_and_old_ack (__main__.Week3Integration.test_02_config_offline_invalid_late_and_old_ack) ... ok
 test_03_publish_failure_never_marks_applied (__main__.Week3Integration.test_03_publish_failure_never_marks_applied) ... ok
@@ -15,15 +16,22 @@ test_13_ai_mqtt_to_rule_to_command_to_three_ack (__main__.Week3Integration.test_
 test_14_interrupted_publish_is_not_retried_blindly (__main__.Week3Integration.test_14_interrupted_publish_is_not_retried_blindly) ... ok
 test_15_concurrent_first_config_put_preserves_latest_revision (__main__.Week3Integration.test_15_concurrent_first_config_put_preserves_latest_revision) ... ok
 test_16_firmware_reboot_ack_reports_failure (__main__.Week3Integration.test_16_firmware_reboot_ack_reports_failure) ... ok
-test_17_scoped_ai_storage_ack_dedup_and_new_events (__main__.Week3Integration.test_17_scoped_ai_storage_ack_dedup_and_new_events) ... Ignoring reused AI message ID with different content
+test_17_scoped_ai_storage_ack_dedup_and_new_events (__main__.Week3Integration.test_17_scoped_ai_storage_ack_dedup_and_new_events) ... AI ingest rejected: reason=MESSAGE_ID_CONFLICT device='vision-w3-fc93e32dac' message_id='message-d4ca4abb17115703'
 ok
-test_18_storage_ack_requires_successful_db_commit (__main__.Week3Integration.test_18_storage_ack_requires_successful_db_commit) ... Ignoring invalid queued AI message
+test_18_storage_ack_requires_successful_db_commit (__main__.Week3Integration.test_18_storage_ack_requires_successful_db_commit) ... AI ingest rejected: reason=INVALID_SCHEMA device='vision-w3-0e9a4f7cf5' message_id='message-526dc83d4b682723' fields=[(('timestamp',), 'datetime_from_date_parsing')]
+AI ingest rejected: reason=TOPIC_SOURCE_MISMATCH topic='driver/vision-w3-0e9a4f7cf5/telemetry'
 ok
 test_19_ai_redelivery_restart_and_historical_snapshot (__main__.Week3Integration.test_19_ai_redelivery_restart_and_historical_snapshot) ... ok
 test_20_actual_edge_queue_and_mqtt_client_without_camera (__main__.Week3Integration.test_20_actual_edge_queue_and_mqtt_client_without_camera) ... ok
 test_21_new_ai_topic_rule_command_ack_and_fe_contract (__main__.Week3Integration.test_21_new_ai_topic_rule_command_ack_and_fe_contract) ... ok
+test_22_session_ended_receipt_and_schema_diagnostics (__main__.Week3Integration.test_22_session_ended_receipt_and_schema_diagnostics) ... ok
+test_23_video_auth_upload_retry_download_and_event_order (__main__.Week3Integration.test_23_video_auth_upload_retry_download_and_event_order) ... ok
+test_24_video_validation_rollback_and_decommission (__main__.Week3Integration.test_24_video_validation_rollback_and_decommission) ... Video storage failed: device='vision-w3-f9e39b2b8f' message_id='video-f9e39b2b8f' error=RuntimeError
+ok
+test_25_concurrent_video_retries_and_device_scope (__main__.Week3Integration.test_25_concurrent_video_retries_and_device_scope) ... ok
+test_26_setup_readiness_and_repeat_apply (__main__.Week3Integration.test_26_setup_readiness_and_repeat_apply) ... ok
 
 ----------------------------------------------------------------------
-Ran 21 tests in 32.169s
+Ran 26 tests in 45.284s
 
 OK

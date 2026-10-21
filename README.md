@@ -2,6 +2,8 @@
 
 ## Bàn giao Backend tuần 3
 
+- [Cập nhật event và API video AI ngày 21/10/2026](docs/ai-ingest-video-contract.md): SESSION_ENDED, storage_ack, đồng bộ DB/ACL/thiết bị, HTTP upload và quyền xem video.
+
 - [Báo cáo kết quả và minh chứng kiểm tra](docs/TV2-tuan-3-bao-cao-ket-qua.md): trạng thái TV2-05…TV2-23, phần còn cần xác nhận và việc tiếp theo cho người phụ trách BE.
 - [Hướng xử lý, logic code và cách chạy lại](docs/TV2-tuan-3-huong-xu-ly-va-logic-code.md).
 - [Hướng dẫn chạy Backend](backend/README.md). DB đã có tuần 2 cần chạy migration tuần 3 trước khi mở bản BE mới. Chức năng tự gửi lệnh từ AI mặc định tắt để chờ nhóm chốt chính sách.

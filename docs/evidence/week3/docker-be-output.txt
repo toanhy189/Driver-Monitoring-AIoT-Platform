@@ -1,14 +1,15 @@
 INFO:     Started server process [1]
 INFO:     Waiting for application startup.
+AI ingest not ready: {'missing_tables': [], 'device_code': 'vision-01', 'device_registered': False, 'source_ready': False, 'database_ready': False}; run backend/scripts/setup_ai_ingest.py
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-INFO:     172.21.0.1:43808 - "WebSocket /ws/telemetry?ticket=<redacted>" [accepted]
+INFO:     172.21.0.1:48260 - "WebSocket /ws/telemetry?ticket=<redacted>" [accepted]
 INFO:     connection open
-INFO:     172.21.0.1:43816 - "WebSocket /ws/telemetry?ticket=<redacted>" [accepted]
+INFO:     172.21.0.1:48266 - "WebSocket /ws/telemetry?ticket=<redacted>" [accepted]
 INFO:     connection open
-INFO:     172.21.0.1:43818 - "WebSocket /ws/telemetry?ticket=<redacted>" 403
+INFO:     172.21.0.1:48274 - "WebSocket /ws/telemetry?ticket=<redacted>" 403
 INFO:     connection rejected (403 Forbidden)
-INFO:     172.21.0.1:43834 - "WebSocket /ws/telemetry?ticket=<redacted>" 403
+INFO:     172.21.0.1:48284 - "WebSocket /ws/telemetry?ticket=<redacted>" 403
 INFO:     connection rejected (403 Forbidden)
 INFO:     Shutting down
 INFO:     Waiting for application shutdown.
@@ -16,7 +17,8 @@ INFO:     Application shutdown complete.
 INFO:     Finished server process [1]
 INFO:     Started server process [1]
 INFO:     Waiting for application startup.
+AI ingest not ready: {'missing_tables': [], 'device_code': 'vision-01', 'device_registered': False, 'source_ready': False, 'database_ready': False}; run backend/scripts/setup_ai_ingest.py
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-INFO:     172.21.0.1:33484 - "WebSocket /ws/telemetry?ticket=<redacted>" [accepted]
+INFO:     172.21.0.1:60160 - "WebSocket /ws/telemetry?ticket=<redacted>" [accepted]
 INFO:     connection open

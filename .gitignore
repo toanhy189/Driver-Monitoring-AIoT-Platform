@@ -88,4 +88,9 @@ compile_commands.json
 /edge-ai/data/*.db-journal
 /edge-ai/data/*.db-wal
 /edge-ai/data/*.db-shm
-/edge-ai/recordings
+
+# Private video uploads; metadata and migrations stay in Git.
+/storage/
+
+# Camera output is relative to the directory used to launch Edge AI.
+recordings/

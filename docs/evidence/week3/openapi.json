@@ -1950,6 +1950,164 @@
         }
       }
     },
+    "/api/videos/upload": {
+      "post": {
+        "tags": [
+          "videos"
+        ],
+        "summary": "Upload Video",
+        "operationId": "videos-upload_video-post-api_videos_upload",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_videos-upload_video-post-api_videos_upload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "VisionNodeCredentials": []
+          }
+        ]
+      }
+    },
+    "/api/devices/{device_id}/videos": {
+      "get": {
+        "tags": [
+          "videos"
+        ],
+        "summary": "List Videos",
+        "operationId": "videos-list_videos-get-api_devices_device_id_videos",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Device Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100000,
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/videos/{video_id}/content": {
+      "get": {
+        "tags": [
+          "videos"
+        ],
+        "summary": "Download Video",
+        "operationId": "videos-download_video-get-api_videos_video_id_content",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Video Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "summary": "Health",
@@ -1969,6 +2127,45 @@
   },
   "components": {
     "schemas": {
+      "Body_videos-upload_video-post-api_videos_upload": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "ATTENTIVE",
+              "DISTRACTED",
+              "DROWSY",
+              "UNKNOWN"
+            ],
+            "title": "State"
+          },
+          "message_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Message Id"
+          },
+          "device_code": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Device Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file",
+          "state",
+          "message_id",
+          "device_code"
+        ],
+        "title": "Body_videos-upload_video-post-api_videos_upload"
+      },
       "ConfigUpdateRequest": {
         "properties": {
           "timings": {
@@ -3275,6 +3472,10 @@
             "tokenUrl": "/api/login"
           }
         }
+      },
+      "VisionNodeCredentials": {
+        "type": "http",
+        "scheme": "basic"
       }
     }
   }

@@ -39,6 +39,7 @@ from app.models.device import Device
 from app.models.telemetry import Telemetry
 from app.models.user import User
 from app.models.user_device import UserDevice
+from app.models.video import AiVideo
 from app.schemas.rules import RulePolicy
 from app.services.background_tasks import expire_commands, run_once
 from app.services.command_dispatch import create_command, dispatch_command
@@ -476,7 +477,8 @@ class Week3Integration(unittest.TestCase):
                 fixed_port = reservation.getsockname()[1]
             network_args = ["--network", os.environ["W3_TEST_NETWORK"]] if os.getenv("W3_TEST_NETWORK") else []
             docker("run", "-d", "--name", name, *network_args, "-p", f"127.0.0.1:{fixed_port}:8000", "--env-file", str(env_path),
-                "--mount", f"type=bind,source={root / 'backend'},target=/app,readonly", "deployment-mqtt-setup:latest",
+                "--mount", f"type=bind,source={root / 'backend'},target=/app,readonly",
+                os.getenv("W3_BACKEND_IMAGE", "deployment-mqtt-setup:latest"),
                 "python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--no-access-log")
             port = docker("port", name, "8000/tcp").split(":")[-1]
             http = httpx.Client(base_url="http://127.0.0.1:" + port, headers=self.auth, timeout=10, trust_env=False)
@@ -725,11 +727,13 @@ class Week3Integration(unittest.TestCase):
         (Path(os.environ["W3_EVIDENCE"]) / "edge-queue-output.txt").write_text(output, encoding="utf-8")
         self.assertEqual(run.returncode, 0, output)
         with Session(engine) as session:
-            self.assertEqual(len(session.exec(select(AiMessageReceipt).where(AiMessageReceipt.device_id == self.source_id)).all()), 2)
-            event = session.exec(select(AiEvent).where(AiEvent.device_id == self.source_id)).one()
-            self.assertEqual(event.model_version, "drowsiness-v3.0")
-        record("AI actual components", {"main2_payload_builders": "PASS", "sqlite_offline_kept": 2,
-            "storage_ack_queue_removed": 2, "camera_opened": False, "opencv_mediapipe_pipeline": "not run"})
+            self.assertEqual(len(session.exec(select(AiMessageReceipt).where(AiMessageReceipt.device_id == self.source_id)).all()), 3)
+            events = session.exec(select(AiEvent).where(AiEvent.device_id == self.source_id)).all()
+            self.assertEqual({item.event_type for item in events}, {"DROWSY_THRESHOLD_REACHED", "SESSION_ENDED"})
+            # The current AI omits model_version on events. Preserve absence instead of inventing one.
+            self.assertTrue(all(item.model_version is None for item in events))
+        record("AI actual components", {"main_payload_builders": "PASS", "sqlite_offline_kept": 3,
+            "storage_ack_queue_removed": 3, "camera_opened": False, "opencv_mediapipe_pipeline": "not run"})
 
 
     def test_21_new_ai_topic_rule_command_ack_and_fe_contract(self):
@@ -763,6 +767,131 @@ class Week3Integration(unittest.TestCase):
         record("AI-BE-IoT-FE contract", {"new_scoped_event": "SAVED", "websocket": "alert.created",
             "commands": [child["command"] for child in children], "child_ack": "all COMPLETED",
             "api_alert_command_link": "PASS", "hardware": "virtual ESP32"})
+
+    def test_22_session_ended_receipt_and_schema_diagnostics(self):
+        peer, _ = self.provision_source()
+        peer.subscribe(f"driver/{self.source_code}/storage_ack")
+        event = {"message_id": "end-" + self.suffix, "device_code": self.source_code,
+                 "timestamp": datetime.now(timezone.utc).isoformat(), "event_type": "SESSION_ENDED",
+                 "final_state": "DROWSY", "sequence_number": 4}
+        for _ in range(2):
+            peer.publish(f"driver/{self.source_code}/events", event)
+            self.assertEqual(json.loads(peer.messages.get(timeout=5)[1])["status"], "SAVED")
+        with Session(engine) as session:
+            saved = session.exec(select(AiEvent).where(AiEvent.event_id == event["message_id"])).one()
+            self.assertEqual((saved.state, saved.outcome), ("DROWSY", "RECORDED"))
+            self.assertEqual(session.exec(select(Alert).where(Alert.source_event_id == event["message_id"])).all(), [])
+        with self.assertLogs("app.services.mqtt_service", level="WARNING") as captured:
+            self.assertEqual(process_message(f"driver/{self.source_code}/events", {**event, "timestamp": "bad"}), [])
+        # Use a fresh message ID to exercise schema validation rather than duplicate-content validation.
+        with self.assertLogs("app.services.mqtt_service", level="WARNING") as captured:
+            self.assertEqual(process_message(f"driver/{self.source_code}/events",
+                {**event, "message_id": "bad-" + self.suffix, "timestamp": "bad"}), [])
+        self.assertIn("INVALID_SCHEMA", " ".join(captured.output))
+        record("SESSION_ENDED", "Stored final state, SAVED twice, one event, no automatic alert; invalid schema logs field/type")
+
+    def video_request(self, credentials, message_id=None, content=None, state="DROWSY", code=None):
+        content = content if content is not None else b"\x00\x00\x00\x18ftypisom\x00\x00\x00\x00isommp42"
+        auth = (credentials["mqtt_username"], credentials["mqtt_password"]) if credentials else None
+        return self.client.post("/api/videos/upload", auth=auth,
+            files={"file": ("../../camera.mp4", content, "video/mp4")},
+            data={"device_code": code or self.source_code, "state": state,
+                  "message_id": message_id or "video-" + self.suffix})
+
+    def test_23_video_auth_upload_retry_download_and_event_order(self):
+        peer, credentials = self.provision_source()
+        with tempfile.TemporaryDirectory(prefix="codex-video-") as directory, \
+             patch.object(settings, "AI_VIDEO_DIR", Path(directory)):
+            self.assertEqual(self.video_request(None).status_code, 401)
+            wrong = {**credentials, "mqtt_password": "incorrect-test-password"}
+            self.assertEqual(self.video_request(wrong).status_code, 401)
+            first = self.video_request(credentials)
+            self.assertEqual(first.status_code, 201, first.text)
+            video = first.json()
+            self.assertFalse(video["event_received"])
+            self.assertEqual(video["status"], "SAVED")
+            retry = self.video_request(credentials)
+            self.assertEqual(retry.status_code, 200, retry.text)
+            self.assertEqual(retry.json()["video_id"], video["video_id"])
+            self.assertEqual(self.video_request(credentials, state="UNKNOWN").status_code, 409)
+            self.assertEqual(len(list(Path(directory).glob("*.mp4"))), 1)
+            self.assertEqual(list(Path(directory).glob("*.part")), [])
+            content = self.client.get(video["content_url"], headers=self.auth)
+            self.assertEqual(content.status_code, 200)
+            self.assertEqual(content.content[4:8], b"ftyp")
+            self.assertEqual(self.client.get(video["content_url"]).status_code, 401)
+            with Session(engine) as session:
+                other = User(fullname="Video test", username="other-" + self.suffix,
+                    hash_password=get_password_hash("test-only"), role="Customer",
+                    email="video-" + self.suffix + "@example.test", phone="test-" + self.suffix)
+                session.add(other); session.commit(); session.refresh(other)
+                other_auth = {"Authorization": "Bearer " + create_access_token(other.id, timedelta(minutes=2))}
+            self.assertEqual(self.client.get(video["content_url"], headers=other_auth).status_code, 404)
+            peer.subscribe(f"driver/{self.source_code}/storage_ack")
+            event = {"message_id": video["message_id"], "device_code": self.source_code,
+                "timestamp": datetime.now(timezone.utc).isoformat(), "event_type": "STATE_CHANGED", "state": "DROWSY"}
+            peer.publish(f"driver/{self.source_code}/events", event)
+            peer.messages.get(timeout=5)
+            listed = self.client.get(f"/api/devices/{self.source_id}/videos", headers=self.auth)
+            self.assertTrue(listed.json()[0]["event_received"])
+        record("Video API", "Real broker login; 401 anonymous/wrong password; 201 new/200 retry/409 conflict; private download; video-before-event supported")
+
+    def test_24_video_validation_rollback_and_decommission(self):
+        _, credentials = self.provision_source()
+        with tempfile.TemporaryDirectory(prefix="codex-video-") as directory, \
+             patch.object(settings, "AI_VIDEO_DIR", Path(directory)):
+            self.assertEqual(self.client.post("/api/videos/upload", content=iter([b"chunked"])).status_code, 411)
+            self.assertEqual(self.client.post("/api/videos/upload", content=b"",
+                headers={"Content-Length": str(settings.AI_VIDEO_MAX_BYTES + 1048577)}).status_code, 413)
+            self.assertEqual(self.video_request(credentials, content=b"not-an-mp4").status_code, 415)
+            with patch.object(settings, "AI_VIDEO_MAX_BYTES", 16):
+                self.assertEqual(self.video_request(credentials).status_code, 413)
+            with patch("app.services.video_storage.Session.commit", side_effect=RuntimeError("test commit failure")):
+                self.assertEqual(self.video_request(credentials).status_code, 503)
+            self.assertEqual(list(Path(directory).iterdir()), [])
+            with Session(engine) as session:
+                self.assertEqual(session.exec(select(AiVideo).where(AiVideo.device_id == self.source_id)).all(), [])
+                device = session.get(Device, self.source_id)
+                device.lifecycle_state = "DECOMMISSIONED"
+                session.add(device); session.commit()
+            self.assertEqual(self.video_request(credentials).status_code, 409)
+        record("Video validation", "415 invalid header; 413 size; DB commit error removes staged file; decommission blocks upload")
+
+    def test_25_concurrent_video_retries_and_device_scope(self):
+        _, credentials = self.provision_source()
+        with tempfile.TemporaryDirectory(prefix="codex-video-") as directory, \
+             patch.object(settings, "AI_VIDEO_DIR", Path(directory)):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                replies = list(pool.map(lambda _: self.video_request(credentials), range(2)))
+            self.assertEqual(sorted(item.status_code for item in replies), [200, 201])
+            self.assertEqual(len({item.json()["video_id"] for item in replies}), 1)
+            self.assertEqual(len(list(Path(directory).glob("*.mp4"))), 1)
+            with Session(engine) as session:
+                other = Device(device_code="vision-other-" + self.suffix, model="Camera",
+                    device_type="VISION_NODE", lifecycle_state="ACTIVE")
+                session.add(other); session.commit(); session.refresh(other)
+                other_code = other.device_code
+            self.assertEqual(self.video_request(credentials, code=other_code).status_code, 403)
+        record("Video concurrent retries", "Two concurrent HTTP uploads create one metadata row and one file; another device's credentials rejected")
+
+    def test_26_setup_readiness_and_repeat_apply(self):
+        root = Path(__file__).resolve().parents[2]
+        command = [sys.executable, str(root / "backend/scripts/setup_ai_ingest.py")]
+        for _ in range(2):
+            result = subprocess.run([*command, "--apply", "--assign-user", "w3-" + self.suffix],
+                                    capture_output=True, text=True, encoding="utf-8", timeout=30)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            readiness = json.loads(result.stdout)
+            self.assertTrue(readiness["database_ready"])
+            self.assertTrue(readiness["broker_ready"])
+        check = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", timeout=15)
+        self.assertEqual(check.returncode, 0, check.stderr)
+        with Session(engine) as session:
+            device = session.exec(select(Device).where(Device.device_code == settings.AI_DEVICE_CODE)).one()
+            assignments = session.exec(select(UserDevice).where(UserDevice.device_id == device.id,
+                UserDevice.user_id == self.user_id, UserDevice.unassigned_at.is_(None))).all()
+            self.assertEqual(len(assignments), 1)
+        record("AI deployment setup", "Additive migrations and broker role update run twice; one Vision Node/assignment; read-only readiness passes")
 
 
 class EvidenceResult(unittest.TextTestResult):
