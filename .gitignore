@@ -91,4 +91,6 @@ compile_commands.json
 
 # Private video uploads; metadata and migrations stay in Git.
 /storage/
-/edge-ai/recordings
+
+# Camera output is relative to the directory used to launch Edge AI.
+recordings/
