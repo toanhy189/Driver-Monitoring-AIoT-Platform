@@ -5,4 +5,4 @@ pandas
 scikit-learn
 paho-mqtt
 python-dotenv
-sqlite3
+requests
