@@ -3,7 +3,7 @@ import { apiRequest } from "../services/api.js";
 import { getCurrentUser } from "../services/auth.js";
 import "../styles/login.css";
 
-function Login({ onLogin }) {
+function Login({ onLogin, notice = "", onOpenSignUp }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -41,6 +41,7 @@ function Login({ onLogin }) {
       <div className="login-card">
         <h1 className="login-title">GIÁM SÁT TÀI XẾ AIoT</h1>
         <p className="login-subtitle">Driver Monitoring System</p>
+        {notice && <p role="status">{notice}</p>}
 
         <form className="login-form" onSubmit={handleSubmit}>
           <label htmlFor="username">Tên đăng nhập</label>
@@ -62,6 +63,11 @@ function Login({ onLogin }) {
             {isSubmitting ? "Đang đăng nhập…" : "Đăng nhập"}
           </button>
         </form>
+        {onOpenSignUp && (
+          <button className="login-secondary-button" type="button" onClick={onOpenSignUp}>
+            Tạo tài khoản mới
+          </button>
+        )}
       </div>
     </main>
   );

@@ -43,8 +43,17 @@ def get_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 
-@router.post("/users/register", status_code=201)
+@router.post("/register", status_code=201)
 def register(data: RegisterRequest, session: Session = Depends(get_session)):
+    if not data.email.strip():
+        raise HTTPException(status_code=400, detail="Email cannot be blank")
+    if not data.phone.strip():
+        raise HTTPException(status_code=400, detail="Phone number cannot be blank")
+    if not data.phone.isdigit():
+        raise HTTPException(status_code=400, detail="Phone number must be numeric")
+    if data.password != data.confirm_password:
+            raise HTTPException(status_code=400, detail="Passwords do not match")
+
     if session.exec(select(User).where(User.username == data.username)).first():
         raise HTTPException(status_code=409, detail="Username already exists")
     if session.exec(select(User).where(User.email == data.email)).first():

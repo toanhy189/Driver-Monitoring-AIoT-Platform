@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import Login from "./components/Login.jsx";
+import SignUp from "./components/SignUp.jsx";
 import Dashboard from "./components/Dashboard.jsx";
 import DeviceListPage from "./pages/DeviceListPage.jsx";
 import DeviceDetailPage from "./pages/DeviceDetailPage.jsx";
@@ -19,6 +20,8 @@ function App() {
     error: "",
   }));
   const [checkAttempt, setCheckAttempt] = useState(0);
+  const [authPage, setAuthPage] = useState("login");
+  const [authNotice, setAuthNotice] = useState("");
   const [view, setView] = useState(currentView);
   const realtime = useRealtime(session.status === "authenticated" &&
     hasPermission(session.user?.role, "dashboard:view") ? session.user?.id : null);
@@ -123,7 +126,27 @@ function App() {
   }
 
   if (session.status === "anonymous") {
-    return <Login onLogin={handleLogin} />;
+    if (authPage === "signup") {
+      return (
+        <SignUp
+          onSignUp={handleLogin}
+          onOpenLogin={notice => {
+            setAuthNotice(notice || "");
+            setAuthPage("login");
+          }}
+        />
+      );
+    }
+    return (
+      <Login
+        onLogin={handleLogin}
+        notice={authNotice}
+        onOpenSignUp={() => {
+          setAuthNotice("");
+          setAuthPage("signup");
+        }}
+      />
+    );
   }
 
   if (!hasPermission(session.user?.role, "dashboard:view")) {
