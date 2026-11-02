@@ -15,8 +15,7 @@ CREATE TABLE users (
     email VARCHAR(255) UNIQUE NOT NULL,
     phone VARCHAR(20) UNIQUE NOT NULL,
     role VARCHAR(20) NOT NULL DEFAULT 'Customer'
-        CHECK (role IN ('Admin', 'Employee', 'Customer',
-                        'ADMIN', 'OPERATOR', 'VIEWER'))
+        CHECK (role IN ('Admin', 'Employee', 'Customer'))
 );
 
 CREATE TABLE devices (

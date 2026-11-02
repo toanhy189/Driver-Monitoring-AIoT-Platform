@@ -80,9 +80,6 @@ def _save_telemetry(session: Session, code: str, payload: dict, *, commit: bool 
         driver_state=payload.get("driver_state"),
         face_detected=payload.get("face_detected") if type(payload.get("face_detected")) is bool else None,
         head_pose=pose,
-        angle_x=payload.get("angle_x"),
-        angle_y=payload.get("angle_y"),
-        angle_z=payload.get("angle_z"),
         confidence=payload.get("confidence"),
         model_version=payload.get("model_version"),
     )
@@ -106,7 +103,6 @@ def _save_telemetry(session: Session, code: str, payload: dict, *, commit: bool 
                 "head_pose": telemetry.head_pose,
                 "confidence": telemetry.confidence,
                 "model_version": telemetry.model_version,
-                "angle_x": telemetry.angle_x, "angle_y": telemetry.angle_y, "angle_z": telemetry.angle_z,
             },
         },
         _device_event(device),
