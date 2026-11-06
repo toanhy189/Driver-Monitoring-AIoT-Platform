@@ -11,6 +11,7 @@ from app.models.user_device import UserDevice
 from app.schemas.device import DeviceRegisterRequest, DeviceResponse, DeviceStatusRequest, ProvisionResponse
 from app.schemas.telemetry import TelemetryHistoryItem, TelemetryHistoryResponse, TelemetryResponse
 from app.services.access import assigned_device, assigned_devices
+from app.services.audit_service import log_action
 from app.services.mqtt_provision_service import provision_device
 from app.services.mqtt_revoke_service import revoke_device
 from app.services.time_utils import as_utc
@@ -151,6 +152,11 @@ def register_device(
     session.add(device)
     session.flush()
     session.add(UserDevice(user_id=current_user.id, device_id=device.id))
+    # Dang ky truoc day chi tao device va assignment; audit cung giao dich.
+    log_action(
+        session, current_user.id, "REGISTER_DEVICE", "Device", str(device.id),
+        {"device_code": device.device_code, "to_state": device.lifecycle_state},
+    )
     session.commit()
     session.refresh(device)
     return {"message": "Device registered", "device": _response(device)}
@@ -176,6 +182,11 @@ def provision_mqtt_credentials(
     device.mqtt_password = None
     device.lifecycle_state = "PROVISIONED"
     session.add(device)
+    # Provision truoc day khong audit; chi ghi username metadata, khong ghi password.
+    log_action(
+        session, current_user.id, "PROVISION_DEVICE_CREDENTIALS", "Device", str(device.id),
+        {"device_code": device.device_code, "from_state": "REGISTERED", "to_state": "PROVISIONED"},
+    )
     session.commit()
     session.refresh(device)
     response.headers["Cache-Control"] = "no-store"
@@ -195,8 +206,14 @@ def activate_device(
     device = assigned_device(session, current_user.id, device_id)
     if device.lifecycle_state not in {"PROVISIONED", "MAINTENANCE"}:
         raise HTTPException(status_code=409, detail="Device must be provisioned or in maintenance")
+    previous_state = device.lifecycle_state
     device.lifecycle_state = "ACTIVE"
     session.add(device)
+    # Audit ghi lai actor va buoc chuyen state ma khong can luu thong tin bi mat.
+    log_action(
+        session, current_user.id, "ACTIVATE_DEVICE", "Device", str(device.id),
+        {"device_code": device.device_code, "from_state": previous_state, "to_state": "ACTIVE"},
+    )
     session.commit()
     session.refresh(device)
     return _response(device)
@@ -211,8 +228,14 @@ def maintain_device(
     device = assigned_device(session, current_user.id, device_id)
     if device.lifecycle_state != "ACTIVE":
         raise HTTPException(status_code=409, detail="Only active devices can enter maintenance")
+    previous_state = device.lifecycle_state
     device.lifecycle_state = "MAINTENANCE"
     session.add(device)
+    # Ghi nhan thao tac dua thiet bi vao bao tri de doi chieu vong doi thiet bi.
+    log_action(
+        session, current_user.id, "DEVICE_MAINTENANCE", "Device", str(device.id),
+        {"device_code": device.device_code, "from_state": previous_state, "to_state": "MAINTENANCE"},
+    )
     session.commit()
     session.refresh(device)
     return _response(device)
@@ -234,11 +257,17 @@ def decommission_device(
             raise HTTPException(status_code=422, detail=str(error))
         except Exception as error:
             raise HTTPException(status_code=503, detail=f"MQTT revoke unavailable: {error}")
+    previous_state = device.lifecycle_state
     device.lifecycle_state = "DECOMMISSIONED"
     device.status = "OFFLINE"
     device.mqtt_username = None
     device.mqtt_password = None
     session.add(device)
+    # Decommission truoc day chi doi state; audit ghi ket qua revoke, khong ghi credential.
+    log_action(
+        session, current_user.id, "DECOMMISSION_DEVICE", "Device", str(device.id),
+        {"device_code": device.device_code, "from_state": previous_state, "to_state": "DECOMMISSIONED"},
+    )
     session.commit()
     session.refresh(device)
     return _response(device)
@@ -258,6 +287,11 @@ def update_device_status(
         raise HTTPException(status_code=422, detail="Invalid connection status")
     device.status = data.status
     session.add(device)
+    # Audit cap nhat trang thai ket noi de truy vet thao tac quan tri.
+    log_action(
+        session, current_user.id, "UPDATE_DEVICE_STATUS", "Device", str(device.id),
+        {"device_code": device.device_code, "status": data.status},
+    )
     session.commit()
     session.refresh(device)
     return _response(device)

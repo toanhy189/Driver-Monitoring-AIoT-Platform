@@ -462,7 +462,11 @@ class Week3Integration(unittest.TestCase):
         root = Path(__file__).resolve().parents[2]
         container_env = {key: str(value).lower() if isinstance(value, bool) else str(value)
                          for key, value in settings.model_dump().items()}
-        container_env.update({"DATABASE_URL": engine.url.set(host="host.docker.internal").render_as_string(hide_password=False),
+        # Truoc day backend test dung host.docker.internal; chuyen sang alias noi bo neu PG cung network.
+        postgres_host = os.getenv("W3_TEST_POSTGRES_HOST", "host.docker.internal")
+        postgres_port = 5432 if os.getenv("W3_TEST_POSTGRES_HOST") else engine.url.port
+        database_url = engine.url.set(host=postgres_host, port=postgres_port).render_as_string(hide_password=False)
+        container_env.update({"DATABASE_URL": database_url,
             "MQTT_HOST": "host.docker.internal", "ENABLE_BACKGROUND_TASKS": "false", "WS_TICKET_TTL_SECONDS": "2"})
         if os.getenv("W3_TEST_MQTT_DOCKER_HOST"):
             container_env.update({"MQTT_HOST": os.environ["W3_TEST_MQTT_DOCKER_HOST"], "MQTT_PORT": "1883"})

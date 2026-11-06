@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import logging
 
 from sqlmodel import Session, select
 
@@ -6,6 +7,8 @@ from app.core.db import engine
 
 from app.models.device import Device
 from app.models.telemetry import Telemetry
+
+logger = logging.getLogger(__name__)
 
 
 def save_telemetry(device_code: str, data: dict):
@@ -17,7 +20,11 @@ def save_telemetry(device_code: str, data: dict):
         ).first()
 
         if not device:
-            print(f"Không tìm thấy device: {device_code}")
+            # Print cu khong co schema; thay bang log co event va metadata toi thieu.
+            logger.warning(
+                "Telemetry source device was not found",
+                extra={"event": "telemetry_device_not_found", "device_code": device_code},
+            )
             return
 
         telemetry = Telemetry(

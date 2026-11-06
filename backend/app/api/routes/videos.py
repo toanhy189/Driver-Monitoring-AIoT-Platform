@@ -3,6 +3,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
+import logging
 from sqlmodel import Session, select
 
 from app.api.deps import require_viewer
@@ -13,11 +14,13 @@ from app.models.device import Device
 from app.models.user import User
 from app.models.video import AiVideo
 from app.services.access import assigned_device
+from app.services.audit_service import log_action
 from app.services.device_auth import verify_mqtt_login
 from app.services.time_utils import as_utc
 from app.services.video_storage import store_video, video_path
 
 router = APIRouter(tags=["videos"])
+logger = logging.getLogger(__name__)
 device_basic = HTTPBasic(scheme_name="VisionNodeCredentials", auto_error=False)
 
 
@@ -63,6 +66,15 @@ def upload_video(
     video, created = store_video(session, device, file, state, message_id)
     response.status_code = 201 if created else 200
     response.headers["Cache-Control"] = "no-store"
+    # Upload video truoc day khong co log; chi ghi device va ket qua, khong ghi noi dung.
+    logger.info(
+        "Video upload stored",
+        extra={
+            "event": "video_upload_stored",
+            "device_code": device.device_code,
+            "result": "created" if created else "duplicate",
+        },
+    )
     return {**_public(session, video), "status": "SAVED", "duplicate": not created}
 
 
@@ -85,5 +97,11 @@ def download_video(video_id: int, current_user: User = Depends(require_viewer), 
     path = video_path(video)
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Video file not found")
+    # Download truoc day khong audit; ghi sau khi assignment va file deu hop le.
+    log_action(
+        session, current_user.id, "DOWNLOAD_VIDEO", "AiVideo", str(video.id),
+        {"video_id": video.id, "size_bytes": video.size_bytes},
+    )
+    session.commit()
     return FileResponse(path, media_type="video/mp4", filename=f"video-{video.id}.mp4",
                         headers={"Cache-Control": "private, no-store"})

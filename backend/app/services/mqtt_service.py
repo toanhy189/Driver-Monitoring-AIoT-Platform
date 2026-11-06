@@ -20,6 +20,7 @@ from app.models.device import Device
 from app.models.telemetry import Telemetry
 from app.schemas.ai_telemetry import QueuedTelemetry
 from app.schemas.rules import AiEventRequest
+from app.services.audit_service import log_action
 from app.services.command_state import aggregate, update_dispatch
 from app.services.websocket_manager import manager
 
@@ -235,6 +236,16 @@ def _save_ack(session: Session, code: str, payload: dict) -> list[dict]:
         command.ack_status = previous_ack_status
         command.error_message = previous_error
     session.add(command)
+    # ACK MQTT truoc day chi cap nhat command; audit gan actor tao lenh neu co, khong luu payload.
+    if command.created_by_user_id is not None:
+        log_action(
+            session=session,
+            user_id=command.created_by_user_id,
+            action="COMMAND_ACK_UPDATED",
+            entity_type="Command",
+            entity_id=command.request_id,
+            details={"ack_status": command.ack_status, "status": command.status},
+        )
     session.commit()
     return [{"type": "command.updated", "data": {
         "request_id": command.request_id,

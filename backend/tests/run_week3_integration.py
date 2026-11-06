@@ -21,7 +21,8 @@ def main():
     target = base.set(database=database)
     connect = dict(host=base.host, port=base.port or 5432, user=base.username,
                    password=base.password, dbname=base.database, connect_timeout=5)
-    evidence = ROOT / "docs/evidence/week3"
+    # Truoc day runner ghi evidence vao docs/evidence/week3; chuyen sang week4 de giu nguyen evidence cu.
+    evidence = ROOT / "docs/evidence/week4/tv2-06"
     evidence.mkdir(parents=True, exist_ok=True)
     with psycopg.connect(**connect, autocommit=True) as admin:
         admin.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(database)))
@@ -40,7 +41,14 @@ def main():
             output = result.stdout + result.stderr
             (evidence / "integration-output.txt").write_text(output, encoding="utf-8")
             print(output)
-            return result.returncode
+            # Truoc day runner chi chay suite W3; chay them suite W4 tren cung DB tam de bo sung cac ca con thieu.
+            week4_env = {**env, "W4_INTEGRATION": "1", "W4_EVIDENCE": str(evidence)}
+            week4 = subprocess.run([sys.executable, "backend/tests/test_week4_integration.py"],
+                                   cwd=ROOT, env=week4_env, text=True, encoding="utf-8", capture_output=True)
+            week4_output = week4.stdout + week4.stderr
+            (evidence / "week4-integration-output.txt").write_text(week4_output, encoding="utf-8")
+            print(week4_output)
+            return result.returncode or week4.returncode
         finally:
             # Only this newly created database may be removed. No application DB is reset.
             if not database.startswith("codex_w3_"):

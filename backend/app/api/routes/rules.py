@@ -10,6 +10,7 @@ from app.models.ai_event import RuleBinding
 from app.models.user import User
 from app.schemas.rules import RuleBindingRequest, RulePolicy
 from app.services.access import assigned_device
+from app.services.audit_service import log_action
 
 
 router = APIRouter(tags=["rules"])
@@ -42,5 +43,10 @@ def put_rule(device_id: int, data: RuleBindingRequest, current_user: User = Depe
     binding.policy = data.policy.model_dump()
     binding.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
     session.add(binding)
+    # Rule change truoc day khong co audit; ghi target/enabled, khong luu payload tuy y.
+    log_action(
+        session, current_user.id, "UPDATE_RULE_BINDING", "RuleBinding", str(device_id),
+        {"target_device_id": target.id, "enabled": data.enabled},
+    )
     session.commit()
     return get_rule(device_id, current_user, session)

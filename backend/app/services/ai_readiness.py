@@ -16,7 +16,10 @@ def database_readiness() -> dict:
         device = session.exec(select(Device).where(Device.device_code == settings.AI_DEVICE_CODE)).first()
     source_ok = bool(device and device.device_type == "VISION_NODE" and device.lifecycle_state == "ACTIVE")
     return {"missing_tables": missing, "device_code": settings.AI_DEVICE_CODE,
-            "device_registered": device is not None, "source_ready": source_ok,
+            "device_registered": device is not None,
+            "device_type": device.device_type if device else None,
+            "lifecycle_state": device.lifecycle_state if device else None,
+            "source_ready": source_ok,
             "database_ready": not missing and source_ok}
 
 

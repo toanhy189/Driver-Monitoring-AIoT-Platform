@@ -138,6 +138,7 @@ def send_test_alert(
     parent = _save_parent(session, device, current_user, data.action, actions,
                           idempotency_key=idempotency_key, request_hash=digest)
     request.state.command_id = parent.id
+    # Tao audit cung giao dich command de co the truy vet nguoi phat lenh.
     log_action(
         session=session, user_id=current_user.id, action="TEST_ALERT",
         entity_type="Command", entity_id=parent.request_id,
@@ -218,4 +219,10 @@ def send_command_legacy(
     parent = _save_parent(session, device, current_user, data.command, actions,
                           idempotency_key=idempotency_key, request_hash=digest)
     request.state.command_id = parent.id
+    # Legacy command truoc day tao command nhung khong co audit row.
+    log_action(
+        session, current_user.id, "SEND_COMMAND", "Command", parent.request_id,
+        {"device_code": device.device_code, "status": parent.status},
+    )
+    session.commit()
     return _publish_actions(session, parent, device, actions)

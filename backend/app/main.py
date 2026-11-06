@@ -3,6 +3,7 @@ from threading import Thread, Event
 from datetime import datetime, timezone
 from time import perf_counter
 import logging
+from uuid import uuid4
 from sqlmodel import Session
 from app.core.db import engine
 from app.models.command import Command
@@ -14,8 +15,18 @@ from starlette.middleware.cors import CORSMiddleware
 from app.api.main import api_router
 from app.api.routes.websocket import router as websocket_router
 from app.core.config import settings
+from app.core.logging_config import (
+    configure_logging,
+    correlation_id_context,
+    request_method_context,
+    request_path_context,
+)
 from app.services.mqtt_service import start_mqtt_consumer
 from app.services.background_tasks import run_background_tasks
+
+# Log mac dinh truoc day la van ban thuong; chuyen backend va Uvicorn sang JSON.
+configure_logging()
+logger = logging.getLogger(__name__)
 
 def custom_generate_unique_id(route):
     tag = route.tags[0] if route.tags else "default"
@@ -64,30 +75,58 @@ app.include_router(api_router, prefix=settings.API_STR)
 app.include_router(websocket_router)
 
 
+# Middleware gan correlation ID cho HTTP log/audit va giu cac header do luong cua ung dung.
 @app.middleware("http")
 async def record_http_duration(request, call_next):
-    if request.url.path == f"{settings.API_STR}/videos/upload" and request.method == "POST":
-        length = request.headers.get("content-length")
-        # Bound multipart parsing/spooling too, before FastAPI constructs UploadFile.
-        if length is None:
-            return JSONResponse(status_code=411, content={"detail": "Content-Length required for video uploads"})
-        if not length.isdigit():
-            return JSONResponse(status_code=400, content={"detail": "Invalid Content-Length"})
-        if int(length) > settings.AI_VIDEO_MAX_BYTES + 1048576:
-            return JSONResponse(status_code=413, content={"detail": "Video exceeds upload size limit"})
+    request_id = uuid4().hex
+    context_token = correlation_id_context.set(request_id)
+    method_token = request_method_context.set(request.method)
+    path_token = request_path_context.set(request.url.path)
+    request.state.correlation_id = request_id
     received = datetime.now(timezone.utc).replace(tzinfo=None)
     started = perf_counter()
-    response = await call_next(request)
-    duration = round((perf_counter() - started) * 1000, 3)
-    response.headers["X-Response-Time-Ms"] = str(duration)
-    command_id = getattr(request.state, "command_id", None)
-    if command_id is not None:
-        with Session(engine) as session:
-            command = session.get(Command, command_id)
-            if command:
-                command.http_received_at = received
-                command.http_completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
-                command.http_duration_ms = duration
-                session.add(command)
-                session.commit()
-    return response
+    response = None
+    try:
+        if request.url.path == f"{settings.API_STR}/videos/upload" and request.method == "POST":
+            length = request.headers.get("content-length")
+            # Gioi han multipart truoc khi FastAPI tao UploadFile, nhu hanh vi cu.
+            if length is None:
+                response = JSONResponse(
+                    status_code=411,
+                    content={"detail": "Content-Length required for video uploads"},
+                )
+            elif not length.isdigit():
+                response = JSONResponse(status_code=400, content={"detail": "Invalid Content-Length"})
+            elif int(length) > settings.AI_VIDEO_MAX_BYTES + 1048576:
+                response = JSONResponse(status_code=413, content={"detail": "Video exceeds upload size limit"})
+        if response is None:
+            response = await call_next(request)
+        duration = round((perf_counter() - started) * 1000, 3)
+        response.headers["X-Response-Time-Ms"] = str(duration)
+        response.headers["X-Correlation-ID"] = request_id
+        command_id = getattr(request.state, "command_id", None)
+        if command_id is not None:
+            with Session(engine) as session:
+                command = session.get(Command, command_id)
+                if command:
+                    command.http_received_at = received
+                    command.http_completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+                    command.http_duration_ms = duration
+                    session.add(command)
+                    session.commit()
+        return response
+    finally:
+        # Ghi mot dong ket qua cho moi request truoc khi don context de khoanh vung loi.
+        logger.info(
+            "HTTP request completed",
+            extra={
+                "event": "http_request_completed",
+                "method": request.method,
+                "path": request.url.path,
+                "status_code": response.status_code if response is not None else 500,
+                "duration_ms": round((perf_counter() - started) * 1000, 3),
+            },
+        )
+        request_path_context.reset(path_token)
+        request_method_context.reset(method_token)
+        correlation_id_context.reset(context_token)

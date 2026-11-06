@@ -1,4 +1,5 @@
 from datetime import timedelta
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
@@ -9,9 +10,11 @@ from app.core.config import settings
 from app.core.db import get_session
 from app.models.user import User
 from app.schemas.user import LoginRequest, LoginResponse, RegisterRequest, UserResponse
+from app.services.audit_service import log_action
 
 
 router = APIRouter(tags=["users"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/users", response_model=list[UserResponse])
@@ -29,12 +32,42 @@ def login(data: LoginRequest, session: Session = Depends(get_session)):
     ).first()
 
     if not user or not acs.verify_password(data.password, user.hash_password):
+        # Login sai truoc day khong tao audit; chi ghi user_id neu tai khoan ton tai.
+        if user is not None:
+            log_action(
+                session=session,
+                user_id=user.id,
+                action="LOGIN_FAILED",
+                entity_type="User",
+                entity_id=str(user.id),
+                details={"result": "denied"},
+            )
+            session.commit()
+        # Tai khoan khong ton tai khong co actor DB; ghi event toi thieu va khong ghi username.
+        logger.warning(
+            "Authentication failed",
+            extra={
+                "event": "login_failed",
+                "result": "denied",
+                "user_id": user.id if user is not None else None,
+            },
+        )
         raise HTTPException(status_code=401, detail="Incorrect username or password")
 
     access_token = acs.create_access_token(
         subject=str(user.id),
         expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
     )
+    # Login thanh cong truoc day chi phat token; audit them actor va ket qua, khong ghi token.
+    log_action(
+        session=session,
+        user_id=user.id,
+        action="LOGIN_SUCCESS",
+        entity_type="User",
+        entity_id=str(user.id),
+        details={"result": "success"},
+    )
+    session.commit()
     return LoginResponse(access_token=access_token, token_type="bearer")
 
 

@@ -13,7 +13,8 @@ import time
 
 
 ROOT = Path(__file__).resolve().parents[2]
-EVIDENCE = ROOT / "docs/evidence/week3"
+# Truoc day runner ghi evidence vao docs/evidence/week3; chuyen sang week4 de giu nguyen evidence cu.
+EVIDENCE = ROOT / "docs/evidence/week4/tv2-06"
 
 
 def docker(*args):
@@ -26,11 +27,12 @@ def docker(*args):
 def main():
     suffix = secrets.token_hex(5)
     name, network = "codex-w3-broker-" + suffix, "codex-w3-net-" + suffix
+    volume = "codex-w3-mqtt-data-" + suffix
+    postgres_container = os.getenv("W3_TEST_POSTGRES_CONTAINER")
+    postgres_alias = "w3-postgres"
     EVIDENCE.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="codex-w3-broker-") as directory:
         temporary = Path(directory)
-        data = temporary / "data"
-        data.mkdir()
         env = {**os.environ, "MQTT_HOST": "127.0.0.1", "MQTT_ADMIN_USERNAME": "test-admin",
                "MQTT_ADMIN_PASSWORD": secrets.token_urlsafe(24), "MQTT_USERNAME": "test-backend",
                "MQTT_PASSWORD": secrets.token_urlsafe(24), "AI_MQTT_USERNAME": "vision-01",
@@ -47,6 +49,9 @@ def main():
             port = reservation.getsockname()[1]
         env["MQTT_PORT"] = str(port)
         created_network = False
+        connected_postgres = False
+        created_volume = False
+        started_broker = False
         try:
             # Rebuild dependencies when requirements change; mounting code into an old image is insufficient.
             build = subprocess.run(["docker", "build", "-t", env["W3_BACKEND_IMAGE"], "-f",
@@ -56,14 +61,22 @@ def main():
                 raise RuntimeError("Test backend image build failed: " + build.stderr[-1500:])
             docker("network", "create", network)
             created_network = True
+            docker("volume", "create", volume)
+            created_volume = True
+            if postgres_container:
+                # Dua PostgreSQL thu vao network tam cung backend, tranh phu thuoc host.docker.internal.
+                docker("network", "connect", "--alias", postgres_alias, network, postgres_container)
+                connected_postgres = True
+                env["W3_TEST_POSTGRES_HOST"] = postgres_alias
             docker("run", "--rm", "--env-file", str(credentials),
-                "--mount", f"type=bind,source={data},target=/mosquitto/data",
+                "--mount", f"type=volume,source={volume},target=/mosquitto/data",
                 "--mount", f"type=bind,source={ROOT / 'deployment/mqtt/init.sh'},target=/mosquitto/config/init.sh,readonly",
                 "--entrypoint", "/bin/sh", "eclipse-mosquitto:2", "/mosquitto/config/init.sh")
             docker("run", "-d", "--name", name, "--network", network, "-p", f"127.0.0.1:{port}:1883",
-                "--mount", f"type=bind,source={data},target=/mosquitto/data",
+                "--mount", f"type=volume,source={volume},target=/mosquitto/data",
                 "--mount", f"type=bind,source={ROOT / 'deployment/mqtt/mosquitto.conf'},target=/mosquitto/config/mosquitto.conf,readonly",
                 "eclipse-mosquitto:2")
+            started_broker = True
             for _ in range(50):
                 try:
                     with socket.create_connection(("127.0.0.1", port), timeout=0.2):
@@ -81,9 +94,28 @@ def main():
                 "exit_code": acl.returncode, "scope": "Isolated real Docker MQTT broker; temporary accounts; production ACL unchanged"}, indent=2), encoding="utf-8")
             return run.returncode or acl.returncode
         finally:
-            subprocess.run(["docker", "rm", "-f", name], capture_output=True, timeout=30)
+            cleanup_errors = []
+            if started_broker:
+                result = subprocess.run(["docker", "rm", "-f", name], capture_output=True, text=True, timeout=30)
+                if result.returncode:
+                    cleanup_errors.append("broker container: " + result.stderr.strip())
+            if connected_postgres:
+                result = subprocess.run(["docker", "network", "disconnect", network, postgres_container],
+                    capture_output=True, text=True, timeout=30)
+                if result.returncode:
+                    cleanup_errors.append("PostgreSQL network disconnect: " + result.stderr.strip())
             if created_network:
-                subprocess.run(["docker", "network", "rm", network], capture_output=True, timeout=30)
+                result = subprocess.run(["docker", "network", "rm", network],
+                    capture_output=True, text=True, timeout=30)
+                if result.returncode:
+                    cleanup_errors.append("test network: " + result.stderr.strip())
+            if created_volume:
+                result = subprocess.run(["docker", "volume", "rm", volume],
+                    capture_output=True, text=True, timeout=30)
+                if result.returncode:
+                    cleanup_errors.append("broker data volume: " + result.stderr.strip())
+            if cleanup_errors:
+                raise RuntimeError("Test resource cleanup failed: " + "; ".join(cleanup_errors))
 
 
 if __name__ == "__main__":
