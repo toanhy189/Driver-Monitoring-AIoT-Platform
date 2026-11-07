@@ -20,6 +20,11 @@ def assigned_device(session: Session, user_id: int, device_id: int) -> Device:
     return device
 
 
+def require_vision_node(device: Device) -> None:
+    if device.device_type != "VISION_NODE":
+        raise HTTPException(status_code=409, detail="Telemetry and metrics are only available for vision nodes")
+
+
 def assigned_devices(session: Session, user_id: int) -> list[Device]:
     return session.exec(
         select(Device)

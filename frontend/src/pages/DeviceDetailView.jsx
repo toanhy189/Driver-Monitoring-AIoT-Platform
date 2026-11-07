@@ -46,7 +46,11 @@ function DeviceDetailView({ user, realtime, deviceId, device, detailSource, load
       const reason = deviceActionBlockReason(device, item.key);
       return <button key={item.key} className={`action-tile action-tile--${item.key}`} disabled={busyAction !== null || Boolean(reason)} title={reason || undefined} onClick={() => performAction(item.key)}><Icon name={item.icon} size={28} /><span><strong>{busyAction === item.key ? "Đang gửi…" : item.label}</strong><small>{reason || item.hint}</small></span></button>;
     })}</div>{actionError && <p className="notice-error" role="alert">{actionError}</p>}{actionNotice && <p className="notice-success" role="status">{actionNotice}</p>}</section>}
-    {detailSource === "detail" && !detailError && <DeviceHistoryPanel deviceId={deviceId} onUnauthorized={onUnauthorized} />}
+    {detailSource === "detail" && !detailError && <DeviceHistoryPanel
+      deviceId={deviceId}
+      deviceType={type}
+      onUnauthorized={onUnauthorized}
+    />}
   </AppShell>;
 }
 

@@ -281,9 +281,14 @@ class Week3Integration(unittest.TestCase):
             self.assertEqual(process_message("driver/other/ack", {"request_id": child["request_id"], "status": "COMPLETED"}), [])
             self.assertEqual(process_message(f"driver/{self.target_code}/ack", {"request_id": child["request_id"], "status": "COMPLETED"}), [])
         record("TV2-11/12/20", {"after_two_ack": "ACCEPTED", "after_three_ack": result["ack_status"], "latency": result["latency"]})
-        stats = self.client.get(f"/api/devices/{self.target_id}/metrics", headers=self.auth).json()
-        self.assertEqual(stats["commands"]["count"], 1)
-        self.assertIsNotNone(stats["latency"]["http_avg_ms"])
+        for path in (
+            f"/api/{self.target_id}/telemetry",
+            f"/api/{self.target_id}/telemetry/history",
+            f"/api/devices/{self.target_id}/telemetry/history",
+            f"/api/devices/{self.target_id}/metrics",
+        ):
+            response = self.client.get(path, headers=self.auth)
+            self.assertEqual(response.status_code, 409, response.text)
 
     def test_05_timeout_and_late_ack(self):
         self.provision()

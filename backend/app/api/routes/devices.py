@@ -10,7 +10,7 @@ from app.models.user import User
 from app.models.user_device import UserDevice
 from app.schemas.device import DeviceRegisterRequest, DeviceResponse, DeviceStatusRequest, ProvisionResponse
 from app.schemas.telemetry import TelemetryHistoryItem, TelemetryHistoryResponse, TelemetryResponse
-from app.services.access import assigned_device, assigned_devices
+from app.services.access import assigned_device, assigned_devices, require_vision_node
 from app.services.audit_service import log_action
 from app.services.mqtt_provision_service import provision_device
 from app.services.mqtt_revoke_service import revoke_device
@@ -57,6 +57,7 @@ def get_current_telemetry(
     session: Session = Depends(get_session),
 ):
     device = assigned_device(session, current_user.id, device_id)
+    require_vision_node(device)
     telemetry = session.exec(
         select(Telemetry)
         .where(Telemetry.device_id == device_id)
@@ -90,6 +91,7 @@ def get_telemetry_history(
     session: Session = Depends(get_session),
 ):
     device = assigned_device(session, current_user.id, device_id)
+    require_vision_node(device)
     for value in (from_time, to_time):
         if value is not None and (value.tzinfo is None or value.utcoffset() is None):
             raise HTTPException(status_code=422, detail="from_time/to_time must include a UTC offset")

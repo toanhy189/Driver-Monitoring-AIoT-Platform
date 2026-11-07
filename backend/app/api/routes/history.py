@@ -16,7 +16,7 @@ from app.models.command import Command
 from app.models.telemetry import Telemetry
 from app.models.user import User
 from app.schemas.history import Page, TelemetryPoint, TimelineItem, MetricsResponse
-from app.services.access import assigned_device
+from app.services.access import assigned_device, require_vision_node
 from app.services.time_utils import as_utc
 
 
@@ -84,7 +84,8 @@ def alert_query(device_id, window):
 @router.get("/devices/{device_id}/telemetry/history", response_model=Page[TelemetryPoint])
 def telemetry_history(device_id: int, window: Window = Depends(history_window),
                       current_user: User = Depends(require_viewer), session: Session = Depends(get_session)):
-    assigned_device(session, current_user.id, device_id)
+    device = assigned_device(session, current_user.id, device_id)
+    require_vision_node(device)
     ordering = (Telemetry.recorded_at.asc(), Telemetry.id.asc()) if window.order == "asc" else \
                (Telemetry.recorded_at.desc(), Telemetry.id.desc())
     rows = session.exec(telemetry_query(device_id, window).order_by(*ordering)
@@ -138,7 +139,8 @@ def timeline(device_id: int, window: Window = Depends(history_window),
 @router.get("/devices/{device_id}/metrics", response_model=MetricsResponse)
 def metrics(device_id: int, window: Window = Depends(history_window),
             current_user: User = Depends(require_viewer), session: Session = Depends(get_session)):
-    assigned_device(session, current_user.id, device_id)
+    device = assigned_device(session, current_user.id, device_id)
+    require_vision_node(device)
     t = telemetry_query(device_id, window).subquery()
     c = command_query(device_id, window).subquery()
     a = alert_query(device_id, window).subquery()

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { getTelemetryHistory } from "../services/telemetryApi.js";
+import { mergeTelemetryItems } from "../services/telemetry.js";
 import { Icon } from "./AppShell.jsx";
 import "../styles/ai-metrics.css";
 
@@ -23,6 +24,13 @@ function formatTime(isoString) {
   return Number.isNaN(d.getTime()) ? "—" : d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
+function latestTimestamp(current, candidate) {
+  const currentTime = Date.parse(current);
+  const candidateTime = Date.parse(candidate);
+  return Number.isFinite(currentTime) && (!Number.isFinite(candidateTime) || currentTime > candidateTime)
+    ? current : candidate || current;
+}
+
 export default function AiMetricsSection({ deviceId, deviceCode, realtime, onUnauthorized }) {
   const [filterKey, setFilterKey] = useState("1h");
   const [history, setHistory] = useState({ items: [], total_samples: 0, model_version: null, last_updated: null });
@@ -30,6 +38,7 @@ export default function AiMetricsSection({ deviceId, deviceCode, realtime, onUna
   const [error, setError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
   const inFlightRef = useRef(false);
+  const realtimeItemsRef = useRef([]);
   const lastEventSeq = useRef(realtime?.events?.at(-1)?.sequence ?? 0);
 
   // Fetch telemetry history with filters and limit
@@ -50,7 +59,17 @@ export default function AiMetricsSection({ deviceId, deviceCode, realtime, onUna
     getTelemetryHistory(deviceId, { fromTime, limit: 100, signal: controller.signal })
       .then(res => {
         if (!active) return;
-        setHistory(res || { items: [], total_samples: 0, model_version: null, last_updated: null });
+        const snapshot = res || { items: [], total_samples: 0, model_version: null, last_updated: null };
+        const fromTimestamp = fromTime ? Date.parse(fromTime) : null;
+        const recentRealtimeItems = realtimeItemsRef.current.filter(item =>
+          fromTimestamp === null || Date.parse(item.recorded_at) >= fromTimestamp);
+        const items = mergeTelemetryItems(snapshot.items || [], recentRealtimeItems);
+        setHistory({
+          ...snapshot,
+          items,
+          model_version: items.at(-1)?.model_version || snapshot.model_version,
+          last_updated: latestTimestamp(snapshot.last_updated, items.at(-1)?.recorded_at),
+        });
         setError("");
       })
       .catch(err => {
@@ -89,30 +108,29 @@ export default function AiMetricsSection({ deviceId, deviceCode, realtime, onUna
       const data = ev.data;
       if (data.device_id !== deviceId && data.device_code !== deviceCode) continue;
 
+      const newItem = {
+        id: data.id || Date.now(),
+        recorded_at: data.recorded_at || new Date().toISOString(),
+        ear: data.ear,
+        perclos: data.perclos,
+        driver_state: data.driver_state,
+        confidence: data.confidence,
+        face_detected: data.face_detected,
+        model_version: data.model_version,
+      };
+      realtimeItemsRef.current = mergeTelemetryItems(realtimeItemsRef.current, [newItem]);
       setHistory(current => {
         const items = current?.items || [];
-        // Prevent duplicate timestamp / id
-        const exists = items.some(it => it.recorded_at === data.recorded_at || (data.id && it.id === data.id));
-        if (exists) return current;
-
-        const newItem = {
-          id: data.id || Date.now(),
-          recorded_at: data.recorded_at || new Date().toISOString(),
-          ear: data.ear,
-          perclos: data.perclos,
-          driver_state: data.driver_state,
-          confidence: data.confidence,
-          face_detected: data.face_detected,
-          model_version: data.model_version || current.model_version,
-        };
-
-        const updatedItems = [...items.slice(-99), newItem];
+        const updatedItems = mergeTelemetryItems(items, [{
+          ...newItem,
+          model_version: newItem.model_version || current.model_version,
+        }]);
         return {
           ...current,
           items: updatedItems,
           total_samples: updatedItems.length,
-          model_version: newItem.model_version || current.model_version,
-          last_updated: newItem.recorded_at,
+          model_version: updatedItems.at(-1)?.model_version || current.model_version,
+          last_updated: latestTimestamp(current.last_updated, updatedItems.at(-1)?.recorded_at),
         };
       });
     }

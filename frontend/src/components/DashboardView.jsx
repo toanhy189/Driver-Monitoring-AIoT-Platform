@@ -59,6 +59,7 @@ function DashboardView({ user, onLogout, onOpenDevices, onOpenCommands, onOpenAl
 
     {selectedDeviceId && (
       <AiMetricsSection
+        key={`${user?.id ?? ""}:${selectedDeviceId}`}
         deviceId={selectedDeviceId}
         deviceCode={selectedDevice?.device_code}
         realtime={realtime}

@@ -22,6 +22,7 @@ from app.models.device import Device  # noqa: E402
 from app.models.telemetry import Telemetry  # noqa: E402
 from app.models.user import User  # noqa: E402
 from app.schemas.device import DeviceResponse  # noqa: E402
+from app.schemas.history import TelemetryPoint  # noqa: E402
 from app.schemas.user import LoginRequest  # noqa: E402
 
 
@@ -96,7 +97,7 @@ class MergeContractTests(unittest.TestCase):
         self.assertIn("user_devices.unassigned_at IS NULL", sql)
 
     def test_telemetry_is_serializable_or_explicitly_missing(self):
-        device = Device(id=1, device_code="vision-01", model="Vision V1")
+        device = Device(id=1, device_code="vision-01", model="Vision V1", device_type="VISION_NODE")
         telemetry = Telemetry(device_id=1, ear=0.25, perclos=0.18)
         user = User(id=7, fullname="A", username="a", hash_password="x",
                     email="a@example.test", phone="1", role="Customer")
@@ -106,6 +107,19 @@ class MergeContractTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as missing:
             get_current_telemetry(1, user, FakeSession((device, None)))
         self.assertEqual(missing.exception.status_code, 404)
+        alert_device = Device(id=2, device_code="alert-01", model="Alert V1", device_type="ALERT_NODE")
+        with self.assertRaises(HTTPException) as unsupported:
+            get_current_telemetry(2, user, FakeSession((alert_device, None)))
+        self.assertEqual(unsupported.exception.status_code, 409)
+
+    def test_paginated_telemetry_schema_matches_database_model(self):
+        telemetry = Telemetry(
+            id=3, device_id=1, ear=0.25, perclos=0.35,
+            driver_state="DROWSY", model_version="model-v1",
+        )
+        point = TelemetryPoint.model_validate(telemetry.model_dump())
+        self.assertEqual(point.ear, 0.25)
+        self.assertEqual(point.perclos, 0.35)
 
     def test_device_response_does_not_expose_mqtt_password(self):
         device = Device(id=1, device_code="alert-01", model="Alert V1",
