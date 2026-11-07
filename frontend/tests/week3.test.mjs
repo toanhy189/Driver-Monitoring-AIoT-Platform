@@ -57,6 +57,26 @@ test("tuần 3: API lịch sử dùng ID, UTC, phiên bản AI và giới hạn"
   assert.equal(calls[0].options.headers.Authorization, "Bearer test-token");
 });
 
+test("video của sự kiện được lấy theo message_id và content dùng endpoint MP4 có xác thực", async () => {
+  const calls = [];
+  const videos = await moduleFor("../src/services/videos.js", { fetch: async (url, options) => {
+    calls.push({ url, options });
+    if (url.includes("/content")) return { ok: true, blob: async () => "video-bytes" };
+    return response([{ video_id: 7, message_id: "event-7", content_url: "/api/videos/7/content" }]);
+  } });
+
+  const matches = await videos.getVideoForMessage(2, "event-7");
+  assert.equal(matches[0].video_id, 7);
+  assert.match(calls[0].url, /devices\/2\/videos\?/);
+  const query = new URL(calls[0].url, "http://test.local").searchParams;
+  assert.equal(query.get("message_id"), "event-7");
+  assert.equal(query.get("limit"), "1");
+  assert.equal(await videos.getVideoContent(7), "video-bytes");
+  assert.match(calls[1].url, /videos\/7\/content$/);
+  assert.equal(calls[1].options.headers.Accept, "video/mp4");
+  assert.equal(calls[1].options.headers.Authorization, "******");
+});
+
 test("biểu đồ TV4 giữ response cũ và gọi route riêng, không trùng API phân trang", async () => {
   let calledUrl;
   const snapshot = { device_id: 2, total_samples: 1, items: [{ id: 1, recorded_at: "2026-10-19T01:00:00Z" }] };

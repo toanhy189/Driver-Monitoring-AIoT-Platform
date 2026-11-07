@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { getDeviceHistory } from "../services/history.js";
 import { commandStatus } from "../services/commandDisplay.js";
+import VideoPlayer from "./VideoPlayer.jsx";
+import { Icon } from "@iconify/react";
 
 const TABS = { telemetry: "Số đo", timeline: "Diễn biến", commands: "Lệnh", metrics: "Thống kê" };
 const time = value => value ? new Date(value).toLocaleString("vi-VN") : "Chưa có";
@@ -17,6 +19,7 @@ export default function DeviceHistoryPanel({ deviceId, deviceType, onUnauthorize
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [selectedVideoEvent, setSelectedVideoEvent] = useState(null);
   const isVisionNode = deviceType === "VISION_NODE";
   const tabs = isVisionNode ? TABS : { timeline: TABS.timeline, commands: TABS.commands };
   const activeKind = tabs[kind] ? kind : "timeline";
@@ -50,6 +53,15 @@ export default function DeviceHistoryPanel({ deviceId, deviceType, onUnauthorize
       <p>Mặc định xem 24 giờ gần nhất. Khoảng thời gian tối đa 31 ngày.</p>
       {loading && <p role="status">Đang tải dữ liệu…</p>}
       {error && <p role="alert" className="notice-error">{error}</p>}
+      {selectedVideoEvent && (
+        <VideoPlayer
+          deviceId={deviceId}
+          messageId={selectedVideoEvent.event_id}
+          state={selectedVideoEvent.state}
+          onClose={() => setSelectedVideoEvent(null)}
+          onUnauthorized={onUnauthorized}
+        />
+      )}
       {activeKind === "metrics" && result && <dl className="device-details">
         <div><dt>Số bản ghi đo</dt><dd>{result.telemetry.count}</dd></div>
         <div><dt>EAR trung bình</dt><dd>{number(result.telemetry.avg_ear)}</dd></div>
@@ -74,6 +86,7 @@ export default function DeviceHistoryPanel({ deviceId, deviceType, onUnauthorize
                   <>
                     <th>Nội dung</th>
                     <th>Thông tin</th>
+                    {activeKind === "timeline" && isVisionNode && <th className="video-column-heading">Video</th>}
                   </>
                 )}
               </tr>
@@ -119,6 +132,24 @@ export default function DeviceHistoryPanel({ deviceId, deviceType, onUnauthorize
                               ? `Mức ${item.data.severity || "chưa có"}`
                               : states[item.data?.state] || "Đã ghi nhận"}
                       </td>
+                      {activeKind === "timeline" && isVisionNode && (
+                        <td className="video-column-cell">
+                          {item.kind === "event" && item.data?.event_type === "STATE_CHANGED" && item.event_id && (
+                            <button
+                              type="button"
+                              className="video-open-button"
+                              aria-label={`Xem video sự kiện ${states[item.data.state] || item.data.state || ""}`}
+                              title="Xem video"
+                              onClick={() => setSelectedVideoEvent({
+                                event_id: item.event_id,
+                                state: item.data.state,
+                              })}
+                            >
+                              <Icon icon="material-symbols:play-circle-outline" width={23} height={23} aria-hidden="true" />
+                            </button>
+                          )}
+                        </td>
+                      )}
                     </>
                   )}
                 </tr>

@@ -38,14 +38,15 @@ export function ConnectionBadge({ status, isStale = false }) {
 function AppShell({ user, activePage, serverConnected, onDashboard, onDevices, onCommands, onAlerts, onLogout, children }) {
   const connectionClass = serverConnected === true ? "online" : serverConnected === false ? "offline" : "unknown";
   const connectionLabel = serverConnected === true ? "Máy chủ đã kết nối" : serverConnected === false ? "Mất kết nối máy chủ" : "Chưa xác định kết nối máy chủ";
+  const isAdmin = hasPermission(user?.role, "user:view");
   return <div className="app-shell">
     <aside className="app-sidebar">
       <div className="brand"><span className="brand-mark"><Icon name="wheel" size={30} /></span><div><strong>DRIVER MONITOR</strong><small>Giám sát tài xế AIoT</small></div></div>
       <nav className="side-nav" aria-label="Điều hướng chính">
         <button className={activePage === "dashboard" ? "active" : ""} onClick={onDashboard} aria-current={activePage === "dashboard" ? "page" : undefined}><Icon name="home" />Tổng quan</button>
         <button className={activePage === "devices" ? "active" : ""} onClick={onDevices} aria-current={activePage === "devices" ? "page" : undefined}><Icon name="device" />Thiết bị</button>
-        {hasPermission(user?.role, "command:view") && <button className={activePage === "commands" ? "active" : ""} onClick={onCommands} aria-current={activePage === "commands" ? "page" : undefined}><Icon name="commands" />Lịch sử lệnh</button>}
-        {hasPermission(user?.role, "alert:view") && <button className={activePage === "alerts" ? "active" : ""} onClick={onAlerts} aria-current={activePage === "alerts" ? "page" : undefined} disabled={!onAlerts}><Icon name="alert" />Cảnh báo</button>}
+        {!isAdmin && hasPermission(user?.role, "command:view") && <button className={activePage === "commands" ? "active" : ""} onClick={onCommands} aria-current={activePage === "commands" ? "page" : undefined}><Icon name="commands" />Lịch sử lệnh</button>}
+        {!isAdmin && hasPermission(user?.role, "alert:view") && <button className={activePage === "alerts" ? "active" : ""} onClick={onAlerts} aria-current={activePage === "alerts" ? "page" : undefined} disabled={!onAlerts}><Icon name="alert" />Cảnh báo</button>}
       </nav>
       <div className="sidebar-user"><span className="avatar"><Icon name="user" /></span><div><strong>{user?.fullname || user?.username || "Người dùng"}</strong><small>{user?.role}{!hasPermission(user?.role, "command:send") && " · Chỉ xem"}</small></div></div>
     </aside>

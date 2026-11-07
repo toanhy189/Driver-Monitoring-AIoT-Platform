@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.api.deps import require_admin, require_operator  # noqa: E402
 from app.api.routes.devices import get_all_device, get_current_telemetry  # noqa: E402
+from app.api.routes.videos import list_videos  # noqa: E402
 from app.api.routes.users import login  # noqa: E402
 from app.core.security import decode_access_token, get_password_hash  # noqa: E402
 from app.main import app  # noqa: E402
@@ -96,6 +97,14 @@ class MergeContractTests(unittest.TestCase):
         self.assertIn("user_devices.user_id = 7", sql)
         self.assertIn("user_devices.unassigned_at IS NULL", sql)
 
+    def test_admin_device_list_is_not_limited_to_assignments(self):
+        session = FakeSession([])
+        admin = User(id=1, fullname="A", username="admin", hash_password="x",
+                     email="a@example.test", phone="1", role="Admin")
+        self.assertEqual(get_all_device(session=session, current_user=admin), [])
+        sql = str(session.statement.compile(compile_kwargs={"literal_binds": True}))
+        self.assertNotIn("user_devices", sql)
+
     def test_telemetry_is_serializable_or_explicitly_missing(self):
         device = Device(id=1, device_code="vision-01", model="Vision V1", device_type="VISION_NODE")
         telemetry = Telemetry(device_id=1, ear=0.25, perclos=0.18)
@@ -120,6 +129,20 @@ class MergeContractTests(unittest.TestCase):
         point = TelemetryPoint.model_validate(telemetry.model_dump())
         self.assertEqual(point.ear, 0.25)
         self.assertEqual(point.perclos, 0.35)
+
+    def test_video_listing_can_filter_by_event_message_id(self):
+        device = Device(id=1, device_code="vision-01", model="Vision V1",
+                        device_type="VISION_NODE")
+        user = User(id=7, fullname="A", username="a", hash_password="x",
+                    email="a@example.test", phone="1", role="Customer")
+        session = FakeSession((device, []))
+
+        self.assertEqual(list_videos(
+            1, limit=1, offset=0, message_id="event-7",
+            current_user=user, session=session,
+        ), [])
+        sql = str(session.statement.compile(compile_kwargs={"literal_binds": True}))
+        self.assertIn("ai_videos.message_id = 'event-7'", sql)
 
     def test_device_response_does_not_expose_mqtt_password(self):
         device = Device(id=1, device_code="alert-01", model="Alert V1",

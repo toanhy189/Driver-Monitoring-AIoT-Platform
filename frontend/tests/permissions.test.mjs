@@ -19,6 +19,9 @@ test("Customer chỉ xem; Employee gửi lệnh và sửa cấu hình; Admin qu�
 
   assert.equal(hasPermission("Admin", "device:manage"), true);
   assert.equal(hasPermission("Admin", "device:decommission"), true);
+  assert.equal(hasPermission("Admin", "user:view"), true);
+  assert.equal(hasPermission("Employee", "user:view"), false);
+  assert.equal(hasPermission("Customer", "user:view"), false);
   assert.equal(hasPermission("Admin", "alert:acknowledge"), true);
 });
 

@@ -94,7 +94,9 @@ function DeviceDetailPage({ user, realtime = NO_REALTIME, deviceId, summary, onB
 
   const performAction = async action => {
     const permission = action === "decommission" ? "device:decommission" : "device:manage";
-    if (!hasPermission(user?.role, permission) || busyAction) return;
+    const ownsLoadedDevice = detailSource === "detail" &&
+      hasPermission(user?.role, "device:manage-assigned");
+    if ((!hasPermission(user?.role, permission) && !ownsLoadedDevice) || busyAction) return;
     if (deviceActionBlockReason(device, action)) return;
     if (action === "decommission" && !window.confirm(
       `Ngừng sử dụng thiết bị ${device?.device_code || deviceId}? Hãy kiểm tra đúng thiết bị trước khi tiếp tục.`

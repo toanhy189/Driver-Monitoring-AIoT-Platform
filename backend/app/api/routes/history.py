@@ -84,7 +84,7 @@ def alert_query(device_id, window):
 @router.get("/devices/{device_id}/telemetry/history", response_model=Page[TelemetryPoint])
 def telemetry_history(device_id: int, window: Window = Depends(history_window),
                       current_user: User = Depends(require_viewer), session: Session = Depends(get_session)):
-    device = assigned_device(session, current_user.id, device_id)
+    device = assigned_device(session, current_user, device_id)
     require_vision_node(device)
     ordering = (Telemetry.recorded_at.asc(), Telemetry.id.asc()) if window.order == "asc" else \
                (Telemetry.recorded_at.desc(), Telemetry.id.desc())
@@ -98,7 +98,7 @@ def telemetry_history(device_id: int, window: Window = Depends(history_window),
 @router.get("/devices/{device_id}/history", response_model=Page[dict])
 def command_history(device_id: int, window: Window = Depends(history_window),
                     current_user: User = Depends(require_viewer), session: Session = Depends(get_session)):
-    assigned_device(session, current_user.id, device_id)
+    assigned_device(session, current_user, device_id)
     ordering = (Command.created_at.asc(), Command.id.asc()) if window.order == "asc" else \
                (Command.created_at.desc(), Command.id.desc())
     rows = session.exec(command_query(device_id, window).order_by(*ordering)
@@ -109,7 +109,7 @@ def command_history(device_id: int, window: Window = Depends(history_window),
 @router.get("/devices/{device_id}/timeline", response_model=Page[TimelineItem])
 def timeline(device_id: int, window: Window = Depends(history_window),
              current_user: User = Depends(require_viewer), session: Session = Depends(get_session)):
-    assigned_device(session, current_user.id, device_id)
+    assigned_device(session, current_user, device_id)
     count = window.offset + window.limit + 1
     ascending = window.order == "asc"
     events_query = select(AiEvent).where(AiEvent.device_id == device_id,
@@ -139,7 +139,7 @@ def timeline(device_id: int, window: Window = Depends(history_window),
 @router.get("/devices/{device_id}/metrics", response_model=MetricsResponse)
 def metrics(device_id: int, window: Window = Depends(history_window),
             current_user: User = Depends(require_viewer), session: Session = Depends(get_session)):
-    device = assigned_device(session, current_user.id, device_id)
+    device = assigned_device(session, current_user, device_id)
     require_vision_node(device)
     t = telemetry_query(device_id, window).subquery()
     c = command_query(device_id, window).subquery()

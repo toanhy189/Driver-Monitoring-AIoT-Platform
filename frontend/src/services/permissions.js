@@ -3,11 +3,11 @@
 const ROLE_PERMISSIONS = Object.freeze({
   Admin: Object.freeze([
     "dashboard:view", "command:view", "command:send", "config:view", "config:edit",
-    "device:manage", "device:decommission", "alert:view", "alert:acknowledge",
+    "device:manage", "device:decommission", "user:view", "alert:view", "alert:acknowledge",
   ]),
   Employee: Object.freeze([
     "dashboard:view", "command:view", "command:send", "config:view", "config:edit",
-    "alert:view", "alert:acknowledge",
+    "device:manage-assigned", "alert:view", "alert:acknowledge",
   ]),
   Customer: Object.freeze(["dashboard:view", "command:view", "config:view", "alert:view"]),
 });

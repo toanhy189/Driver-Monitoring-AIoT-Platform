@@ -8,7 +8,10 @@ import app.core.security as acs
 from app.api.deps import get_current_user, require_admin
 from app.core.config import settings
 from app.core.db import get_session
+from app.models.device import Device
 from app.models.user import User
+from app.models.user_device import UserDevice
+from app.schemas.device import DeviceResponse
 from app.schemas.user import LoginRequest, LoginResponse, RegisterRequest, UserResponse
 from app.services.audit_service import log_action
 
@@ -23,6 +26,23 @@ def get_users(
     session: Session = Depends(get_session),
 ):
     return session.exec(select(User)).all()
+
+
+@router.get("/users/{user_id}/devices", response_model=list[DeviceResponse])
+def get_user_devices(
+    user_id: int,
+    current_user: User = Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    if session.get(User, user_id) is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    devices = session.exec(
+        select(Device)
+        .join(UserDevice, UserDevice.device_id == Device.id)
+        .where(UserDevice.user_id == user_id, UserDevice.unassigned_at.is_(None))
+        .distinct()
+    ).all()
+    return [DeviceResponse.from_device(device) for device in devices]
 
 
 @router.post("/login", response_model=LoginResponse)

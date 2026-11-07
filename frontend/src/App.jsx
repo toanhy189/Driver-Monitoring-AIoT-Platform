@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import Login from "./components/Login.jsx";
 import SignUp from "./components/SignUp.jsx";
 import Dashboard from "./components/Dashboard.jsx";
+import AdminDashboard from "./components/AdminDashboard.jsx";
 import DeviceListPage from "./pages/DeviceListPage.jsx";
 import DeviceDetailPage from "./pages/DeviceDetailPage.jsx";
 import CommandHistoryPage from "./pages/CommandHistoryPage.jsx";
@@ -243,6 +244,17 @@ function App() {
       onCommands={alert => navigateTo(alert && Number.isSafeInteger(alert.device_id) ?
         { page: "commands", deviceId: alert.device_id, deviceCode: alert.device_code } :
         { page: "commands" })}
+      onLogout={handleLogout}
+      onUnauthorized={handleLogout}
+    />;
+  }
+
+  if (hasPermission(session.user?.role, "user:view")) {
+    return <AdminDashboard
+      user={session.user}
+      realtime={realtime}
+      onOpenDevices={() => navigateTo({ page: "devices" })}
+      onOpenDevice={device => navigateTo({ page: "device-detail", deviceId: device.id, summary: device })}
       onLogout={handleLogout}
       onUnauthorized={handleLogout}
     />;

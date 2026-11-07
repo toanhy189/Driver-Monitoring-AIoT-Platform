@@ -10,7 +10,7 @@ from app.models.user import User
 from app.models.user_device import UserDevice
 from app.schemas.device import DeviceRegisterRequest, DeviceResponse, DeviceStatusRequest, ProvisionResponse
 from app.schemas.telemetry import TelemetryHistoryItem, TelemetryHistoryResponse, TelemetryResponse
-from app.services.access import assigned_device, assigned_devices, require_vision_node
+from app.services.access import assigned_device, assigned_devices, is_admin, require_vision_node
 from app.services.audit_service import log_action
 from app.services.mqtt_provision_service import provision_device
 from app.services.mqtt_revoke_service import revoke_device
@@ -18,6 +18,24 @@ from app.services.time_utils import as_utc
 
 
 router = APIRouter(tags=["devices"])
+
+
+def require_device_manager(
+    device_id: int,
+    current_user: User = Depends(require_viewer),
+    session: Session = Depends(get_session),
+) -> User:
+    if is_admin(current_user):
+        return current_user
+    if current_user.role not in {"Employee", "OPERATOR"}:
+        raise HTTPException(status_code=403, detail="Not enough permissions")
+    try:
+        assigned_device(session, current_user, device_id)
+    except HTTPException as error:
+        if error.status_code != 404:
+            raise
+        raise HTTPException(status_code=403, detail="Not enough permissions") from error
+    return current_user
 
 
 def _response(device: Device) -> DeviceResponse:
@@ -38,7 +56,7 @@ def get_all_device(
     session: Session = Depends(get_session),
     current_user: User = Depends(require_viewer),
 ):
-    return [_response(device) for device in assigned_devices(session, current_user.id)]
+    return [_response(device) for device in assigned_devices(session, current_user)]
 
 
 @router.get("/devices/{device_id}", response_model=DeviceResponse)
@@ -47,7 +65,7 @@ def get_device_detail(
     session: Session = Depends(get_session),
     current_user: User = Depends(require_viewer),
 ):
-    return _response(assigned_device(session, current_user.id, device_id))
+    return _response(assigned_device(session, current_user, device_id))
 
 
 @router.get("/{device_id}/telemetry", response_model=TelemetryResponse)
@@ -56,7 +74,7 @@ def get_current_telemetry(
     current_user: User = Depends(require_viewer),
     session: Session = Depends(get_session),
 ):
-    device = assigned_device(session, current_user.id, device_id)
+    device = assigned_device(session, current_user, device_id)
     require_vision_node(device)
     telemetry = session.exec(
         select(Telemetry)
@@ -90,7 +108,7 @@ def get_telemetry_history(
     current_user: User = Depends(require_viewer),
     session: Session = Depends(get_session),
 ):
-    device = assigned_device(session, current_user.id, device_id)
+    device = assigned_device(session, current_user, device_id)
     require_vision_node(device)
     for value in (from_time, to_time):
         if value is not None and (value.tzinfo is None or value.utcoffset() is None):
@@ -168,10 +186,10 @@ def register_device(
 def provision_mqtt_credentials(
     device_id: int,
     response: Response,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_device_manager),
     session: Session = Depends(get_session),
 ):
-    device = assigned_device(session, current_user.id, device_id)
+    device = assigned_device(session, current_user, device_id)
     if device.lifecycle_state != "REGISTERED":
         raise HTTPException(status_code=409, detail="Only registered devices can be provisioned")
     try:
@@ -202,10 +220,10 @@ def provision_mqtt_credentials(
 @router.post("/devices/{device_id}/activate", response_model=DeviceResponse)
 def activate_device(
     device_id: int,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_device_manager),
     session: Session = Depends(get_session),
 ):
-    device = assigned_device(session, current_user.id, device_id)
+    device = assigned_device(session, current_user, device_id)
     if device.lifecycle_state not in {"PROVISIONED", "MAINTENANCE"}:
         raise HTTPException(status_code=409, detail="Device must be provisioned or in maintenance")
     previous_state = device.lifecycle_state
@@ -224,10 +242,10 @@ def activate_device(
 @router.post("/devices/{device_id}/maintenance", response_model=DeviceResponse)
 def maintain_device(
     device_id: int,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_device_manager),
     session: Session = Depends(get_session),
 ):
-    device = assigned_device(session, current_user.id, device_id)
+    device = assigned_device(session, current_user, device_id)
     if device.lifecycle_state != "ACTIVE":
         raise HTTPException(status_code=409, detail="Only active devices can enter maintenance")
     previous_state = device.lifecycle_state
@@ -246,10 +264,10 @@ def maintain_device(
 @router.post("/devices/{device_id}/decommission", response_model=DeviceResponse)
 def decommission_device(
     device_id: int,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_device_manager),
     session: Session = Depends(get_session),
 ):
-    device = assigned_device(session, current_user.id, device_id)
+    device = assigned_device(session, current_user, device_id)
     if device.lifecycle_state == "DECOMMISSIONED":
         raise HTTPException(status_code=409, detail="Device already decommissioned")
     if device.mqtt_username:
@@ -279,10 +297,10 @@ def decommission_device(
 def update_device_status(
     device_id: int,
     data: DeviceStatusRequest,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_device_manager),
     session: Session = Depends(get_session),
 ):
-    device = assigned_device(session, current_user.id, device_id)
+    device = assigned_device(session, current_user, device_id)
     if device.lifecycle_state == "DECOMMISSIONED":
         raise HTTPException(status_code=409, detail="Device decommissioned")
     if data.status not in {"ONLINE", "OFFLINE"}:

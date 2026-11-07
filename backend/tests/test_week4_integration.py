@@ -212,6 +212,60 @@ class Week4Integration(unittest.TestCase):
             "result": "PASS" if actual == expected else "FAIL",
         })
 
+    def test_admin_can_access_unassigned_devices_and_lookup_user_assignments(self):
+        """Admin xem/toan quyen device; endpoint user tra ve assignment dang hieu luc."""
+        unassigned = Device(
+            device_code="w4-unassigned-" + self.suffix,
+            model="Unassigned camera",
+            device_type="VISION_NODE",
+            lifecycle_state="REGISTERED",
+            status="OFFLINE",
+        )
+        with Session(engine) as session:
+            session.add(unassigned)
+            session.commit()
+            session.refresh(unassigned)
+            unassigned_id = unassigned.id
+
+        admin_devices = self.client.get("/api/devices", headers=self.auth("Admin"))
+        employee_devices = self.client.get("/api/devices", headers=self.auth("Employee"))
+        admin_detail = self.client.get(f"/api/devices/{unassigned_id}", headers=self.auth("Admin"))
+        employee_detail = self.client.get(f"/api/devices/{unassigned_id}", headers=self.auth("Employee"))
+        admin_status = self.client.patch(
+            f"/api/devices/{unassigned_id}/status",
+            headers=self.auth("Admin"),
+            json={"status": "ONLINE"},
+        )
+        customer_assignments = self.client.get(
+            f"/api/users/{self.users['Customer']}/devices",
+            headers=self.auth("Admin"),
+        )
+        customer_status = self.client.patch(
+            f"/api/devices/{self.alert_device_id}/status",
+            headers=self.auth("Customer"),
+            json={"status": "OFFLINE"},
+        )
+        employee_status = self.client.patch(
+            f"/api/devices/{self.alert_device_id}/status",
+            headers=self.auth("Employee"),
+            json={"status": "OFFLINE"},
+        )
+        self.assertEqual(admin_devices.status_code, 200, admin_devices.text)
+        self.assertIn(unassigned_id, {item["id"] for item in admin_devices.json()})
+        self.assertNotIn(unassigned_id, {item["id"] for item in employee_devices.json()})
+        self.assertEqual(admin_detail.status_code, 200, admin_detail.text)
+        self.assertEqual(employee_detail.status_code, 404, employee_detail.text)
+        self.assertEqual(admin_status.status_code, 200, admin_status.text)
+        self.assertEqual(admin_status.json()["status"], "ONLINE")
+        self.assertEqual(customer_assignments.status_code, 200, customer_assignments.text)
+        self.assertEqual(
+            {item["id"] for item in customer_assignments.json()},
+            {self.alert_device_id},
+        )
+        self.assertEqual(customer_status.status_code, 403, customer_status.text)
+        self.assertEqual(employee_status.status_code, 200, employee_status.text)
+        self.assertEqual(employee_status.json()["status"], "OFFLINE")
+
     def test_viewer_endpoint_and_assignment_matrix(self):
         """Kiem tra viewer doc cac endpoint duoc gan va bi tu choi voi device chua gan."""
         # Truc day chi test viewer tren users/devices; mo rong sang cac route doc theo device.
@@ -385,8 +439,8 @@ class Week4Integration(unittest.TestCase):
             "result": "PASS" if actual == expected else "FAIL",
         })
 
-    def test_device_lifecycle_requires_admin_and_allows_valid_transitions(self):
-        """Kiem tra chi Admin duoc doi lifecycle va cac buoc chuyen trang thai hop le."""
+    def test_device_lifecycle_requires_admin_or_owner_and_allows_valid_transitions(self):
+        """Kiem tra Admin/owner duoc doi lifecycle va role khong so huu bi tu choi."""
         # Suite truoc day chi test mot so ket qua lifecycle; bo sung quyen dang ky va chuoi chuyen trang thai.
         lifecycle_code = "w4-life-" + self.suffix
         actual = {}
@@ -465,8 +519,8 @@ class Week4Integration(unittest.TestCase):
             json.dumps([row.details for row in lifecycle_audits]),
         )
         OBSERVATIONS.append({
-            "case": "Admin-only device lifecycle and valid transitions",
-            "purpose": "Kiem tra quyen dang ky, chuyen lifecycle va tu choi role khong phai Admin",
+            "case": "Admin or assigned-owner device lifecycle and valid transitions",
+            "purpose": "Kiem tra Admin/owner thao tac duoc va role khong so huu bi tu choi",
             "expected": {
                 **{f"register_{role}": (201 if role == "Admin" else 403)
                    for role in ("Admin", "Employee", "Customer")},

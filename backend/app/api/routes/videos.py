@@ -81,10 +81,14 @@ def upload_video(
 @router.get("/devices/{device_id}/videos")
 def list_videos(device_id: int, limit: int = Query(default=20, ge=1, le=100),
                 offset: int = Query(default=0, ge=0, le=100000),
+                message_id: Annotated[str | None, Query(min_length=1, max_length=80)] = None,
                 current_user: User = Depends(require_viewer), session: Session = Depends(get_session)):
-    assigned_device(session, current_user.id, device_id)
-    rows = session.exec(select(AiVideo).where(AiVideo.device_id == device_id)
-                        .order_by(AiVideo.created_at.desc(), AiVideo.id.desc()).offset(offset).limit(limit)).all()
+    assigned_device(session, current_user, device_id)
+    query = select(AiVideo).where(AiVideo.device_id == device_id)
+    if message_id:
+        query = query.where(AiVideo.message_id == message_id)
+    rows = session.exec(query.order_by(AiVideo.created_at.desc(), AiVideo.id.desc())
+                        .offset(offset).limit(limit)).all()
     return [_public(session, row) for row in rows]
 
 
@@ -93,7 +97,7 @@ def download_video(video_id: int, current_user: User = Depends(require_viewer), 
     video = session.get(AiVideo, video_id)
     if video is None:
         raise HTTPException(status_code=404, detail="Video not found")
-    assigned_device(session, current_user.id, video.device_id)
+    assigned_device(session, current_user, video.device_id)
     path = video_path(video)
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Video file not found")

@@ -52,3 +52,41 @@ export function authenticatedRequest(path, { missingMessage = "Bạn cần đăn
   if (!token) throw Object.assign(new Error(missingMessage), { status: 401 });
   return apiRequest(path, { ...options, token });
 }
+
+export async function authenticatedBlobRequest(path, { missingMessage = "Bạn cần đăng nhập để tiếp tục.", signal } = {}) {
+  const token = localStorage.getItem("access_token");
+  if (!token) throw Object.assign(new Error(missingMessage), { status: 401 });
+  if (typeof path !== "string" || !path.startsWith("/") ||
+      path === prefix || path.startsWith(`${prefix}/`)) {
+    throw new Error(`Đường dẫn API phải bắt đầu bằng / và không lặp lại ${prefix}.`);
+  }
+
+  let response;
+  try {
+    response = await fetch(`${prefix}${path}`, {
+      headers: { Accept: "video/mp4", Authorization: `******` },
+      signal,
+    });
+  } catch (error) {
+    if (error.name === "AbortError") throw error;
+    throw new Error("Không kết nối được máy chủ. Hãy kiểm tra địa chỉ BE.", { cause: error });
+  }
+
+  if (!response.ok) {
+    let data = null;
+    try {
+      data = await response.json();
+    } catch {
+      // The response may be empty or non-JSON, so retain the HTTP status fallback.
+    }
+    const detail = data?.detail;
+    const message = typeof detail === "string" ? detail :
+      Array.isArray(detail) ? detail.map(item => item.msg).filter(Boolean).join("; ") :
+      null;
+    throw Object.assign(new Error(message || `Yêu cầu thất bại (HTTP ${response.status}).`), {
+      status: response.status,
+    });
+  }
+
+  return response.blob();
+}

@@ -18,7 +18,7 @@ router = APIRouter(tags=["rules"])
 
 @router.get("/devices/{device_id}/rule")
 def get_rule(device_id: int, current_user: User = Depends(require_admin), session: Session = Depends(get_session)):
-    assigned_device(session, current_user.id, device_id)
+    assigned_device(session, current_user, device_id)
     binding = session.get(RuleBinding, device_id)
     return {"source_device_id": device_id, "target_device_id": binding.target_device_id if binding else None,
             "enabled": binding.enabled if binding else False,
@@ -30,8 +30,8 @@ def get_rule(device_id: int, current_user: User = Depends(require_admin), sessio
 @router.put("/devices/{device_id}/rule")
 def put_rule(device_id: int, data: RuleBindingRequest, current_user: User = Depends(require_admin),
              session: Session = Depends(get_session)):
-    source = assigned_device(session, current_user.id, device_id)
-    target = assigned_device(session, current_user.id, data.target_device_id)
+    source = assigned_device(session, current_user, device_id)
+    target = assigned_device(session, current_user, data.target_device_id)
     if source.device_type != "VISION_NODE" or target.device_type != "ALERT_NODE":
         raise HTTPException(status_code=409, detail="Rule must connect a Vision Node to an Alert Node")
     if source.lifecycle_state == "DECOMMISSIONED" or target.lifecycle_state == "DECOMMISSIONED":
