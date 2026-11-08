@@ -1,5 +1,15 @@
 # Driver Monitoring AIoT Platform
 
+## Bản hoàn thiện ngày 08/11/2026
+
+- [Đối chiếu yêu cầu và phần còn cần nghiệm thu](docs/final-project-acceptance.md).
+- [Chạy Docker, AI, monitoring và chuẩn bị ESP32](docs/final-runbook.md).
+- [Model nhị phân + quy tắc, artifact và số liệu đúng phạm vi](docs/final-ai-model.md).
+- [Kiến trúc, luồng dữ liệu, phân quyền và giới hạn bảo mật](docs/final-architecture-security.md).
+- [Thông tin phần cứng cần TV1 xác nhận](hardware/README.md) và [kịch bản demo/kiểm thử](tests/final-acceptance.md).
+
+React là dashboard nhóm tự xây; Grafana chỉ hỗ trợ giám sát vận hành. Phần tải thật chưa nghiệm thu vì mạch đang chờ kiểm tra; chưa nạp firmware mới vào ESP32.
+
 ## Bàn giao Backend tuần 3
 
 - [Cập nhật event và API video AI ngày 21/10/2026](docs/ai-ingest-video-contract.md): SESSION_ENDED, storage_ack, đồng bộ DB/ACL/thiết bị, HTTP upload và quyền xem video.

@@ -1,0 +1,112 @@
+{
+  "browser-smoke": {
+    "timestamp": "2026-11-08T04:07:43.646Z",
+    "scope": "Installed Edge headless + deployed React/FastAPI; temporary Customer; no camera or physical outputs",
+    "steps": [
+      "Customer login against deployed API",
+      "Profile form saved through React",
+      "Password change returns to login",
+      "Changed password login",
+      "Server logout and local session cleared"
+    ],
+    "page_errors": [],
+    "pass": true
+  },
+  "deployment-smoke": {
+    "react": 200,
+    "api_proxy_unauthorized": 401,
+    "api_proxy_json": true,
+    "metrics_anonymous": 401,
+    "metrics_authenticated": 200,
+    "metrics_database_gauges": true,
+    "grafana": {
+      "database": "ok",
+      "version": "11.6.0",
+      "commit": "d2fdff9ee4d75c74bfd3a97c18a0b8e4d029f06e"
+    },
+    "scrapes": [
+      {
+        "job": "backend",
+        "health": "up"
+      },
+      {
+        "job": "edge-ai",
+        "health": "down"
+      }
+    ]
+  },
+  "ntp-local": {
+    "timestamp": "2026-11-08T04:02:18.050620+00:00",
+    "host": "127.0.0.1",
+    "port": 123,
+    "stratum": 10,
+    "offset_ms": 5.725,
+    "round_trip_ms": 23.726,
+    "pass": true,
+    "scope": "Laptop UDP probe; ESP32 boot and LAN firewall are separate acceptance steps"
+  },
+  "restore-check": {
+    "pass": true,
+    "scope": "Restore of pre-migration backup to a separate temporary database, then removal of only that temporary DB",
+    "public_tables": 17,
+    "production_database_overwritten": false
+  },
+  "tls-smoke": {
+    "pass": true,
+    "tls_version": "TLSv1.3",
+    "ca_verification": true,
+    "react_status": 200,
+    "api_unauthorized_status": 401,
+    "system_trust_changed": false,
+    "scope": "Local HTTPS entry point; MQTT remains plain within the lab network"
+  },
+  "test_suites": {
+    "backend_unit": {
+      "ran": 111,
+      "passed": 59,
+      "skipped": 52
+    },
+    "policy_live": {
+      "passed": 3,
+      "scope": "Disposable PostgreSQL/MQTT; virtual ESP32"
+    },
+    "existing_live_regression": {
+      "ran": 36,
+      "passed": 35,
+      "skipped": 1
+    },
+    "final_core_live": {
+      "passed": 11
+    },
+    "edge_ai": {
+      "passed": 94,
+      "camera_used": false
+    },
+    "frontend_node": {
+      "passed": 63
+    },
+    "frontend_build": {
+      "pass": true
+    },
+    "firmware_development_build": {
+      "pass": true,
+      "flashed": false
+    }
+  },
+  "ai_model": {
+    "version": "rf-nthu-full-20261107-8d459c63",
+    "sha256": "5e25b03d26a7577982d9c357d3f87fe2a1bf2a31c205b447b782ec5006ea7b0d",
+    "retrained_during_completion": false,
+    "scope": "Binary learned drowsiness + head pose rules; development CV is not new-person acceptance"
+  },
+  "acceptance_pending": [
+    "Physical wiring and power confirmation",
+    "ESP32 credentials and firmware flash",
+    "LAN NTP from ESP32 after reboot without Internet",
+    "Camera/local audio and physical outputs end to end",
+    "Ground truth evaluation on new people/sessions",
+    "Final rehearsal video and release tag"
+  ],
+  "source_base": "fc5cee0633478f22527205f89102970494f056cf",
+  "github_ci_status": "Not yet verified for this branch"
+}
