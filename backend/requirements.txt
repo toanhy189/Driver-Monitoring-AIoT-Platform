@@ -8,3 +8,4 @@ pwdlib[argon2]
 uvicorn[standard]
 paho-mqtt
 python-multipart
+imageio-ffmpeg==0.6.0

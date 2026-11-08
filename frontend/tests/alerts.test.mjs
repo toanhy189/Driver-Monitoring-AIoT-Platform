@@ -82,3 +82,41 @@ test("loại và trạng thái cảnh báo được diễn đạt bằng tiếng
   assert.equal(display.alertStatusLabel({ status: "ACKNOWLEDGED" }), "Đã xem");
   assert.equal(display.alertStatusLabel({ status: "RESOLVED", acknowledged_at: "2026-10-12T08:00:00Z" }), "Đã xử lý");
 });
+
+test("video cảnh báo phân biệt chờ upload, đã xóa, thiếu file và khả dụng", async () => {
+  const { alertVideoState, normalizeAlert } = await loadModule("../src/services/alertModel.js");
+  const video = { video_id: 7, device_id: 2, message_id: "clip-1" };
+  assert.equal(alertVideoState({ video_status: "AVAILABLE", video }), "ready");
+  assert.equal(alertVideoState({ video_status: "DELETED", video }), "deleted");
+  assert.equal(alertVideoState({ video_status: "MISSING", video }), "missing");
+  assert.equal(alertVideoState({ video_status: "PENDING_OR_UNAVAILABLE" }), "pending");
+  assert.equal(alertVideoState({ video_status: "UNLINKED" }), "none");
+  assert.equal(alertVideoState({ video: { video_id: -1 } }), "none");
+  assert.equal(normalizeAlert({ alert_id: 3, video }).video.message_id, "clip-1");
+});
+
+test("video dùng event ID, chuẩn bị bản xem bằng POST và tải file kèm Bearer", async () => {
+  const calls = [];
+  const videos = await loadModule("../src/services/videos.js", {
+    URLSearchParams,
+    localStorage: { getItem: () => "video-token" },
+    fetch: async (url, options) => {
+      calls.push({ url, options });
+      return { ...response(200, { status: "READY" }), blob: async () => "synthetic-blob" };
+    },
+  });
+  await videos.getEventVideo(2, "event/1");
+  await videos.getPlayback(7, { start: true });
+  await videos.getPlayback(7);
+  assert.equal(await videos.getPlaybackContent(7), "synthetic-blob");
+  await videos.getVideoContent(7);
+  assert.deepEqual(calls.map(call => call.url), [
+    "/api/devices/2/events/event%2F1/video", "/api/videos/7/playback",
+    "/api/videos/7/playback", "/api/videos/7/playback/content", "/api/videos/7/content",
+  ]);
+  assert.equal(calls[1].options.method, "POST");
+  assert.equal(calls[2].options.method, "GET");
+  assert.ok(calls.every(call => call.options.headers.Authorization === "Bearer video-token"));
+  assert.throws(() => videos.getEventVideo(0, "event"));
+  assert.throws(() => videos.getPlayback(-1));
+});

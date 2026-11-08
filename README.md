@@ -139,6 +139,10 @@ Thay đường dẫn bằng file thực tế; với lượt đã phân tích l�
 
 Clip pending và queue ở `edge-ai/recordings/`, `edge-ai/data/` theo cấu hình; clip đã upload nằm trong volume `deployment_video_data`. HTTP upload dùng credential Vision Node; đăng nhập MQTT không tự xác thực HTTP. Backend giữ video đến khi người có quyền xóa thủ công; Edge chỉ dọn bản sao sau phản hồi upload hợp lệ.
 
+**Xem clip:** mở **Cảnh báo → Xem video**, hoặc chọn sự kiện trong timeline thiết bị. Cảnh báo được liên kết bằng mã clip, kể cả clip upload đến sau. Backend chuẩn bị bản xem H.264 ở luồng nền để trình duyệt phát được; nút **Tải video gốc** giữ nguyên file upload. Clip đang ghi/chưa upload, đã xóa hoặc thiếu file được hiển thị riêng. Bản xem tính vào quota và được xóa cùng clip khi người có quyền xóa thủ công. Xem [hợp đồng video](docs/ai-ingest-video-contract.md).
+
+**Admin:** mục **Quản trị** giữ màn quản lý tài khoản/thiết bị; mục **Giám sát AI** mở dashboard số đo, trạng thái tài xế và timeline. Employee/Customer dùng **Tổng quan** với phạm vi thiết bị được gán như trước.
+
 ### 3.5. Chuẩn bị ESP32
 
 1. Kiểm tra nguồn, mạch driver/diode và GND theo [tài liệu phần cứng](hardware/README.md).

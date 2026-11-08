@@ -38,6 +38,17 @@ test("Dashboard ban đầu không hiển thị số đo mẫu hoặc kết luậ
   assert.doesNotMatch(html, /0\.28|12%|ATTENTIVE/);
 });
 
+test("Admin có cả Quản trị và Giám sát AI; Customer giữ Tổng quan", async () => {
+  const { default: Dashboard } = await loadModule("../src/components/Dashboard.jsx");
+  const admin = renderToStaticMarkup(React.createElement(Dashboard, { user: { role: "Admin" } }));
+  assert.match(admin, /Quản trị/);
+  assert.match(admin, /Giám sát AI/);
+  assert.match(admin, /aria-current="page"[^>]*>.*?Giám sát AI/);
+  const customer = renderToStaticMarkup(React.createElement(Dashboard, { user: { role: "Customer" } }));
+  assert.match(customer, /Tổng quan/);
+  assert.doesNotMatch(customer, /Giám sát AI|Quản trị/);
+});
+
 test("thẻ thiết bị dùng status của BE dù WebSocket đang kết nối", async () => {
   const { default: Card } = await loadModule("../src/components/DeviceStatusCard.jsx");
   const html = renderToStaticMarkup(React.createElement(Card, {

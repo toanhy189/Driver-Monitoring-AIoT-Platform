@@ -1,6 +1,6 @@
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 import logging
@@ -16,8 +16,9 @@ from app.models.video import AiVideo
 from app.services.access import assigned_device
 from app.services.audit_service import log_action
 from app.services.device_auth import verify_mqtt_login
-from app.services.time_utils import as_utc
 from app.services.video_storage import store_video, video_path, storage_usage
+from app.services.event_links import event_clip, video_summary
+from app.services.video_playback import playback
 
 router = APIRouter(tags=["videos"])
 logger = logging.getLogger(__name__)
@@ -25,13 +26,7 @@ device_basic = HTTPBasic(scheme_name="VisionNodeCredentials", auto_error=False)
 
 
 def _public(session: Session, video: AiVideo) -> dict:
-    event = session.exec(select(AiEvent).where(AiEvent.event_id == video.message_id,
-                                               AiEvent.device_id == video.device_id)).first()
-    return {"video_id": video.id, "device_id": video.device_id, "message_id": video.message_id,
-            "state": video.state, "size_bytes": video.size_bytes, "created_at": as_utc(video.created_at),
-            "event_received": event is not None,
-            "deleted_at": as_utc(video.deleted_at) if video.deleted_at else None,
-            "content_url": f"{settings.API_STR}/videos/{video.id}/content"}
+    return video_summary(session, video)
 
 
 def upload_device(
@@ -120,14 +115,41 @@ def event_video(device_id: int, event_id: str,
                                                AiEvent.device_id == device_id)).first()
     if event is None:
         raise HTTPException(status_code=404, detail="Event not found")
-    message_id = (event.payload.get("clip_message_id") or event.payload.get("episode_start_event_id")
-                  or (event.event_id if event.event_type == "STATE_CHANGED" else None))
-    video = session.exec(select(AiVideo).where(AiVideo.device_id == device_id,
-                                               AiVideo.message_id == message_id)).first() if message_id else None
-    return {"event_id": event_id, "episode_id": event.payload.get("episode_id"),
-            "clip_message_id": message_id,
-            "status": ("DELETED" if video.deleted_at else "AVAILABLE" if video_path(video).is_file() else "MISSING") if video else "PENDING_OR_UNAVAILABLE",
-            "video": _public(session, video) if video else None}
+    return event_clip(session, device_id, event_id)
+
+
+def _readable_video(session, user, video_id):
+    video = session.get(AiVideo, video_id)
+    if video is None or video.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="Video not found")
+    assigned_device(session, user, video.device_id)
+    if not video_path(video).is_file():
+        raise HTTPException(status_code=404, detail="Video file not found")
+    return video
+
+
+@router.get("/videos/{video_id}/playback")
+@router.post("/videos/{video_id}/playback")
+def video_playback_status(video_id: int, request: Request, response: Response,
+                          current_user: User = Depends(require_viewer), session: Session = Depends(get_session)):
+    video = _readable_video(session, current_user, video_id)
+    state = playback.prepare(video) if request.method == "POST" else playback.status(video)
+    response.headers["Cache-Control"] = "private, no-store"
+    return {"video_id": video.id, **state,
+            "content_url": f"{settings.API_STR}/videos/{video.id}/playback/content" if state["status"] == "READY" else None}
+
+
+@router.get("/videos/{video_id}/playback/content")
+def video_playback_content(video_id: int, current_user: User = Depends(require_viewer),
+                           session: Session = Depends(get_session)):
+    video = _readable_video(session, current_user, video_id)
+    path = playback.path(video)
+    if not path.is_file():
+        raise HTTPException(status_code=409, detail="Browser preview is not ready")
+    log_action(session, current_user.id, "VIEW_VIDEO", "AiVideo", str(video.id), {"video_id": video.id})
+    session.commit()
+    return FileResponse(path, media_type="video/mp4", filename=f"video-{video.id}-web.mp4",
+                        headers={"Cache-Control": "private, no-store"})
 
 
 @router.get("/videos/storage")
@@ -144,7 +166,7 @@ def delete_video(video_id: int, current_user: User = Depends(require_operator), 
     assigned_device(session, current_user, video.device_id)
     # Keep the metadata tombstone so retrying the same upload never restores a
     # clip that a permitted user explicitly erased.
-    video_path(video).unlink(missing_ok=True)
+    playback.remove_files(video)
     video.deleted_at = video.deleted_at or datetime.now(timezone.utc).replace(tzinfo=None)
     session.add(video)
     log_action(session, current_user.id, "DELETE_VIDEO", "AiVideo", str(video.id), {"video_id": video.id})

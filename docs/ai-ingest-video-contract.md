@@ -35,6 +35,15 @@ Thành công trả SAVED cùng danh tính upload theo contract; Edge kiểm tra 
 
 Video ghép với event theo clip_message_id/episode_start_event_id và message_id, không đoán liên kết theo thời gian. Có thể upload trước khi event đến. GET /api/devices/{id}/events/{event_id}/video trả liên kết/trạng thái tương ứng theo quyền; GET /api/devices/{id}/videos liệt kê clip. Xem/content dùng JWT và quyền thiết bị.
 
+`GET /api/alerts` trả `video_status`, `clip_message_id` và metadata `video`; `GET /api/alerts/{id}/video` tra liên kết của một cảnh báo. Hai API dùng cùng bộ giải liên kết với timeline. Hỗ trợ thêm `state_event_id` từ nhánh video cũ. Ưu tiên `clip_message_id` hiện tại; clip đang chờ không được thay bằng clip khác trong cùng episode. Trạng thái: `UNLINKED`, `PENDING_OR_UNAVAILABLE`, `AVAILABLE`, `MISSING`, `DELETED`. Dữ liệu cũ không có mã liên kết vẫn giữ nguyên, không ghép theo thời gian.
+
+### Phát trên trình duyệt
+
+- React mở clip tại **Cảnh báo → Xem video** hoặc timeline thiết bị. Cần JWT và quyền trên camera nguồn ở mọi bước, kể cả tải file.
+- `POST /api/videos/{id}/playback` chuẩn bị bản xem H.264/AAC/MP4 bằng FFmpeg đi kèm `imageio-ffmpeg`. `GET` cùng URL đọc tiến độ; `GET /api/videos/{id}/playback/content` lấy bản xem khi `READY`. UI chờ tiến độ, có nút thử lại và **Tải video gốc** khi chuyển mã thất bại.
+- Chuyển mã chạy nền, một worker, tối đa bốn công việc đang chạy/chờ, timeout 120 giây mỗi clip, một luồng CPU cho encoder. Bản xem tối đa 1280×720, tính vào quota kho video và giới hạn kích thước clip. Khi bận hoặc đầy, giữ file gốc và báo rõ; không chặn vòng lặp camera hay upload.
+- `GET /api/videos/{id}/content` vẫn tải đúng file gốc; không đổi hash hoặc nội dung upload. Bản xem là file bổ sung trong cùng volume, không cần migration DB. Xóa thủ công một video sẽ dọn cả file gốc và bản xem, giữ metadata tombstone. Không cho tác vụ chuyển mã khôi phục file sau khi xóa.
+
 Backend lưu file vào AI_VIDEO_DIR (Compose: volume video_data), DB giữ metadata/hash. Xóa thủ công bằng DELETE /api/videos/{id}, chỉ vai trò có quyền trên thiết bị; tombstone ngăn retry làm clip đã xóa xuất hiện lại. GET /api/videos/storage dành cho Admin. Không có tác vụ tự xóa video theo tuổi.
 
 ## Readiness và kiểm thử

@@ -23,6 +23,36 @@ from datetime import timedelta
 
 @unittest.skipUnless(os.getenv("W4_INTEGRATION") == "1", "Use the disposable week-4 runner")
 class FinalCore(fixtures.Week4Integration):
+    def test_alert_video_uses_explicit_clip_and_preserves_device_scope(self):
+        from tempfile import TemporaryDirectory
+        from app.core.config import settings
+        from app.models.ai_event import AiEvent
+        from app.models.alert import Alert
+        event_id, clip_id = 'link-'+self.suffix, 'clip-'+self.suffix
+        with TemporaryDirectory() as directory, patch.object(settings, 'AI_VIDEO_DIR', Path(directory)):
+            with Session(engine) as session:
+                session.add(AiEvent(event_id=event_id, device_id=self.device_id,
+                    event_type='DROWSY_THRESHOLD_REACHED', occurred_at=datetime.now(timezone.utc).replace(tzinfo=None),
+                    payload_hash='1'*64, payload={'clip_message_id':clip_id}))
+                alert=Alert(device_id=self.device_id, source_event_id=event_id,
+                    alert_type='DROWSY_THRESHOLD_REACHED', severity='1')
+                session.add(alert);session.commit();session.refresh(alert);alert_id=alert.id
+            path=f'/api/alerts/{alert_id}/video'
+            self.assertEqual(self.client.get(path,headers=self.auth('Customer')).status_code,404)
+            result=self.client.get(path,headers=self.auth('Employee'))
+            self.assertEqual(result.status_code,200,result.text)
+            self.assertEqual(result.json()['status'],'PENDING_OR_UNAVAILABLE')
+            with Session(engine) as session:
+                video=AiVideo(device_id=self.device_id,message_id=clip_id,state='DROWSY',
+                    storage_key='clip.mp4',sha256='2'*64,size_bytes=12)
+                session.add(video);session.commit();session.refresh(video);video_id=video.id
+            (Path(directory)/'clip.mp4').write_bytes(b'synthetic-mp4')
+            result=self.client.get(path,headers=self.auth('Employee')).json()
+            self.assertEqual(result['video']['video_id'],video_id)
+            self.assertEqual(result['status'],'AVAILABLE')
+            self.assertEqual(self.client.delete(f'/api/videos/{video_id}',headers=self.auth('Employee')).status_code,204)
+            self.assertEqual(self.client.get(path,headers=self.auth('Employee')).json()['status'],'DELETED')
+
     def login(self, role="Customer"):
         with Session(engine) as session:
             user = session.get(User, self.users[role])
