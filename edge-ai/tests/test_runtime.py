@@ -101,7 +101,12 @@ class StorageTests(unittest.TestCase):
             restarted.process_once()
         self.assertTrue(any("Video upload RETRY: message_id=event-1 attempt=2" in line
                             for line in retry_log.output))
-        self.assertEqual(send.call_args.args, (str(path), "vision-test", "DROWSY", "event-1"))
+        # Windows CI may give TEMP its 8.3 alias while the queue stores the
+        # canonical path. Verify the same file and unchanged event metadata.
+        sent_path = Path(send.call_args.args[0])
+        self.assertTrue(sent_path.parent.samefile(path.parent))
+        self.assertEqual(sent_path.name, path.name)
+        self.assertEqual(send.call_args.args[1:], ("vision-test", "DROWSY", "event-1"))
         self.assertFalse(path.exists())
         self.assertIsNone(self.row("event-1"))
 

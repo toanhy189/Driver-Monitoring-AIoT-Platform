@@ -56,10 +56,10 @@ Exporter AI, chạy ở terminal riêng từ `edge-ai` sau khi chuẩn bị môi
 
 ```powershell
 cd edge-ai
-./.venv/Scripts/python.exe -X utf8 -m service.metrics_server --host 0.0.0.0 --port 9108
+./.venv/Scripts/python.exe -X utf8 -m service.metrics_server --host 127.0.0.1 --port 9108
 ```
 
-Camera chưa chạy hoặc số đo quá 30 giây: exporter trả 503, Prometheus hiển thị down/no data. Không điền số FPS/latency giả. `0.0.0.0` để Docker Desktop truy cập host; chỉ dùng LAN thử. Không tự tạo firewall rule.
+Camera chưa chạy hoặc số đo quá 30 giây: exporter trả 503, Prometheus hiển thị down/no data. Không điền số FPS/latency giả. Đã kiểm tra Docker Desktop trên máy này đọc được exporter loopback qua `host.docker.internal`; không cần mở exporter ra LAN. Không tự tạo firewall rule.
 
 ## 4. AI
 
