@@ -356,7 +356,11 @@ class TrainingTests(unittest.TestCase):
 
     def test_fusion_unknown_and_distraction_not_overwritten_by_alert_class(self):
         distracted = {"valid": True, "calibrating": False, "is_distracted": True}
-        self.assertEqual(fuse_state(None, distracted), "UNKNOWN")
+        self.assertEqual(fuse_state(None, distracted), "DISTRACTED")
+        self.assertEqual(fuse_state(None, {**distracted, "valid": False}), "UNKNOWN")
+        self.assertEqual(fuse_state(None, {**distracted, "calibrating": True}), "UNKNOWN")
+        self.assertEqual(fuse_state(None, {**distracted, "is_distracted": False}), "UNKNOWN")
+        self.assertEqual(fuse_state(None, None), "UNKNOWN")
         self.assertEqual(fuse_state(0, distracted), "DISTRACTED")
         self.assertEqual(fuse_state(1, distracted), "DROWSY")
         self.assertEqual(fuse_state(0, {"valid": True, "calibrating": False}), "ATTENTIVE")
@@ -394,10 +398,13 @@ class TrainingTests(unittest.TestCase):
         camera = Mock()
         camera.isOpened.return_value = True
         camera.read.return_value = (True, frame)
-        model = SimpleNamespace(model_version="rf-test", update=Mock(return_value=1), last_inference_ms=0.1)
+        model = SimpleNamespace(model_version="rf-test", update=Mock(return_value=1), last_inference_ms=0.1,
+                                last_diagnostics=None, last_score=.8, kind="rf", threshold=.5)
         policy = app.AlertPolicy("vision-test", "rf-test")
         policy.update = Mock(wraps=policy.update)
         with patch.object(app, "load_optional_model", return_value=model), \
+                patch.object(app, "AI_EYE_CLOSURE_GUARD_ENABLED", True), \
+                patch.object(app, "AI_DEBUG_PREDICTIONS", True), \
                 patch.object(app, "init_db", return_value=True), \
                 patch.object(app, "VideoUploadWorker"), patch.object(app, "LocalAlertWorker"), \
                 patch.object(app.cv2, "VideoCapture", return_value=camera), \

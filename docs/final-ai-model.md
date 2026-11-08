@@ -10,6 +10,10 @@ Camera → MediaPipe landmark → hình học mắt/hướng đầu theo pixel �
 
 MediaPipe dùng mô hình thị giác có sẵn để tìm landmark. RF là mô hình nhóm huấn luyện trên đặc trưng; DISTRACTED dùng quy tắc hướng đầu. Không gọi toàn bộ pipeline là CNN tự huấn luyện, hay gọi xác suất RF là độ tin cậy của toàn bộ hệ thống. Khi thiếu dữ liệu, UNKNOWN chặn việc nối thời gian qua khoảng không quan sát được.
 
+Quy tắc DISTRACTED được xét độc lập khi hướng đầu hiện tại hợp lệ, đã hiệu chuẩn và lệch đủ thời gian, kể cả khi cửa sổ RF đang thiếu lịch sử. Nếu không có bằng chứng đó và RF chưa sẵn sàng thì UNKNOWN. Thay đổi ghép này đã qua test tự động, còn chờ thử lại camera; mất landmark thật vẫn UNKNOWN.
+
+Sau lượt thử RF giảm báo nhầm vẫn bỏ sót nhắm mắt, TV3 đồng ý thử thêm quy tắc nhắm mắt liên tục 1 giây, hồi phục mở mắt 1 giây, ngắt khi mất quan sát. Tùy chọn `AI_EYE_CLOSURE_GUARD_ENABLED` mặc định tắt; chỉ bật trong lượt thử đã chốt. Đây là thêm bằng chứng nguy cơ trong bước ghép trạng thái, không thay feature RF hay policy cảnh báo. Chưa công bố metrics cho hệ kết hợp và chưa coi các số CV của RF là metrics của hệ mới. Xem [chi tiết và giới hạn](ai-camera-review-20261108.md).
+
 ## Artifact đối chiếu đã khóa
 
 | Thuộc tính | Giá trị |

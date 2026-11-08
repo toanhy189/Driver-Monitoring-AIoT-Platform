@@ -13,9 +13,18 @@ from ml.features import (FEATURE_NAMES, FEATURE_GROUPS, FEATURE_VERSION, LEGACY_
 logger = logging.getLogger(__name__)
 
 
-def fuse_state(binary_prediction, pose_status):
-    """A non-drowsy prediction still needs the existing head-pose rules."""
+def fuse_state(binary_prediction, pose_status, *, eye_closure_risk=False):
+    """Use currently observed distraction even while the drowsiness window warms up."""
+    if eye_closure_risk:
+        return "DROWSY"
     if binary_prediction is None:
+        # Missing window history does not invalidate a currently tracked head.
+        # The tracker has its own continuous-duration gate; never use stale,
+        # uncalibrated or invalid pose evidence to bypass UNKNOWN.
+        if (pose_status and pose_status.get("valid", False)
+                and not pose_status.get("calibrating", True)
+                and pose_status.get("is_distracted", False)):
+            return "DISTRACTED"
         return "UNKNOWN"
     if isinstance(binary_prediction, str):
         if binary_prediction == "DROWSY":

@@ -81,10 +81,10 @@
       "passed": 11
     },
     "edge_ai": {
-      "ran": 94,
-      "passed": 94,
+      "ran": 101,
+      "passed": 101,
       "camera_used": false,
-      "scope": "Full suite after diagnostic metadata and test fixture updates; no real camera/audio opened by tests"
+      "scope": "Full suite after optional eye-closure guard and head fusion; 7 new synthetic timing/fusion cases; not model accuracy"
     },
     "frontend_node": {
       "passed": 63
@@ -110,6 +110,11 @@
       "ran": 7,
       "passed": 7,
       "scope": "Existing gap-history tests; subset of 94, not additional distinct tests"
+    },
+    "eye_closure_guard": {
+      "ran": 7,
+      "passed": 7,
+      "scope": "Subset of 101: blink, continuous closure, recovery, interruptions, invalid clock and fusion"
     }
   },
   "ai_model": {
@@ -119,7 +124,7 @@
     "scope": "Binary learned drowsiness + head pose rules; development CV is not new-person acceptance",
     "reference_artifact_unchanged": true,
     "separate_candidate_experiments_performed": true,
-    "camera_acceptance": "FAIL; candidate pending live trial",
+    "camera_acceptance": "FAIL for both reference and first low-false-alarm live trial",
     "retraining_scope": "Separate experimental candidates only; frozen reference artifact unchanged"
   },
   "acceptance_pending": [
@@ -132,15 +137,15 @@
     "Resolve awake-camera false positives; validate candidate detection and recovery before model acceptance"
   ],
   "source_base": "fc5cee0633478f22527205f89102970494f056cf",
-  "github_ci_status": "All 6 jobs passed for c650cf9; subsequent camera-diagnostic changes require their own run",
+  "github_ci_status": "All 6 jobs passed for 4844c44; later hybrid changes require their own run",
   "restart-only": {
     "pass": true,
     "cases": 1,
     "scope": "Disposable Docker backend restart with real PostgreSQL/MQTT and WebSocket; no production containers restarted"
   },
   "github_ci": {
-    "commit": "c650cf9",
-    "url": "https://github.com/toanhy189/Driver-Monitoring-AIoT-Platform/actions/runs/42447761032",
+    "commit": "4844c44",
+    "url": "https://github.com/toanhy189/Driver-Monitoring-AIoT-Platform/actions/runs/42449530147",
     "jobs_passed": 6
   },
   "camera-performance": {
@@ -198,6 +203,10 @@
     "scope": "Previously inspected, filtered awake diagnostic session; not independent acceptance accuracy or FPR",
     "candidate_default_activated": false,
     "physical_outputs_tested": false,
-    "audio_confirmation": "pending"
+    "audio_confirmation": "pending",
+    "candidate_live_status": "FAIL: user reports weak DROWSY detection with glasses and frequent UNKNOWN during head turns",
+    "candidate_live_camera_closed": true,
+    "head_fusion_fix": "Valid calibrated current distracted head can produce DISTRACTED while RF window is unavailable; automated tests pass; camera retest pending",
+    "hybrid_eye_guard": "TV3 approved implementation and live trial; default false; >=1s measured closure, >=1s open recovery, interrupts on missing/gap; live acceptance pending"
   }
 }
