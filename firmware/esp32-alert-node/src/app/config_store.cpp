@@ -16,7 +16,8 @@ constexpr int ON_MAX_MS = 5000;
 constexpr int OFF_MIN_MS = 50;
 constexpr int OFF_MAX_MS = 10000;
 // [CONFIG - thêm] Dấu nhận dạng giúp loại dữ liệu NVS sai định dạng/phiên bản.
-constexpr uint32_t CONFIG_MAGIC = 0xA1E27C01;
+constexpr uint32_t LEGACY_MAGIC = 0xA1E27C01;
+constexpr uint32_t CONFIG_MAGIC = 0xA1E27C02;
 constexpr char NVS_NAMESPACE[] = "alert";
 constexpr char NVS_KEY[] = "cfg";
 constexpr size_t CONFIG_ID_SIZE = 40;
@@ -27,8 +28,19 @@ struct StoredConfig
     uint32_t magic;
     char configId[40];
     DeviceTimingSet timings;
+    uint32_t revision;
     uint32_t crc;
 };
+
+struct LegacyConfig {
+    uint32_t magic;
+    char configId[40];
+    DeviceTimingSet timings;
+    uint32_t crc;
+};
+
+StoredConfig activeConfig{};
+bool hasActiveConfig = false;
 
 char activeConfigId[CONFIG_ID_SIZE] = "default";
 
@@ -72,6 +84,8 @@ void applyStoredConfig(const StoredConfig& config)
     // RAM và config_id chỉ đổi sau khi bản ghi đã được kiểm tra hoặc lưu thành công.
     applyDeviceTimings(config.timings);
     memcpy(activeConfigId, config.configId, sizeof(activeConfigId));
+    activeConfig = config;
+    hasActiveConfig = true;
 }
 
 bool saveConfig(const StoredConfig& config)
@@ -117,10 +131,16 @@ bool parseConfig(JsonDocument& doc, StoredConfig& result, const char** errorCode
     if (!parseDeviceTimings(doc["timings"].as<JsonVariantConst>(), timings, errorCode))
         return false;
 
+    if (doc["revision"].is<bool>() || !doc["revision"].is<uint32_t>() || doc["revision"].as<uint32_t>() == 0) {
+        *errorCode = "INVALID_REVISION";
+        return false;
+    }
+
     memset(&result, 0, sizeof(result));
     result.magic = CONFIG_MAGIC;
     memcpy(result.configId, configId, configIdLength + 1);
     result.timings = timings;
+    result.revision = doc["revision"].as<uint32_t>();
     result.crc = calculateConfigCrc(result);
     return true;
 }
@@ -138,7 +158,26 @@ bool loadSavedConfig()
     }
 
     StoredConfig config{};
-    size_t storedSize = preferences.getBytes(NVS_KEY, &config, sizeof(config));
+    size_t storedSize = preferences.getBytesLength(NVS_KEY);
+    if (storedSize == sizeof(LegacyConfig)) {
+        LegacyConfig legacy{};
+        preferences.getBytes(NVS_KEY, &legacy, sizeof(legacy));
+        if (legacy.magic == LEGACY_MAGIC && memchr(legacy.configId, '\0', sizeof(legacy.configId))
+                && legacy.configId[0] && validTimings(legacy.timings)
+                && legacy.crc == calculateCrc(&legacy, offsetof(LegacyConfig, crc))) {
+            config.magic = CONFIG_MAGIC;
+            memcpy(config.configId, legacy.configId, sizeof(config.configId));
+            config.timings = legacy.timings;
+            config.revision = 0;  // Unknown legacy order; the first versioned update wins.
+            config.crc = calculateConfigCrc(config);
+            storedSize = sizeof(config);
+            Serial.println("[CONFIG] Legacy NVS loaded; waiting for a versioned update");
+        } else {
+            storedSize = 0;
+        }
+    } else if (storedSize == sizeof(config)) {
+        preferences.getBytes(NVS_KEY, &config, sizeof(config));
+    }
     preferences.end();
 
     if (storedSize == 0)
@@ -170,23 +209,30 @@ const char* currentConfigId()
     return activeConfigId;
 }
 
+uint32_t currentConfigRevision() { return hasActiveConfig ? activeConfig.revision : 0; }
+
 void onConfigMessage(JsonDocument& doc)
 {
     // [CONFIG - thêm] Config ID trùng được xác nhận lại mà không ghi flash lần nữa.
     const char* incomingId = doc["config_id"].is<const char*>()
                                  ? doc["config_id"].as<const char*>()
                                  : nullptr;
-    if (incomingId != nullptr && strcmp(incomingId, activeConfigId) == 0)
-    {
-        sendConfigAck(incomingId, "APPLIED", nullptr);
-        return;
-    }
-
     StoredConfig candidate{};
     const char* errorCode = nullptr;
     if (!parseConfig(doc, candidate, &errorCode))
     {
         sendConfigAck(incomingId, "REJECTED", errorCode);
+        return;
+    }
+
+    if (hasActiveConfig && strcmp(candidate.configId, activeConfigId) == 0) {
+        const bool same = candidate.revision == activeConfig.revision &&
+                          memcmp(&candidate.timings, &activeConfig.timings, sizeof(candidate.timings)) == 0;
+        sendConfigAck(incomingId, same ? "APPLIED" : "REJECTED", same ? nullptr : "DUPLICATE_ID_MISMATCH");
+        return;
+    }
+    if (hasActiveConfig && candidate.revision <= activeConfig.revision) {
+        sendConfigAck(incomingId, "REJECTED", "STALE_REVISION");
         return;
     }
 

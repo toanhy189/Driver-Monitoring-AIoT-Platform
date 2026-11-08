@@ -1,5 +1,7 @@
 # Chạy hệ thống bằng Docker Compose
 
+Bản cập nhật cuối: xem [runbook 08/11/2026](../docs/final-runbook.md) cho migration cộng thêm, NTP LAN, monitoring, chính sách video thủ công và kiểm thử. Giữ hướng dẫn dưới đây làm tham chiếu các bước cũ; không chạy lại seed/create vào DB đang dùng.
+
 Thực hiện lệnh từ thư mục gốc repo. Ubuntu/WSL trong VS Code dùng Bash; Windows
 PowerShell có thể chạy các lệnh `docker compose` tương tự.
 

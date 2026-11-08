@@ -81,6 +81,8 @@ compile_commands.json
 
 # Local backups made while reconciling teammates' changes
 /.local-backups/
+/deployment/monitoring/secrets/
+/deployment/tls/certs/
 
 # Machine-specific source hashes; keep reports, contracts and test evidence tracked
 /docs/evidence/week3/source-manifest.json

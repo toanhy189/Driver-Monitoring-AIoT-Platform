@@ -17,6 +17,8 @@ def render(snapshot):
         for key, quantile in (("p50_ms", "0.5"), ("p95_ms", "0.95")):
             if key in values:
                 lines.append(f'ai_stage_latency_seconds{{stage="{stage}",quantile="{quantile}"}} {values[key]/1000}')
+                if stage == "estimator":
+                    lines.append(f'ai_inference_latency_ms{{quantile="{quantile}"}} {values[key]}')
     return "\n".join(lines)+"\n"
 
 
