@@ -2,7 +2,8 @@ opencv-contrib-python
 mediapipe
 numpy
 pandas
-scikit-learn
+scikit-learn>=1.6
+joblib
 paho-mqtt
 python-dotenv
-sqlite3
+requests
