@@ -1,7 +1,27 @@
 const DRIVER_STATES = ["ATTENTIVE", "DISTRACTED", "DROWSY"];
+const MAX_HISTORY_ITEMS = 100;
 
 function validTimestamp(value) {
   return typeof value === "string" && Number.isFinite(Date.parse(value)) ? value : null;
+}
+
+export function mergeTelemetryItems(snapshotItems, realtimeItems) {
+  const merged = [...snapshotItems];
+  for (const realtimeItem of realtimeItems) {
+    const duplicateIndex = merged.findIndex(item =>
+      (realtimeItem.id != null && item.id != null && item.id === realtimeItem.id) ||
+      (realtimeItem.recorded_at != null && item.recorded_at === realtimeItem.recorded_at));
+    if (duplicateIndex === -1) merged.push(realtimeItem);
+    else merged[duplicateIndex] = { ...merged[duplicateIndex], ...realtimeItem };
+  }
+  merged.sort((a, b) => {
+    const timeA = Date.parse(a.recorded_at);
+    const timeB = Date.parse(b.recorded_at);
+    if (!Number.isFinite(timeA)) return Number.isFinite(timeB) ? -1 : 0;
+    if (!Number.isFinite(timeB)) return 1;
+    return timeA - timeB;
+  });
+  return merged.slice(-MAX_HISTORY_ITEMS);
 }
 
 // API dùng ID số; telemetry có thể chỉ có mã thiết bị theo tài liệu bàn giao.

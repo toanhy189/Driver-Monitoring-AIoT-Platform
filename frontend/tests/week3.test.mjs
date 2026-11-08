@@ -47,7 +47,7 @@ test("tuần 3: API lịch sử dùng ID, UTC, phiên bản AI và giới hạn"
     await history.getDeviceHistory(2, kind, { from: "2026-10-18T10:00:00+07:00", modelVersion: "model-v1", limit: 50 });
   }
   assert.match(calls[0].url, /devices\/2\/telemetry\/history/);
-  const query = new URL(calls[0].url).searchParams;
+  const query = new URL(calls[0].url, "http://test.local").searchParams;
   assert.equal(query.get("from"), "2026-10-18T03:00:00.000Z");
   assert.equal(query.get("model_version"), "model-v1");
   assert.equal(query.get("limit"), "50");
@@ -55,6 +55,26 @@ test("tuần 3: API lịch sử dùng ID, UTC, phiên bản AI và giới hạn"
   assert.match(calls[2].url, /devices\/2\/timeline/);
   assert.match(calls[3].url, /devices\/2\/metrics/);
   assert.equal(calls[0].options.headers.Authorization, "Bearer test-token");
+});
+
+test("video của sự kiện được lấy theo message_id và content dùng endpoint MP4 có xác thực", async () => {
+  const calls = [];
+  const videos = await moduleFor("../src/services/videos.js", { fetch: async (url, options) => {
+    calls.push({ url, options });
+    if (url.includes("/content")) return { ok: true, blob: async () => "video-bytes" };
+    return response([{ video_id: 7, message_id: "event-7", content_url: "/api/videos/7/content" }]);
+  } });
+
+  const matches = await videos.getVideoForMessage(2, "event-7");
+  assert.equal(matches[0].video_id, 7);
+  assert.match(calls[0].url, /devices\/2\/videos\?/);
+  const query = new URL(calls[0].url, "http://test.local").searchParams;
+  assert.equal(query.get("message_id"), "event-7");
+  assert.equal(query.get("limit"), "1");
+  assert.equal(await videos.getVideoContent(7), "video-bytes");
+  assert.match(calls[1].url, /videos\/7\/content$/);
+  assert.equal(calls[1].options.headers.Accept, "video/mp4");
+  assert.equal(calls[1].options.headers.Authorization, "******");
 });
 
 test("biểu đồ TV4 giữ response cũ và gọi route riêng, không trùng API phân trang", async () => {
@@ -65,7 +85,7 @@ test("biểu đồ TV4 giữ response cũ và gọi route riêng, không trùng 
   } });
   const result = await api.getTelemetryHistory(2, { fromTime: "2026-10-19T00:00:00Z", limit: 100 });
   assert.match(calledUrl, /\/api\/2\/telemetry\/history\?/);
-  assert.equal(new URL(calledUrl).searchParams.get("from_time"), "2026-10-19T00:00:00Z");
+  assert.equal(new URL(calledUrl, "http://test.local").searchParams.get("from_time"), "2026-10-19T00:00:00Z");
   assert.equal(result.total_samples, 1);
   assert.equal(result.items[0].id, 1);
 });

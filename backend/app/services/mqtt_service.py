@@ -20,6 +20,7 @@ from app.models.device import Device
 from app.models.telemetry import Telemetry
 from app.schemas.ai_telemetry import QueuedTelemetry
 from app.schemas.rules import AiEventRequest
+from app.services.audit_service import log_action
 from app.services.command_state import aggregate, update_dispatch
 from app.services.websocket_manager import manager
 
@@ -82,9 +83,6 @@ def _save_telemetry(session: Session, code: str, payload: dict, *, commit: bool 
         driver_state=payload.get("driver_state"),
         face_detected=payload.get("face_detected") if type(payload.get("face_detected")) is bool else None,
         head_pose=pose,
-        angle_x=payload.get("angle_x"),
-        angle_y=payload.get("angle_y"),
-        angle_z=payload.get("angle_z"),
         confidence=payload.get("confidence"),
         model_version=payload.get("model_version"),
     )
@@ -111,7 +109,6 @@ def _save_telemetry(session: Session, code: str, payload: dict, *, commit: bool 
                 "head_pose": telemetry.head_pose,
                 "confidence": telemetry.confidence,
                 "model_version": telemetry.model_version,
-                "angle_x": telemetry.angle_x, "angle_y": telemetry.angle_y, "angle_z": telemetry.angle_z,
             },
         },
         _device_event(device),
@@ -248,6 +245,16 @@ def _save_ack(session: Session, code: str, payload: dict) -> list[dict]:
         command.ack_status = previous_ack_status
         command.error_message = previous_error
     session.add(command)
+    # ACK MQTT truoc day chi cap nhat command; audit gan actor tao lenh neu co, khong luu payload.
+    if command.created_by_user_id is not None:
+        log_action(
+            session=session,
+            user_id=command.created_by_user_id,
+            action="COMMAND_ACK_UPDATED",
+            entity_type="Command",
+            entity_id=command.request_id,
+            details={"ack_status": command.ack_status, "status": command.status},
+        )
     session.commit()
     return [{"type": "command.updated", "data": {
         "request_id": command.request_id,

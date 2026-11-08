@@ -1,0 +1,11 @@
+.admin-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 20px; }
+.admin-tabs { display: flex; gap: 8px; margin: 0 0 16px; border-bottom: 1px solid #dfe7f0; }
+.admin-tabs button { display: inline-flex; align-items: center; gap: 9px; padding: 11px 16px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: #52637d; font-weight: 700; }
+.admin-tabs button:hover, .admin-tabs button.active { color: #087da7; }
+.admin-tabs button.active { border-bottom-color: #0a91bf; }
+.admin-panel { padding: 22px; }
+.admin-user-devices { margin-top: 24px; padding-top: 20px; border-top: 1px solid #e4eaf1; }
+.admin-user-devices h3 { margin: 0; color: #142541; font-size: 17px; }
+.admin-device-code { display: block; margin-top: 4px; color: #71809a; }
+@media (max-width: 1000px) { .admin-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 500px) { .admin-stats { grid-template-columns: 1fr; } .admin-panel { padding: 15px; } .admin-panel > .section-heading { align-items: flex-start; flex-direction: column; } }

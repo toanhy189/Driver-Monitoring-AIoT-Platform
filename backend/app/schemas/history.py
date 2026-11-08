@@ -24,9 +24,6 @@ class TelemetryPoint(BaseModel):
     driver_state: str | None
     face_detected: bool | None
     head_pose: dict | None
-    angle_x: float | None
-    angle_y: float | None
-    angle_z: float | None
     confidence: float | None
     model_version: str | None
 

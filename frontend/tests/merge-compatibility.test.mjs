@@ -74,9 +74,11 @@ test("WebSocket chuyển payload chỉ có mã và phát sự kiện đóng đú
   class FakeSocket {
     constructor(url) { this.url = url; }
   }
+  const browserWindow = { location: { protocol: "http:", host: "localhost:8000" } };
   const { createTelemetrySocket } = await loadModule("../src/services/websocket.js", {
     WebSocket: FakeSocket,
     URL,
+    window: browserWindow,
     console: { log() {}, error() {} },
   });
   const received = [];
@@ -88,7 +90,9 @@ test("WebSocket chuyển payload chỉ có mã và phát sự kiện đóng đú
     onMessage: data => received.push(normalizeTelemetry(data)),
     onOpen: () => opens++, onClose: () => closes++, onError: () => errors++,
   });
-  assert.equal(socket.url, "ws://localhost:8000/ws/telemetry?ticket=short-lived-ticket");
+
+  const protocol = browserWindow.location.protocol === "https:" ? "wss:" : "ws:";
+  assert.equal(socket.url, `${protocol}//${browserWindow.location.host}/ws/telemetry?ticket=short-lived-ticket`);
   socket.onopen();
   socket.onmessage({ data: JSON.stringify({
     device_code: "DM-000001", ear: 0.21, perclos: 0.35, driver_state: "DROWSY",

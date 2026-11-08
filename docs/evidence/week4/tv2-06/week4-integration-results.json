@@ -1,0 +1,384 @@
+{
+  "tests_run": 8,
+  "executed_at": "2026-11-05T15:46:06.748554+00:00",
+  "scope": "Disposable codex_w3_ database and isolated Docker MQTT broker; no hardware",
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "failed_tests": [],
+  "observations": [
+    {
+      "case": "Admin-only device lifecycle and valid transitions",
+      "purpose": "Kiem tra quyen dang ky, chuyen lifecycle va tu choi role khong phai Admin",
+      "expected": {
+        "register_Admin": 201,
+        "register_Employee": 403,
+        "register_Customer": 403,
+        "provision_Admin": 200,
+        "provision_Employee": 403,
+        "provision_Customer": 403,
+        "activate_provisioned_Admin": 200,
+        "activate_provisioned_Employee": 403,
+        "activate_provisioned_Customer": 403,
+        "maintenance_Admin": 200,
+        "maintenance_Employee": 403,
+        "maintenance_Customer": 403,
+        "activate_maintenance_Admin": 200,
+        "activate_maintenance_Employee": 403,
+        "activate_maintenance_Customer": 403,
+        "status_Admin": 200,
+        "status_Employee": 403,
+        "status_Customer": 403,
+        "decommission_Admin": 200,
+        "decommission_Employee": 403,
+        "decommission_Customer": 403
+      },
+      "actual": {
+        "register_Employee": 403,
+        "register_Customer": 403,
+        "register_Admin": 201,
+        "provision_Employee": 403,
+        "provision_Customer": 403,
+        "provision_Admin": 200,
+        "activate_provisioned_Employee": 403,
+        "activate_provisioned_Customer": 403,
+        "activate_provisioned_Admin": 200,
+        "maintenance_Employee": 403,
+        "maintenance_Customer": 403,
+        "maintenance_Admin": 200,
+        "activate_maintenance_Employee": 403,
+        "activate_maintenance_Customer": 403,
+        "activate_maintenance_Admin": 200,
+        "status_Employee": 403,
+        "status_Customer": 403,
+        "status_Admin": 200,
+        "decommission_Employee": 403,
+        "decommission_Customer": 403,
+        "decommission_Admin": 200
+      },
+      "result": "PASS"
+    },
+    {
+      "case": "__main__.Week4Integration.test_device_lifecycle_requires_admin_and_allows_valid_transitions",
+      "result": "PASS"
+    },
+    {
+      "case": "JWT HTTP invalid, expired, and missing token",
+      "expected": 401,
+      "actual": [
+        401,
+        401,
+        401
+      ],
+      "username_exposed": [
+        false,
+        false,
+        false
+      ],
+      "result": "PASS"
+    },
+    {
+      "case": "__main__.Week4Integration.test_jwt_invalid_expired_and_missing_are_rejected",
+      "result": "PASS"
+    },
+    {
+      "case": "Login and permission audit redaction",
+      "purpose": "Xac nhan login va tu choi quyen duoc audit ma khong luu password hay token",
+      "expected": [
+        "LOGIN_SUCCESS",
+        "LOGIN_FAILED",
+        "PERMISSION_DENIED"
+      ],
+      "actual": [
+        "LOGIN_FAILED",
+        "LOGIN_SUCCESS",
+        "PERMISSION_DENIED"
+      ],
+      "result": "PASS"
+    },
+    {
+      "case": "__main__.Week4Integration.test_login_and_permission_audit_are_secret_safe",
+      "result": "PASS"
+    },
+    {
+      "case": "Config, alert, command, ACK and rule audit actions",
+      "purpose": "Xac nhan cac thao tac API va MQTT ACK duoc luu actor/action",
+      "expected": [
+        "ACKNOWLEDGE_ALERT",
+        "COMMAND_ACK_UPDATED",
+        "TEST_ALERT",
+        "UPDATE_CONFIG",
+        "UPDATE_RULE_BINDING"
+      ],
+      "actual": [
+        "ACKNOWLEDGE_ALERT",
+        "COMMAND_ACK_UPDATED",
+        "TEST_ALERT",
+        "UPDATE_CONFIG",
+        "UPDATE_RULE_BINDING"
+      ],
+      "result": "PASS"
+    },
+    {
+      "case": "Operator and admin mutation permission matrix",
+      "expected": {
+        "config_update": {
+          "Admin": 200,
+          "Employee": 200,
+          "Customer": 403
+        },
+        "alert_acknowledge": {
+          "Admin": 200,
+          "Employee": 200,
+          "Customer": 403
+        },
+        "command_create": {
+          "Admin": 201,
+          "Employee": 201,
+          "Customer": 403
+        },
+        "rule_read": {
+          "Admin": 200,
+          "Employee": 403,
+          "Customer": 403
+        },
+        "rule_update": {
+          "Admin": 200,
+          "Employee": 403,
+          "Customer": 403
+        }
+      },
+      "actual": {
+        "config_update": {
+          "Admin": 200,
+          "Employee": 200,
+          "Customer": 403
+        },
+        "alert_acknowledge": {
+          "Admin": 200,
+          "Employee": 200,
+          "Customer": 403
+        },
+        "command_create": {
+          "Admin": 201,
+          "Employee": 201,
+          "Customer": 403
+        },
+        "rule_read": {
+          "Admin": 200,
+          "Employee": 403,
+          "Customer": 403
+        },
+        "rule_update": {
+          "Admin": 200,
+          "Employee": 403,
+          "Customer": 403
+        }
+      },
+      "result": "PASS"
+    },
+    {
+      "case": "__main__.Week4Integration.test_operator_and_admin_endpoint_permissions",
+      "result": "PASS"
+    },
+    {
+      "case": "Revoked AI broker identity remains disabled after setup",
+      "expected": "disabled after setup",
+      "actual": "disabled after setup",
+      "result": "PASS"
+    },
+    {
+      "case": "__main__.Week4Integration.test_revoked_ai_account_stays_disabled_after_setup",
+      "result": "PASS"
+    },
+    {
+      "case": "Admin, Employee, Customer role and assignment matrix",
+      "expected": {
+        "users": {
+          "Admin": 200,
+          "Employee": 403,
+          "Customer": 403
+        },
+        "devices": {
+          "Admin": 200,
+          "Employee": 200,
+          "Customer": 200
+        },
+        "device_detail": {
+          "Admin": 200,
+          "Employee": 200,
+          "Customer": 404
+        },
+        "device_visible": {
+          "Admin": true,
+          "Employee": true,
+          "Customer": false
+        }
+      },
+      "actual": {
+        "users": {
+          "Admin": 200,
+          "Employee": 403,
+          "Customer": 403
+        },
+        "devices": {
+          "Admin": 200,
+          "Employee": 200,
+          "Customer": 200
+        },
+        "device_detail": {
+          "Admin": 200,
+          "Employee": 200,
+          "Customer": 404
+        },
+        "device_visible": {
+          "Admin": true,
+          "Employee": true,
+          "Customer": false
+        }
+      },
+      "result": "PASS"
+    },
+    {
+      "case": "__main__.Week4Integration.test_role_and_assignment_matrix_for_users_and_devices",
+      "result": "PASS"
+    },
+    {
+      "case": "Video content authentication and assignment matrix",
+      "purpose": "Verify assigned users can download, unassigned users cannot, and anonymous access is rejected",
+      "expected": {
+        "Admin": 200,
+        "Employee": 200,
+        "Customer_unassigned": 404,
+        "missing_token": 401
+      },
+      "actual": {
+        "Admin": 200,
+        "Employee": 200,
+        "Customer_unassigned": 404,
+        "missing_token": 401
+      },
+      "result": "PASS"
+    },
+    {
+      "case": "__main__.Week4Integration.test_video_content_requires_device_assignment",
+      "result": "PASS"
+    },
+    {
+      "case": "Viewer routes and unassigned-device access matrix",
+      "expected": {
+        "Admin": {
+          "device_config": 200,
+          "legacy_config": 200,
+          "current_telemetry": 200,
+          "legacy_telemetry_history": 200,
+          "telemetry_history": 200,
+          "command_history": 200,
+          "timeline": 200,
+          "metrics": 200,
+          "alerts": 200,
+          "commands": 200,
+          "videos": 200
+        },
+        "Employee": {
+          "device_config": 200,
+          "legacy_config": 200,
+          "current_telemetry": 200,
+          "legacy_telemetry_history": 200,
+          "telemetry_history": 200,
+          "command_history": 200,
+          "timeline": 200,
+          "metrics": 200,
+          "alerts": 200,
+          "commands": 200,
+          "videos": 200
+        },
+        "Customer": {
+          "device_config": 200,
+          "legacy_config": 200,
+          "current_telemetry": 200,
+          "legacy_telemetry_history": 200,
+          "telemetry_history": 200,
+          "command_history": 200,
+          "timeline": 200,
+          "metrics": 200,
+          "alerts": 200,
+          "commands": 200,
+          "videos": 200
+        },
+        "Customer_unassigned": {
+          "device_config": 404,
+          "legacy_config": 404,
+          "current_telemetry": 404,
+          "legacy_telemetry_history": 404,
+          "telemetry_history": 404,
+          "command_history": 404,
+          "timeline": 404,
+          "metrics": 404,
+          "alerts": 404,
+          "commands": 404,
+          "videos": 404
+        }
+      },
+      "actual": {
+        "Admin": {
+          "device_config": 200,
+          "legacy_config": 200,
+          "current_telemetry": 200,
+          "legacy_telemetry_history": 200,
+          "telemetry_history": 200,
+          "command_history": 200,
+          "timeline": 200,
+          "metrics": 200,
+          "alerts": 200,
+          "commands": 200,
+          "videos": 200
+        },
+        "Employee": {
+          "device_config": 200,
+          "legacy_config": 200,
+          "current_telemetry": 200,
+          "legacy_telemetry_history": 200,
+          "telemetry_history": 200,
+          "command_history": 200,
+          "timeline": 200,
+          "metrics": 200,
+          "alerts": 200,
+          "commands": 200,
+          "videos": 200
+        },
+        "Customer": {
+          "device_config": 200,
+          "legacy_config": 200,
+          "current_telemetry": 200,
+          "legacy_telemetry_history": 200,
+          "telemetry_history": 200,
+          "command_history": 200,
+          "timeline": 200,
+          "metrics": 200,
+          "alerts": 200,
+          "commands": 200,
+          "videos": 200
+        },
+        "Customer_unassigned": {
+          "device_config": 404,
+          "legacy_config": 404,
+          "current_telemetry": 404,
+          "legacy_telemetry_history": 404,
+          "telemetry_history": 404,
+          "command_history": 404,
+          "timeline": 404,
+          "metrics": 404,
+          "alerts": 404,
+          "commands": 404,
+          "videos": 404
+        }
+      },
+      "result": "PASS"
+    },
+    {
+      "case": "__main__.Week4Integration.test_viewer_endpoint_and_assignment_matrix",
+      "result": "PASS"
+    }
+  ]
+}

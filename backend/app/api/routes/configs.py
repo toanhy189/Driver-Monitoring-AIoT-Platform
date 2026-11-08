@@ -55,7 +55,7 @@ def get_device_config(
     current_user: User = Depends(require_viewer),
     session: Session = Depends(get_session),
 ):
-    device = assigned_device(session, current_user.id, device_id)
+    device = assigned_device(session, current_user, device_id)
     if device.device_type != "ALERT_NODE":
         raise HTTPException(status_code=409, detail="Device is not an alert node")
     return _snapshot(_config_for(session, device_id))
@@ -68,7 +68,7 @@ def update_device_config(
     current_user: User = Depends(require_operator),
     session: Session = Depends(get_session),
 ):
-    device = assigned_device(session, current_user.id, device_id)
+    device = assigned_device(session, current_user, device_id)
     # Serialize first creation too: no Config row exists to lock on the first PUT.
     device = session.exec(select(Device).where(Device.id == device_id).with_for_update()
                           .execution_options(populate_existing=True)).one()
@@ -124,7 +124,7 @@ def get_config_legacy(
     device = session.exec(select(Device).where(Device.device_code == device_code)).first()
     if device is None:
         raise HTTPException(status_code=404, detail="Device not found")
-    assigned_device(session, current_user.id, device.id)
+    assigned_device(session, current_user, device.id)
     config = _config_for(session, device.id)
     return {
         "device_code": device_code,
@@ -144,7 +144,7 @@ def update_config_legacy(
     device = session.exec(select(Device).where(Device.device_code == device_code)).first()
     if device is None:
         raise HTTPException(status_code=404, detail="Device not found")
-    assigned_device(session, current_user.id, device.id)
+    assigned_device(session, current_user, device.id)
     desired = data.get("desired_config")
     timings = desired.get("timings") if isinstance(desired, dict) else None
     if timings is None:

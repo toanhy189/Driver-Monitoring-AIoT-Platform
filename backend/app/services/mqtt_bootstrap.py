@@ -1,9 +1,12 @@
 """Install the Backend and Edge AI MQTT accounts after the broker starts."""
 
+import logging
 import time
 
 from app.core.config import settings
 from app.services.mqtt_security import BrokerSecurity, backend_acls, vision_acls
+
+logger = logging.getLogger(__name__)
 
 
 def ensure_identity(broker: BrokerSecurity, username: str, password: str,
@@ -44,4 +47,5 @@ def setup() -> None:
 
 if __name__ == "__main__":
     setup()
-    print("MQTT broker accounts and ACL are ready")
+    # Print cu khong parse duoc; ghi su kien setup theo logger JSON chung.
+    logger.info("MQTT broker accounts and ACL are ready", extra={"event": "mqtt_setup_ready"})

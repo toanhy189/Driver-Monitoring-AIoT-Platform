@@ -54,6 +54,88 @@
   gap: 10px;
 }
 
+.signup-card {
+  max-width: 760px;
+}
+
+.signup-layout {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.8fr) minmax(280px, 1.2fr);
+  gap: 32px;
+  align-items: start;
+}
+
+.signup-steps {
+  display: grid;
+  gap: 18px;
+  padding-top: 12px;
+}
+
+.signup-step {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  color: #71809a;
+}
+
+.signup-step > span {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  place-items: center;
+  border: 1px solid #cbd7e5;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.signup-step strong,
+.signup-step small {
+  display: block;
+}
+
+.signup-step strong {
+  margin: 4px 0;
+  color: inherit;
+  font-size: 14px;
+}
+
+.signup-step small {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.signup-step.is-active {
+  color: #0788b1;
+}
+
+.signup-step.is-active > span,
+.signup-step.is-complete > span {
+  border-color: #0788b1;
+  background: #e8f7fb;
+}
+
+.signup-step.is-complete {
+  color: #48617e;
+}
+
+.signup-form {
+  min-width: 0;
+}
+
+.signup-form-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.signup-form-actions > button {
+  box-sizing: border-box;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 46px;
+}
+
 .login-form label {
   margin-top: 8px;
 
@@ -120,7 +202,7 @@
 
 .login-secondary-button {
   width: 100%;
-  margin-top: 12px;
+  margin-top: 20px;
   padding: 12px 16px;
   border: 1px solid #F1AA9B;
   border-radius: 8px;
@@ -145,3 +227,27 @@
 .login-button:hover { background: #036c91; }
 .login-error { color: #a82d3b; }
 .login-secondary-button { border-color: #0788b1; color: #0788b1; }
+
+@media (max-width: 640px) {
+  .signup-layout {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .signup-steps {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .signup-step {
+    gap: 8px;
+  }
+
+  .signup-step strong {
+    font-size: 12px;
+  }
+
+  .signup-step small {
+    display: none;
+  }
+}

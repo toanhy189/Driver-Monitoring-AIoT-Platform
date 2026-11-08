@@ -13,10 +13,6 @@ class Telemetry(SQLModel, table=True):
     ear: float | None = None
     perclos: float | None = None
 
-    angle_x: float | None = None
-    angle_y: float | None = None
-    angle_z: float | None = None
-
     confidence: float | None = None
 
     driver_state: str | None = None

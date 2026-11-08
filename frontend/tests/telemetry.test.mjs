@@ -1,6 +1,36 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeTelemetry } from "../src/services/telemetry.js";
+import { mergeTelemetryItems, normalizeTelemetry } from "../src/services/telemetry.js";
+
+test("hợp nhất snapshot với realtime, ưu tiên realtime và sắp theo thời gian", () => {
+  const result = mergeTelemetryItems([
+    { id: 1, recorded_at: "2026-10-19T02:00:00Z", ear: 0.1 },
+    { id: 2, recorded_at: "2026-10-19T03:00:00Z", ear: 0.2 },
+  ], [
+    { id: 1, recorded_at: "2026-10-19T02:00:00Z", ear: 0.3 },
+    { id: 3, recorded_at: "2026-10-19T01:00:00Z", ear: 0.4 },
+  ]);
+  assert.deepEqual(result, [
+    { id: 3, recorded_at: "2026-10-19T01:00:00Z", ear: 0.4 },
+    { id: 1, recorded_at: "2026-10-19T02:00:00Z", ear: 0.3 },
+    { id: 2, recorded_at: "2026-10-19T03:00:00Z", ear: 0.2 },
+  ]);
+});
+
+test("giới hạn lịch sử hợp nhất ở 100 điểm mới nhất theo thời gian", () => {
+  const snapshot = Array.from({ length: 100 }, (_, index) => ({
+    id: index,
+    recorded_at: new Date(Date.UTC(2026, 9, 19, 0, index)).toISOString(),
+  }));
+  const result = mergeTelemetryItems(snapshot, [{
+    id: 100,
+    recorded_at: new Date(Date.UTC(2026, 9, 19, 0, 50, 30)).toISOString(),
+  }]);
+  assert.equal(result.length, 100);
+  assert.equal(result[0].id, 1);
+  assert.equal(result.at(-1).id, 99);
+  assert.ok(result.some(item => item.id === 100));
+});
 
 test("giữ ID số và mã thực tế BE cung cấp, không gán mã theo ID", () => {
   const result = normalizeTelemetry({

@@ -38,7 +38,7 @@ test("Test Alert chỉ POST khi gọi hàm, dùng ID DB, token và body tạm đ
   });
   assert.equal(calls.length, 0);
   const command = await service.sendTestAlert(2);
-  assert.equal(calls[0].url, "http://localhost:8000/api/devices/2/commands");
+  assert.equal(calls[0].url, "/api/devices/2/commands");
   assert.equal(calls[0].options.method, "POST");
   assert.equal(calls[0].options.headers.Authorization, "Bearer token");
   assert.equal(JSON.parse(calls[0].options.body).action, "TEST_ALERT");
@@ -91,8 +91,8 @@ test("lịch sử và chi tiết lệnh dùng GET; response thiếu hoặc sai r
   const detail = await service.getCommand("cmd-001");
   assert.equal(list.length, 1);
   assert.equal(detail.ack_status, "COMPLETED");
-  assert.equal(calls[0].url, "http://localhost:8000/api/commands?device_id=2");
-  assert.equal(calls[1].url, "http://localhost:8000/api/commands/cmd-001");
+  assert.equal(calls[0].url, "/api/commands?device_id=2");
+  assert.equal(calls[1].url, "/api/commands/cmd-001");
   assert.ok(calls.every(call => call.options.method === "GET" && call.options.headers.Authorization === "Bearer token"));
   assert.throws(() => service.normalizeCommand({ status: "SENT" }), /request_id/);
 });

@@ -78,6 +78,26 @@ test("bốn thao tác vòng đời gọi đúng URL; lỗi không tạo trạng 
   assert.equal(calls.length, 4);
 });
 
+test("dịch vụ quản trị tải người dùng và thiết bị đang gán bằng API có xác thực", async () => {
+  const calls = [];
+  const service = await loadModule("../src/services/users.js", {
+    localStorage: { getItem: () => "admin-token" },
+    fetch: async (url, options) => {
+      calls.push({ url, options });
+      return response(200, url.endsWith("/users/7/devices")
+        ? [{ id: 2, device_code: "vision-01" }]
+        : [{ id: 7, username: "admin", role: "Admin" }]);
+    },
+  });
+
+  const users = await service.getUsers();
+  const devices = await service.getUserDevices(7);
+  assert.equal(users[0].username, "admin");
+  assert.equal(devices[0].device_code, "vision-01");
+  assert.deepEqual(calls.map(call => call.url), ["/api/users", "/api/users/7/devices"]);
+  assert.ok(calls.every(call => call.options.headers.Authorization === "Bearer admin-token"));
+});
+
 test("provision chỉ thành công khi BE trả tài khoản MQTT của thiết bị", async () => {
   const service = await loadModule("../src/services/devices.js", {
     localStorage: { getItem: () => "token" },
@@ -129,7 +149,7 @@ test("nút vòng đời chỉ mở ở trạng thái BE cho phép", async () => 
   assert.notEqual(reason("DECOMMISSIONED", "decommission"), "");
 });
 
-test("trang chi tiết dùng dữ liệu có thật và ẩn thao tác với Customer", async () => {
+test("trang chi tiết chỉ hiện thao tác vòng đời sau khi BE xác nhận quyền trên thiết bị", async () => {
   const { default: Detail } = await loadModule("../src/pages/DeviceDetailPage.jsx", {}, true);
   const summary = { id: 2, device_code: "alert-01", model: "Alert Node", status: "OFFLINE" };
   const customer = renderToStaticMarkup(React.createElement(Detail, {
@@ -140,6 +160,27 @@ test("trang chi tiết dùng dữ liệu có thật và ẩn thao tác với Cus
   assert.match(customer, /Chưa cung cấp/);
   assert.match(customer, /Thông tin bên dưới lấy từ danh sách/);
   assert.doesNotMatch(customer, /Chuyển sang bảo trì/);
+
+  const { default: DetailView } = await loadModule("../src/pages/DeviceDetailView.jsx", {}, true);
+  const owner = renderToStaticMarkup(React.createElement(DetailView, {
+    user: { role: "Employee" },
+    deviceId: 2,
+    device: { ...summary, type: "VISION_NODE", lifecycle_state: "ACTIVE" },
+    detailSource: "detail",
+    realtime: { connected: false, events: [] },
+  }));
+  assert.match(owner, /Chuyển sang bảo trì/);
+  assert.match(owner, /Ngừng sử dụng/);
+
+  const customerOwner = renderToStaticMarkup(React.createElement(DetailView, {
+    user: { role: "Customer" },
+    deviceId: 2,
+    device: { ...summary, type: "VISION_NODE", lifecycle_state: "ACTIVE" },
+    detailSource: "detail",
+    realtime: { connected: false, events: [] },
+  }));
+  assert.doesNotMatch(customerOwner, /Chuyển sang bảo trì/);
+  assert.doesNotMatch(customerOwner, /Ngừng sử dụng/);
 
   const admin = renderToStaticMarkup(React.createElement(Detail, {
     user: { role: "Admin" }, deviceId: 2, summary,

@@ -317,17 +317,21 @@ Physical Layer
 ### Deployment
 - Docker Compose
 
-### Monitoring
+### Monitoring (kế hoạch, chưa có trong Compose hiện tại)
 - Prometheus
 - Grafana
 
-### CI/CD
+### CI/CD (kế hoạch, chưa có workflow trong repo hiện tại)
 - GitHub Actions
 
 ---
 
 > Các mục giới thiệu và kiến trúc mô tả mục tiêu của hệ thống. Hướng dẫn dưới đây
-> chạy bản phát triển hiện tại: PostgreSQL trong Docker, còn FastAPI và React trên máy.
+> mô tả cả kiến trúc mục tiêu lẫn bản phát triển hiện tại. Có thể chạy PostgreSQL,
+> Mosquitto, FastAPI và frontend/Nginx bằng Compose; hoặc chạy BE/FE trên máy với
+> PostgreSQL và Mosquitto trong Docker. Monitoring/CI ở trên chưa được triển khai.
+> Xem [hướng dẫn Docker Compose](deployment/README.md) để biết cổng, migration,
+> health check, volume dữ liệu và giới hạn retention/backup.
 
 # 3. Chạy nhanh trên Windows
 

@@ -10,13 +10,32 @@ from app.models.user import User
 from app.models.user_device import UserDevice
 from app.schemas.device import DeviceRegisterRequest, DeviceResponse, DeviceStatusRequest, ProvisionResponse
 from app.schemas.telemetry import TelemetryHistoryItem, TelemetryHistoryResponse, TelemetryResponse
-from app.services.access import assigned_device, assigned_devices
+from app.services.access import assigned_device, assigned_devices, is_admin, require_vision_node
+from app.services.audit_service import log_action
 from app.services.mqtt_provision_service import provision_device
 from app.services.mqtt_revoke_service import revoke_device
 from app.services.time_utils import as_utc
 
 
 router = APIRouter(tags=["devices"])
+
+
+def require_device_manager(
+    device_id: int,
+    current_user: User = Depends(require_viewer),
+    session: Session = Depends(get_session),
+) -> User:
+    if is_admin(current_user):
+        return current_user
+    if current_user.role not in {"Employee", "OPERATOR"}:
+        raise HTTPException(status_code=403, detail="Not enough permissions")
+    try:
+        assigned_device(session, current_user, device_id)
+    except HTTPException as error:
+        if error.status_code != 404:
+            raise
+        raise HTTPException(status_code=403, detail="Not enough permissions") from error
+    return current_user
 
 
 def _response(device: Device) -> DeviceResponse:
@@ -37,7 +56,7 @@ def get_all_device(
     session: Session = Depends(get_session),
     current_user: User = Depends(require_viewer),
 ):
-    return [_response(device) for device in assigned_devices(session, current_user.id)]
+    return [_response(device) for device in assigned_devices(session, current_user)]
 
 
 @router.get("/devices/{device_id}", response_model=DeviceResponse)
@@ -46,7 +65,7 @@ def get_device_detail(
     session: Session = Depends(get_session),
     current_user: User = Depends(require_viewer),
 ):
-    return _response(assigned_device(session, current_user.id, device_id))
+    return _response(assigned_device(session, current_user, device_id))
 
 
 @router.get("/{device_id}/telemetry", response_model=TelemetryResponse)
@@ -55,7 +74,8 @@ def get_current_telemetry(
     current_user: User = Depends(require_viewer),
     session: Session = Depends(get_session),
 ):
-    device = assigned_device(session, current_user.id, device_id)
+    device = assigned_device(session, current_user, device_id)
+    require_vision_node(device)
     telemetry = session.exec(
         select(Telemetry)
         .where(Telemetry.device_id == device_id)
@@ -72,9 +92,6 @@ def get_current_telemetry(
         ear=telemetry.ear,
         perclos=telemetry.perclos,
         driver_state=telemetry.driver_state,
-        angle_x=telemetry.angle_x,
-        angle_y=telemetry.angle_y,
-        angle_z=telemetry.angle_z,
         confidence=telemetry.confidence,
         face_detected=telemetry.face_detected,
         head_pose=telemetry.head_pose,
@@ -91,7 +108,8 @@ def get_telemetry_history(
     current_user: User = Depends(require_viewer),
     session: Session = Depends(get_session),
 ):
-    device = assigned_device(session, current_user.id, device_id)
+    device = assigned_device(session, current_user, device_id)
+    require_vision_node(device)
     for value in (from_time, to_time):
         if value is not None and (value.tzinfo is None or value.utcoffset() is None):
             raise HTTPException(status_code=422, detail="from_time/to_time must include a UTC offset")
@@ -154,6 +172,11 @@ def register_device(
     session.add(device)
     session.flush()
     session.add(UserDevice(user_id=current_user.id, device_id=device.id))
+    # Dang ky truoc day chi tao device va assignment; audit cung giao dich.
+    log_action(
+        session, current_user.id, "REGISTER_DEVICE", "Device", str(device.id),
+        {"device_code": device.device_code, "to_state": device.lifecycle_state},
+    )
     session.commit()
     session.refresh(device)
     return {"message": "Device registered", "device": _response(device)}
@@ -163,10 +186,10 @@ def register_device(
 def provision_mqtt_credentials(
     device_id: int,
     response: Response,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_device_manager),
     session: Session = Depends(get_session),
 ):
-    device = assigned_device(session, current_user.id, device_id)
+    device = assigned_device(session, current_user, device_id)
     if device.lifecycle_state != "REGISTERED":
         raise HTTPException(status_code=409, detail="Only registered devices can be provisioned")
     try:
@@ -179,6 +202,11 @@ def provision_mqtt_credentials(
     device.mqtt_password = None
     device.lifecycle_state = "PROVISIONED"
     session.add(device)
+    # Provision truoc day khong audit; chi ghi username metadata, khong ghi password.
+    log_action(
+        session, current_user.id, "PROVISION_DEVICE_CREDENTIALS", "Device", str(device.id),
+        {"device_code": device.device_code, "from_state": "REGISTERED", "to_state": "PROVISIONED"},
+    )
     session.commit()
     session.refresh(device)
     response.headers["Cache-Control"] = "no-store"
@@ -192,14 +220,20 @@ def provision_mqtt_credentials(
 @router.post("/devices/{device_id}/activate", response_model=DeviceResponse)
 def activate_device(
     device_id: int,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_device_manager),
     session: Session = Depends(get_session),
 ):
-    device = assigned_device(session, current_user.id, device_id)
+    device = assigned_device(session, current_user, device_id)
     if device.lifecycle_state not in {"PROVISIONED", "MAINTENANCE"}:
         raise HTTPException(status_code=409, detail="Device must be provisioned or in maintenance")
+    previous_state = device.lifecycle_state
     device.lifecycle_state = "ACTIVE"
     session.add(device)
+    # Audit ghi lai actor va buoc chuyen state ma khong can luu thong tin bi mat.
+    log_action(
+        session, current_user.id, "ACTIVATE_DEVICE", "Device", str(device.id),
+        {"device_code": device.device_code, "from_state": previous_state, "to_state": "ACTIVE"},
+    )
     session.commit()
     session.refresh(device)
     return _response(device)
@@ -208,14 +242,20 @@ def activate_device(
 @router.post("/devices/{device_id}/maintenance", response_model=DeviceResponse)
 def maintain_device(
     device_id: int,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_device_manager),
     session: Session = Depends(get_session),
 ):
-    device = assigned_device(session, current_user.id, device_id)
+    device = assigned_device(session, current_user, device_id)
     if device.lifecycle_state != "ACTIVE":
         raise HTTPException(status_code=409, detail="Only active devices can enter maintenance")
+    previous_state = device.lifecycle_state
     device.lifecycle_state = "MAINTENANCE"
     session.add(device)
+    # Ghi nhan thao tac dua thiet bi vao bao tri de doi chieu vong doi thiet bi.
+    log_action(
+        session, current_user.id, "DEVICE_MAINTENANCE", "Device", str(device.id),
+        {"device_code": device.device_code, "from_state": previous_state, "to_state": "MAINTENANCE"},
+    )
     session.commit()
     session.refresh(device)
     return _response(device)
@@ -224,10 +264,10 @@ def maintain_device(
 @router.post("/devices/{device_id}/decommission", response_model=DeviceResponse)
 def decommission_device(
     device_id: int,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_device_manager),
     session: Session = Depends(get_session),
 ):
-    device = assigned_device(session, current_user.id, device_id)
+    device = assigned_device(session, current_user, device_id)
     if device.lifecycle_state == "DECOMMISSIONED":
         raise HTTPException(status_code=409, detail="Device already decommissioned")
     if device.mqtt_username:
@@ -237,11 +277,17 @@ def decommission_device(
             raise HTTPException(status_code=422, detail=str(error))
         except Exception as error:
             raise HTTPException(status_code=503, detail=f"MQTT revoke unavailable: {error}")
+    previous_state = device.lifecycle_state
     device.lifecycle_state = "DECOMMISSIONED"
     device.status = "OFFLINE"
     device.mqtt_username = None
     device.mqtt_password = None
     session.add(device)
+    # Decommission truoc day chi doi state; audit ghi ket qua revoke, khong ghi credential.
+    log_action(
+        session, current_user.id, "DECOMMISSION_DEVICE", "Device", str(device.id),
+        {"device_code": device.device_code, "from_state": previous_state, "to_state": "DECOMMISSIONED"},
+    )
     session.commit()
     session.refresh(device)
     return _response(device)
@@ -251,16 +297,21 @@ def decommission_device(
 def update_device_status(
     device_id: int,
     data: DeviceStatusRequest,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_device_manager),
     session: Session = Depends(get_session),
 ):
-    device = assigned_device(session, current_user.id, device_id)
+    device = assigned_device(session, current_user, device_id)
     if device.lifecycle_state == "DECOMMISSIONED":
         raise HTTPException(status_code=409, detail="Device decommissioned")
     if data.status not in {"ONLINE", "OFFLINE"}:
         raise HTTPException(status_code=422, detail="Invalid connection status")
     device.status = data.status
     session.add(device)
+    # Audit cap nhat trang thai ket noi de truy vet thao tac quan tri.
+    log_action(
+        session, current_user.id, "UPDATE_DEVICE_STATUS", "Device", str(device.id),
+        {"device_code": device.device_code, "status": data.status},
+    )
     session.commit()
     session.refresh(device)
     return _response(device)

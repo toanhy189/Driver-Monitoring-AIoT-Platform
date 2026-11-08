@@ -48,7 +48,7 @@ def list_alerts(
     session: Session = Depends(get_session),
 ):
     if device_id is not None:
-        assigned_device(session, current_user.id, device_id)
+        assigned_device(session, current_user, device_id)
     if not 1 <= limit <= 200 or offset < 0:
         raise HTTPException(status_code=422, detail="Invalid pagination")
     query = (
@@ -76,7 +76,7 @@ def acknowledge_alert(
     alert = session.get(Alert, alert_id)
     if alert is None:
         raise HTTPException(status_code=404, detail="Alert not found")
-    assigned_device(session, current_user.id, alert.device_id)
+    assigned_device(session, current_user, alert.device_id)
     if alert.status == "ACKNOWLEDGED":
         return _public(session, alert, current_user.id)
     if alert.status != "NEW":

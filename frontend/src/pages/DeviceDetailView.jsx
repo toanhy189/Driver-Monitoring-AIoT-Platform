@@ -13,7 +13,10 @@ const ACTIONS = [
 ];
 
 function DeviceDetailView({ user, realtime, deviceId, device, detailSource, loading, detailError, actionError, actionNotice, busyAction, retry, performAction, onBack, onDashboard, onOpenHistory, onOpenConfig, onOpenCommands, onOpenAlerts, onUnauthorized, onLogout }) {
-  const canManage = hasPermission(user?.role, "device:manage");
+  const canManage = hasPermission(user?.role, "device:manage") ||
+    (detailSource === "detail" && hasPermission(user?.role, "device:manage-assigned"));
+  const canDecommission = hasPermission(user?.role, "device:decommission") ||
+    (detailSource === "detail" && hasPermission(user?.role, "device:manage-assigned"));
   const canSendCommand = hasPermission(user?.role, "command:send");
   const type = device?.type ?? device?.device_type;
   const isAlertNode = type === "ALERT_NODE" || (!type && /^alert-/i.test(device?.device_code || ""));
@@ -42,11 +45,15 @@ function DeviceDetailView({ user, realtime, deviceId, device, detailSource, load
       <div><dt>Phiên bản firmware</dt><dd>{displayValue(device?.firmware_version)}</dd></div>
     </dl></section>
 
-    {canManage && <section className="surface-card lifecycle-panel" aria-labelledby="lifecycle-heading"><div className="panel-heading"><Icon name="settings" /><h2 id="lifecycle-heading">Quản lý thiết bị</h2></div><p>Các thao tác gửi yêu cầu tới BE. Trạng thái chỉ đổi sau khi BE trả dữ liệu mới.</p><div className="action-grid">{ACTIONS.filter(item => item.key !== "decommission" || hasPermission(user?.role, "device:decommission")).map(item => {
+    {canManage && <section className="surface-card lifecycle-panel" aria-labelledby="lifecycle-heading"><div className="panel-heading"><Icon name="settings" /><h2 id="lifecycle-heading">Quản lý thiết bị</h2></div><p>Các thao tác gửi yêu cầu tới BE. Trạng thái chỉ đổi sau khi BE trả dữ liệu mới.</p><div className="action-grid">{ACTIONS.filter(item => item.key !== "decommission" || canDecommission).map(item => {
       const reason = deviceActionBlockReason(device, item.key);
       return <button key={item.key} className={`action-tile action-tile--${item.key}`} disabled={busyAction !== null || Boolean(reason)} title={reason || undefined} onClick={() => performAction(item.key)}><Icon name={item.icon} size={28} /><span><strong>{busyAction === item.key ? "Đang gửi…" : item.label}</strong><small>{reason || item.hint}</small></span></button>;
     })}</div>{actionError && <p className="notice-error" role="alert">{actionError}</p>}{actionNotice && <p className="notice-success" role="status">{actionNotice}</p>}</section>}
-    {detailSource === "detail" && !detailError && <DeviceHistoryPanel deviceId={deviceId} onUnauthorized={onUnauthorized} />}
+    {detailSource === "detail" && !detailError && <DeviceHistoryPanel
+      deviceId={deviceId}
+      deviceType={type}
+      onUnauthorized={onUnauthorized}
+    />}
   </AppShell>;
 }
 

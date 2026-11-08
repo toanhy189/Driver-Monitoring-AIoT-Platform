@@ -107,7 +107,7 @@ def send_test_alert(
     session: Session = Depends(get_session),
     idempotency_key: Annotated[str | None, Header(min_length=8, max_length=128, pattern=r"^[A-Za-z0-9_.:-]+$")] = None,
 ):
-    device = assigned_device(session, current_user.id, device_id)
+    device = assigned_device(session, current_user, device_id)
     previous, digest = _replay(session, current_user, device, idempotency_key, data.model_dump())
     if previous:
         return _public(session, previous, device)
@@ -138,6 +138,7 @@ def send_test_alert(
     parent = _save_parent(session, device, current_user, data.action, actions,
                           idempotency_key=idempotency_key, request_hash=digest)
     request.state.command_id = parent.id
+    # Tao audit cung giao dich command de co the truy vet nguoi phat lenh.
     log_action(
         session=session, user_id=current_user.id, action="TEST_ALERT",
         entity_type="Command", entity_id=parent.request_id,
@@ -156,7 +157,7 @@ def list_commands(
     session: Session = Depends(get_session),
 ):
     if device_id is not None:
-        assigned_device(session, current_user.id, device_id)
+        assigned_device(session, current_user, device_id)
     query = (
         select(Command)
         .join(UserDevice, UserDevice.device_id == Command.device_id)
@@ -182,7 +183,7 @@ def get_command(
         command = session.get(Command, int(request_id[4:]))
     if command is None:
         raise HTTPException(status_code=404, detail="Command not found")
-    assigned_device(session, current_user.id, command.device_id)
+    assigned_device(session, current_user, command.device_id)
     return _public(session, command)
 
 
@@ -199,7 +200,7 @@ def send_command_legacy(
     ).first()
     if device is None:
         raise HTTPException(status_code=404, detail="Device not found")
-    assigned_device(session, current_user.id, device.id)
+    assigned_device(session, current_user, device.id)
     previous, digest = _replay(session, current_user, device, idempotency_key, data.model_dump())
     if previous:
         return _public(session, previous, device)
@@ -218,4 +219,10 @@ def send_command_legacy(
     parent = _save_parent(session, device, current_user, data.command, actions,
                           idempotency_key=idempotency_key, request_hash=digest)
     request.state.command_id = parent.id
+    # Legacy command truoc day tao command nhung khong co audit row.
+    log_action(
+        session, current_user.id, "SEND_COMMAND", "Command", parent.request_id,
+        {"device_code": device.device_code, "status": parent.status},
+    )
+    session.commit()
     return _publish_actions(session, parent, device, actions)
