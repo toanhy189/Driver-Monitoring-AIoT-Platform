@@ -16,9 +16,8 @@ from app.models.video import AiVideo
 from app.services.access import assigned_device
 from app.services.audit_service import log_action
 from app.services.device_auth import verify_mqtt_login
-from app.services.time_utils import as_utc
 from app.services.video_storage import store_video, video_path, storage_usage
-from app.services.event_links import event_clip
+from app.services.event_links import event_clip, video_summary
 from app.services.video_playback import playback
 
 router = APIRouter(tags=["videos"])
@@ -27,13 +26,7 @@ device_basic = HTTPBasic(scheme_name="VisionNodeCredentials", auto_error=False)
 
 
 def _public(session: Session, video: AiVideo) -> dict:
-    event = session.exec(select(AiEvent).where(AiEvent.event_id == video.message_id,
-                                               AiEvent.device_id == video.device_id)).first()
-    return {"video_id": video.id, "device_id": video.device_id, "message_id": video.message_id,
-            "state": video.state, "size_bytes": video.size_bytes, "created_at": as_utc(video.created_at),
-            "event_received": event is not None,
-            "deleted_at": as_utc(video.deleted_at) if video.deleted_at else None,
-            "content_url": f"{settings.API_STR}/videos/{video.id}/content"}
+    return video_summary(session, video)
 
 
 def upload_device(

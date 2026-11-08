@@ -12,11 +12,14 @@ from app.services.time_utils import as_utc
 from app.services.video_storage import video_path
 
 
-def video_summary(video: AiVideo) -> dict:
+def video_summary(session: Session, video: AiVideo) -> dict:
+    event = session.exec(select(AiEvent.id).where(
+        AiEvent.device_id == video.device_id, AiEvent.event_id == video.message_id)).first()
     return {
         "video_id": video.id, "device_id": video.device_id,
         "message_id": video.message_id, "state": video.state,
         "size_bytes": video.size_bytes, "created_at": as_utc(video.created_at),
+        "event_received": event is not None,
         "deleted_at": as_utc(video.deleted_at) if video.deleted_at else None,
         "content_url": f"{settings.API_STR}/videos/{video.id}/content",
     }
@@ -43,4 +46,4 @@ def event_clip(session: Session, device_id: int, event_id: str | None) -> dict:
         status = "DELETED" if video.deleted_at else "AVAILABLE" if video_path(video).is_file() else "MISSING"
     return {"event_id": event.event_id, "episode_id": payload.get("episode_id"),
             "clip_message_id": message_id, "status": status,
-            "video": video_summary(video) if video else None}
+            "video": video_summary(session, video) if video else None}
