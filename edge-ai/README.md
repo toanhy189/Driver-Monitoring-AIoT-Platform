@@ -1,5 +1,7 @@
 # Edge AI – Chạy chương trình, huấn luyện và MQTT
 
+**Cập nhật camera 08/11/2026:** RF đang thử báo DROWSY khi người dùng mở mắt, nhìn thẳng. Model chưa đạt nghiệm thu; các số CV bên dưới không thay kết quả này. Xem [chẩn đoán và bước tiếp theo](../docs/ai-camera-review-20261108.md). Artifact đối chiếu, ngưỡng và policy hiện được giữ nguyên.
+
 ## Tuần 4: policy cảnh báo đã thống nhất ngày 07/11/2026
 
 Luồng camera hiện dùng `service/alert_policy.py`, phiên bản

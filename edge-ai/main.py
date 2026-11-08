@@ -13,6 +13,7 @@ import cv2
 import time
 import uuid
 import math
+import json
 from pathlib import Path
 
 import logging
@@ -27,7 +28,7 @@ from eye import (
 from mqtt_client import MQTTClient
 from config import (DEVICE_CODE, EAR_THRESHOLD, PERCLOS_THRESHOLD,
                     FACE_LOSS_RESET_SECONDS, MAX_OBSERVATION_GAP_SECONDS,
-                    AI_MODEL_MODE, AI_MODEL_PATH, MODEL_VERSION, METRICS_PATH,
+                    AI_MODEL_MODE, AI_MODEL_PATH, AI_DEBUG_PREDICTIONS, MODEL_VERSION, METRICS_PATH,
                     VIDEO_MAX_CLIP_SECONDS, VIDEO_MAX_CLIP_BYTES, VIDEO_STORAGE_MAX_BYTES, RECORDING_DIR)
 from ml.runtime import load_optional_model, fuse_state
 from head_pose import HeadPoseEstimator, HeadPoseTracker
@@ -490,6 +491,9 @@ def main():
                 binary_prediction = drowsiness_model.update(frame_time, ear, pose)
                 driver_state = fuse_state(binary_prediction, pose_status)
                 metrics.observe("estimator", drowsiness_model.last_inference_ms)
+                if AI_DEBUG_PREDICTIONS and drowsiness_model.last_diagnostics:
+                    logger.info("ML diagnostic: %s", json.dumps(drowsiness_model.last_diagnostics,
+                                                               sort_keys=True, allow_nan=False))
             metrics.observe("ml_update_and_fusion", (time.perf_counter()-decision_started)*1000)
 
             # ---------------------------------
@@ -566,6 +570,10 @@ def main():
             y = draw_text(frame, f"UTC: {frame_observed_at}", y)
             if drowsiness_model is not None:
                 y = draw_text(frame, f"Model: {state_data['model_version']}", y)
+                if AI_DEBUG_PREDICTIONS and drowsiness_model.last_score is not None:
+                    score_text = (f"{drowsiness_model.kind.upper()} score: {drowsiness_model.last_score:.3f}"
+                                  f" / threshold: {drowsiness_model.threshold:.3f}")
+                    y = draw_text(frame, score_text, y)
 
             if face_detected:
                 y = draw_text(frame, f"EAR: {ear:.3f}", y)

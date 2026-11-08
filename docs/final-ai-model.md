@@ -1,6 +1,8 @@
 # AI bản nộp: model nhị phân và quy tắc hướng đầu
 
-Phạm vi này đã được TV3 chốt ngày 08/11/2026. Không train lại trong đợt hoàn thiện triển khai.
+Phạm vi nhị phân kết hợp quy tắc đã được TV3 chốt ngày 08/11/2026. **Model RF bên dưới chưa đạt nghiệm thu camera**: thử trên người dùng thật ghi nhận mở mắt, nhìn thẳng nhưng vẫn báo DROWSY. Artifact cũ được giữ làm mốc đối chiếu; các thử nghiệm sửa lỗi ở thư mục riêng, chưa thay bản chạy.
+
+Xem [kết quả chẩn đoán camera](ai-camera-review-20261108.md). Không dùng kết quả CV để kết luận ca camera này đã đạt.
 
 ## Pipeline
 
@@ -8,7 +10,7 @@ Camera → MediaPipe landmark → hình học mắt/hướng đầu theo pixel �
 
 MediaPipe dùng mô hình thị giác có sẵn để tìm landmark. RF là mô hình nhóm huấn luyện trên đặc trưng; DISTRACTED dùng quy tắc hướng đầu. Không gọi toàn bộ pipeline là CNN tự huấn luyện, hay gọi xác suất RF là độ tin cậy của toàn bộ hệ thống. Khi thiếu dữ liệu, UNKNOWN chặn việc nối thời gian qua khoảng không quan sát được.
 
-## Artifact khóa
+## Artifact đối chiếu đã khóa
 
 | Thuộc tính | Giá trị |
 |---|---|
@@ -39,7 +41,7 @@ Các chỉ số được lấy từ kết quả đã có, không phải số đo
 
 FPR trên cửa sổ khác số lần cảnh báo nhầm trong một giờ; delay model khác inference latency và delay toàn hệ thống. Đánh giá DISTRACTED/quy tắc, UNKNOWN, ánh sáng/kính và phần tải thực còn cần ca nghiệm thu riêng.
 
-## Cách chạy đúng bản nộp
+## Cách chạy lại artifact để kiểm tra
 
 Từ gốc repo, khi đã có `.venv` và bundle riêng:
 
@@ -49,5 +51,7 @@ Từ gốc repo, khi đã có `.venv` và bundle riêng:
 ```
 
 `-Check` không mở camera, không phát âm và không ghi hàng đợi. Lệnh thứ hai mở camera và tạo dữ liệu riêng trên máy. Script chọn rõ model ML trong tiến trình chạy; không âm thầm đổi baseline mặc định cho mọi người.
+
+Khi cần chẩn đoán, đặt `$env:AI_DEBUG_PREDICTIONS = 'true'` trước khi chạy. Log thêm score, ngưỡng, phiên bản và đặc trưng của từng lần suy luận thực; overlay hiện score. Bỏ biến này hoặc đặt `false` để tắt. RF score là đầu ra chưa hiệu chuẩn; SVM score là decision margin. Log đặc trưng giữ riêng tại máy, không đưa log camera lên GitHub. Tùy chọn này không sửa quyết định hay ngưỡng.
 
 Artifact, dataset, CSV quan sát, clip và SQLite không đưa lên Git. Bàn giao model riêng kèm manifest/hash và môi trường khóa. DMD, mô hình ba lớp và các mô hình ảnh/chuỗi sâu hơn thuộc phát triển sau; cần nhãn, tài nguyên và đánh giá phù hợp trước khi thay bản nộp.

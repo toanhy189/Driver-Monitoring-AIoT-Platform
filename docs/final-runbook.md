@@ -70,7 +70,7 @@ python -m venv edge-ai/.venv
 ./edge-ai/run-submission.ps1
 ```
 
-Copy model riêng đúng đường dẫn/hash trước lệnh cuối; xem [model card](final-ai-model.md). Nhìn thẳng để hiệu chuẩn, dùng ánh sáng phù hợp. Clip/queue ở đường dẫn cấu hình Edge; video đã upload ở Docker volume `deployment_video_data`, không phải thư mục public của React.
+Copy model riêng đúng đường dẫn/hash trước lệnh cuối; xem [model card](final-ai-model.md). **RF hiện chưa đạt ca mở mắt trên camera thật**; lệnh này dùng để kiểm tra lại, chưa phải bản demo AI đã nghiệm thu. Nhìn thẳng để hiệu chuẩn, dùng ánh sáng phù hợp. Clip/queue ở đường dẫn cấu hình Edge; video đã upload ở Docker volume `deployment_video_data`, không phải thư mục public của React.
 
 Mở Camera là bắt đầu ghi clip theo chương trình. Nếu dùng gương mặt người khác, xin đồng ý trước. Backend giữ clip cho tới khi người có quyền xóa; quota đầy trả 507, Edge giữ clip để retry.
 

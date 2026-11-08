@@ -3,7 +3,7 @@
 ## Phạm vi đã chốt với TV3
 
 - Model học máy phân loại buồn ngủ nhị phân; quy tắc hướng đầu tạo DISTRACTED. UNKNOWN thể hiện thiếu quan sát. Không gọi đây là model học máy ba lớp.
-- Giữ artifact đã đánh giá, không train lại để thay đổi số liệu. DMD thuộc hướng phát triển.
+- Giữ artifact đã đánh giá làm mốc đối chiếu. Ca camera thật ngày 08/11 phát hiện báo nhầm DROWSY khi mở mắt; **chưa nghiệm thu model**. Thử nghiệm sửa lỗi phải ở thư mục riêng, giữ kết quả cũ và kiểm tra lại trước khi thay artifact. DMD thuộc hướng phát triển.
 - Policy `driver-bench-20261107-v1`: ngưỡng 3/6/10 giây, tải mức 1 LED+còi, mức 2/3 cả ba tải; thời lượng 1/2/3 giây. Mức 3 nhắc lại 5 giây với quan sát mới và kiểm soát dispatch đang chờ. ATTENTIVE ổn định 2 giây kết thúc đợt. UNKNOWN là lỗi giám sát riêng. Không áp dụng cooldown 30 giây cho luồng này.
 - Video trên Backend chỉ xóa thủ công. Có dung lượng và cảnh báo đầy; clip Edge chưa SAVED không được tự xóa. Dọn bản sao cục bộ sau SAVED là bước hoàn tất upload, không phải tác vụ xóa lịch sử Backend.
 - Đồng hồ LAN: Docker chrony trên laptop, ESP32 hỏi giờ laptop qua UDP 123. Không tự đổi Windows Firewall.

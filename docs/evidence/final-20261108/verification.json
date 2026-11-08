@@ -1,10 +1,11 @@
 {
   "browser-smoke": {
-    "timestamp": "2026-11-08T04:07:43.646Z",
+    "timestamp": "2026-11-08T04:31:34.543Z",
     "scope": "Installed Edge headless + deployed React/FastAPI; temporary Customer; no camera or physical outputs",
     "steps": [
       "Customer login against deployed API",
       "Profile form saved through React",
+      "Saved profile appears in header and when reopening form",
       "Password change returns to login",
       "Changed password login",
       "Server logout and local session cleared"
@@ -62,9 +63,10 @@
   },
   "test_suites": {
     "backend_unit": {
-      "ran": 111,
-      "passed": 59,
-      "skipped": 52
+      "ran": 112,
+      "passed": 60,
+      "skipped": 52,
+      "source": "GitHub CI c650cf9, backend-test"
     },
     "policy_live": {
       "passed": 3,
@@ -79,8 +81,10 @@
       "passed": 11
     },
     "edge_ai": {
+      "ran": 94,
       "passed": 94,
-      "camera_used": false
+      "camera_used": false,
+      "scope": "Full suite after diagnostic metadata and test fixture updates; no real camera/audio opened by tests"
     },
     "frontend_node": {
       "passed": 63
@@ -95,13 +99,28 @@
     "separate_docker_restart": {
       "passed": 1,
       "scope": "Disposable backend container restart, WebSocket permissions and persistent history/config/command"
+    },
+    "model_diagnostics": {
+      "ran": 18,
+      "passed": 18,
+      "camera_used": false,
+      "scope": "Updated diagnostics assertions in existing ML mechanics suite; not 18 additional distinct AI tests"
+    },
+    "gap_diagnostics": {
+      "ran": 7,
+      "passed": 7,
+      "scope": "Existing gap-history tests; subset of 94, not additional distinct tests"
     }
   },
   "ai_model": {
     "version": "rf-nthu-full-20261107-8d459c63",
     "sha256": "5e25b03d26a7577982d9c357d3f87fe2a1bf2a31c205b447b782ec5006ea7b0d",
-    "retrained_during_completion": false,
-    "scope": "Binary learned drowsiness + head pose rules; development CV is not new-person acceptance"
+    "retrained_during_completion": true,
+    "scope": "Binary learned drowsiness + head pose rules; development CV is not new-person acceptance",
+    "reference_artifact_unchanged": true,
+    "separate_candidate_experiments_performed": true,
+    "camera_acceptance": "FAIL; candidate pending live trial",
+    "retraining_scope": "Separate experimental candidates only; frozen reference artifact unchanged"
   },
   "acceptance_pending": [
     "Physical wiring and power confirmation",
@@ -109,13 +128,76 @@
     "LAN NTP from ESP32 after reboot without Internet",
     "Camera/local audio and physical outputs end to end",
     "Ground truth evaluation on new people/sessions",
-    "Final rehearsal video and release tag"
+    "Final rehearsal video and release tag",
+    "Resolve awake-camera false positives; validate candidate detection and recovery before model acceptance"
   ],
   "source_base": "fc5cee0633478f22527205f89102970494f056cf",
-  "github_ci_status": "Not yet verified for this branch",
+  "github_ci_status": "All 6 jobs passed for c650cf9; subsequent camera-diagnostic changes require their own run",
   "restart-only": {
     "pass": true,
     "cases": 1,
     "scope": "Disposable Docker backend restart with real PostgreSQL/MQTT and WebSocket; no production containers restarted"
+  },
+  "github_ci": {
+    "commit": "c650cf9",
+    "url": "https://github.com/toanhy189/Driver-Monitoring-AIoT-Platform/actions/runs/42447761032",
+    "jobs_passed": 6
+  },
+  "camera-performance": {
+    "scope": "Real webcam + frozen binary RF, this laptop, user guided manual trial; no physical ESP32 outputs; rolling performance summaries",
+    "started_at": "2026-11-08T04:35:53.503579+00:00",
+    "last_sample_at": "2026-11-08T04:42:00.831230+00:00",
+    "snapshots": 37,
+    "fps_median": 28.845321742123122,
+    "rss_peak_bytes": 378314752,
+    "latest_cpu_process_percent": 85.88824214118198,
+    "latest_rolling_stages": {
+      "landmarks": {
+        "count": 600,
+        "p50_ms": 17.184800002723932,
+        "p95_ms": 32.544200075790286
+      },
+      "ml_update_and_fusion": {
+        "count": 600,
+        "p50_ms": 0.018499791622161865,
+        "p95_ms": 0.04639988765120506
+      },
+      "frame_processing": {
+        "count": 600,
+        "p50_ms": 18.507699947804213,
+        "p95_ms": 38.69520011357963
+      },
+      "estimator": {
+        "count": 122,
+        "p50_ms": 29.112699907273054,
+        "p95_ms": 89.38779984600842
+      }
+    },
+    "accuracy_evaluated": false,
+    "manual_audio_confirmation": "pending",
+    "prometheus_targets": [
+      {
+        "job": "backend",
+        "health": "up"
+      },
+      {
+        "job": "edge-ai",
+        "health": "up"
+      }
+    ]
+  },
+  "camera-review": {
+    "reference_status": "FAIL: user-reported awake/open eyes persistently labelled DROWSY",
+    "overlapping_awake_windows_reviewed": 55,
+    "reference_predicted_drowsy": 23,
+    "eyes_rf_predicted_drowsy": 44,
+    "eyes_svm_predicted_drowsy": 36,
+    "compact_rf_predicted_drowsy": 18,
+    "low_false_alarm_rf_predicted_drowsy": 0,
+    "candidate_version": "rf-nthu-lowfa-20261108-a035d671",
+    "scope": "Previously inspected, filtered awake diagnostic session; not independent acceptance accuracy or FPR",
+    "candidate_default_activated": false,
+    "physical_outputs_tested": false,
+    "audio_confirmation": "pending"
   }
 }

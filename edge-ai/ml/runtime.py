@@ -75,10 +75,14 @@ class DrowsinessModel:
         self.last_seen = None
         self.failed = False
         self.last_inference_ms = None
+        self.last_score = None
+        self.last_diagnostics = None
 
     def update(self, now, ear=None, pose=None):
         self.last_inference_ms = None
+        self.last_diagnostics = None
         if self.failed:
+            self.last_score = None
             return None
         try:
             accepted = self.window.add(now, ear, pose)
@@ -87,6 +91,7 @@ class DrowsinessModel:
             current = self.window.samples[-1] if self.window.samples else None
             if current is None or not current.valid:
                 self.prediction = None
+                self.last_score = None
                 self.next_prediction = None
                 return None
             if (self.last_seen is not None
@@ -97,10 +102,12 @@ class DrowsinessModel:
                 snapshot = self.window.snapshot(now)
                 if snapshot is None:
                     self.prediction = None
+                    self.last_score = None
                     return None
                 from ml.train import score_model
                 values = np.array([[snapshot["features"][k] for k in self.feature_names]])
                 started = time.perf_counter()
+                score = None
                 if self.multiclass:
                     prediction = int(self.estimator.predict(values)[0])
                     self.prediction = {0: "ATTENTIVE", 1: "DISTRACTED", 2: "DROWSY"}[prediction]
@@ -110,12 +117,20 @@ class DrowsinessModel:
                         raise ValueError("Non-finite classifier score")
                     self.prediction = int(score >= self.threshold)
                 self.last_inference_ms = (time.perf_counter() - started) * 1000
+                self.last_score = score
+                self.last_diagnostics = {"model_version": self.model_version,
+                    "feature_version": self.feature_version,
+                    "score": score, "threshold": self.threshold,
+                    "prediction": self.prediction, "coverage": snapshot["coverage"],
+                    "start_s": snapshot["start_s"], "end_s": snapshot["end_s"],
+                    "window_seconds": self.config.window_seconds, "features": snapshot["features"]}
                 self.next_prediction = now + self.config.stride_seconds
             return self.prediction
         except Exception:
             # A failed model must not silently report a previously cached state.
             logger.exception("ML inference failed; reporting UNKNOWN until restart")
             self.failed, self.prediction = True, None
+            self.last_score = None
             return None
 
 

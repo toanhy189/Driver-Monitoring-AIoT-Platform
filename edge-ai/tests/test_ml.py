@@ -319,7 +319,21 @@ class TrainingTests(unittest.TestCase):
                 self.assertIn(prediction, (0, 1))
                 self.assertEqual(score.call_count, 1)
                 np.testing.assert_allclose(score.call_args.args[1][0], frame.iloc[4][list(FEATURE_NAMES)].to_numpy(dtype=float))
+            diagnostic = model.last_diagnostics
+            self.assertEqual(diagnostic["prediction"], prediction)
+            self.assertEqual(diagnostic["model_version"], model.model_version)
+            self.assertEqual(diagnostic["feature_version"], FEATURE_VERSION)
+            self.assertEqual(diagnostic["score"], model.last_score)
+            self.assertEqual(diagnostic["end_s"], 10)
+            self.assertEqual(diagnostic["start_s"], 0)
+            json.dumps(diagnostic, allow_nan=False)
+            # A cached prediction must not masquerade as a new inference record.
+            self.assertEqual(model.update(10.125, 0.12, POSE), prediction)
+            self.assertIsNone(model.last_diagnostics)
+            self.assertEqual(model.last_score, diagnostic["score"])
             self.assertIsNone(model.update(10.25))
+            self.assertIsNone(model.last_score)
+            self.assertIsNone(model.last_diagnostics)
             self.assertIsNone(model.update(15, 0.12, POSE))
             selected = joblib.load(root / "run" / "selected.joblib")
             # Gap-free synthetic training values are identical between v2/v3.
@@ -354,11 +368,14 @@ class TrainingTests(unittest.TestCase):
     def test_runtime_failure_never_returns_stale_prediction(self):
         model = DrowsinessModel.__new__(DrowsinessModel)
         model.failed, model.prediction = False, 1
+        model.last_score, model.last_diagnostics = 0.9, {"prediction": 1}
         model.window = Mock()
         model.window.add.side_effect = ValueError("bad observation")
         with self.assertLogs("ml.runtime", level="ERROR"):
             self.assertIsNone(model.update(10, 0.1, POSE))
         self.assertTrue(model.failed)
+        self.assertIsNone(model.last_score)
+        self.assertIsNone(model.last_diagnostics)
         self.assertIsNone(model.update(11, 0.1, POSE))
 
     def test_actual_loaded_version_is_used_in_status_and_telemetry(self):

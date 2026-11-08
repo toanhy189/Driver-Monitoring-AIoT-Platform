@@ -87,6 +87,7 @@ class GapHistoryTests(unittest.TestCase):
 
     def test_live_runtime_recovers_without_cached_prediction_on_missing_frames(self):
         model = DrowsinessModel.__new__(DrowsinessModel)
+        model.model_version, model.feature_version = "test-gap-history", FEATURE_VERSION
         model.failed, model.prediction = False, None
         model.multiclass = False
         model.config = FeatureConfig(window_seconds=20)
