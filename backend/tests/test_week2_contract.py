@@ -131,9 +131,9 @@ class Week2ContractTests(unittest.TestCase):
 
     def test_fe_routes_exist_with_expected_methods(self):
         routes = {
-            (route.path, method)
-            for route in app.routes
-            for method in getattr(route, "methods", [])
+            (path, method.upper())
+            for path, operations in app.openapi()["paths"].items()
+            for method in operations
         }
         for route in (
             ("/api/login", "POST"),
