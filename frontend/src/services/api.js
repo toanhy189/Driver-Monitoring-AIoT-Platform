@@ -64,7 +64,7 @@ export async function authenticatedBlobRequest(path, { missingMessage = "Bạn c
   let response;
   try {
     response = await fetch(`${prefix}${path}`, {
-      headers: { Accept: "video/mp4", Authorization: `******` },
+      headers: { Accept: "video/mp4", Authorization: `Bearer ${token}` },
       signal,
     });
   } catch (error) {

@@ -13,6 +13,7 @@ import { getCurrentUser } from "./services/auth.js";
 import { hasPermission } from "./services/permissions.js";
 import { DASHBOARD_VIEW, currentView, ensureView, hasPreviousView, pushView, replaceView } from "./services/navigation.js";
 import useRealtime from "./hooks/useRealtime.js";
+import { authenticatedRequest } from "./services/api.js";
 
 function App() {
   const [session, setSession] = useState(() => ({
@@ -28,6 +29,9 @@ function App() {
     hasPermission(session.user?.role, "dashboard:view") ? session.user?.id : null);
 
   const handleLogout = useCallback(() => {
+    // Capture the token before clearing local state; failed network logout still
+    // clears this browser immediately, while successful logout revokes all JWTs.
+    if (localStorage.getItem("access_token")) authenticatedRequest("/logout", { method: "POST" }).catch(() => {});
     localStorage.removeItem("access_token");
     replaceView(DASHBOARD_VIEW, null);
     setSession({ status: "anonymous", user: null, error: "" });
@@ -253,6 +257,8 @@ function App() {
     return <AdminDashboard
       user={session.user}
       realtime={realtime}
+      onOpenCommands={() => navigateTo({ page: "commands" })}
+      onOpenAlerts={() => navigateTo({ page: "alerts" })}
       onOpenDevices={() => navigateTo({ page: "devices" })}
       onOpenDevice={device => navigateTo({ page: "device-detail", deviceId: device.id, summary: device })}
       onLogout={handleLogout}

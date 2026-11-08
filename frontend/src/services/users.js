@@ -1,5 +1,10 @@
 import { authenticatedRequest } from "./api.js";
 
+export const createUser = body => authenticatedRequest("/users", { method: "POST", body });
+export const updateUser = (id, body) => authenticatedRequest(`/users/${id}`, { method: "PATCH", body });
+export const assignUserDevice = (id, deviceId) => authenticatedRequest(`/users/${id}/devices/${deviceId}`, { method: "PUT" });
+export const unassignUserDevice = (id, deviceId) => authenticatedRequest(`/users/${id}/devices/${deviceId}`, { method: "DELETE" });
+
 export async function getUsers({ signal } = {}) {
   const users = await authenticatedRequest("/users", { signal });
   if (!Array.isArray(users) || users.some(user =>

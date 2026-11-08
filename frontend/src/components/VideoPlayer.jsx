@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { getVideoContent, getVideoForMessage } from "../services/videos.js";
+import { authenticatedRequest } from "../services/api.js";
 
-export default function VideoPlayer({ deviceId, messageId, state, onClose, onUnauthorized }) {
+export default function VideoPlayer({ deviceId, messageId, state, onClose, onUnauthorized, canDelete = false }) {
   const [video, setVideo] = useState(null);
   const [source, setSource] = useState(null);
   const [error, setError] = useState("");
@@ -97,6 +98,11 @@ export default function VideoPlayer({ deviceId, messageId, state, onClose, onUna
             />
           )}
           {video && <small>{video.state} · {(video.size_bytes / (1024 * 1024)).toFixed(1)} MB</small>}
+          {video && canDelete && <button className="outline-button" onClick={async () => {
+            if (!window.confirm("Xóa vĩnh viễn video này? Lịch sử sự kiện vẫn được giữ.")) return;
+            try { await authenticatedRequest(`/videos/${video.video_id}`, { method: "DELETE" }); onClose(); }
+            catch (cause) { if (cause.status === 401) onUnauthorized?.(); else setError(cause.message); }
+          }}>Xóa video</button>}
         </div>
       </section>
     </div>

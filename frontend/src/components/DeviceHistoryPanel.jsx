@@ -10,7 +10,7 @@ const number = value => typeof value === "number" ? value.toFixed(2) : "Chưa c�
 const percentage = value => typeof value === "number" ? `${(value * 100).toFixed(0)}%` : "Chưa có";
 const states = { ATTENTIVE: "Tỉnh táo", DISTRACTED: "Mất tập trung", DROWSY: "Buồn ngủ" };
 
-export default function DeviceHistoryPanel({ deviceId, deviceType, onUnauthorized }) {
+export default function DeviceHistoryPanel({ deviceId, deviceType, onUnauthorized, canDeleteVideo = false }) {
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState("telemetry");
   const [filters, setFilters] = useState({ from: "", to: "", modelVersion: "" });
@@ -60,6 +60,7 @@ export default function DeviceHistoryPanel({ deviceId, deviceType, onUnauthorize
           state={selectedVideoEvent.state}
           onClose={() => setSelectedVideoEvent(null)}
           onUnauthorized={onUnauthorized}
+          canDelete={canDeleteVideo}
         />
       )}
       {activeKind === "metrics" && result && <dl className="device-details">

@@ -27,6 +27,6 @@ export function createTelemetrySocket({ ticket, onMessage, onOpen, onClose, onEr
     }
   };
   socket.onerror = () => onError?.();
-  socket.onclose = () => onClose?.();
+  socket.onclose = event => onClose?.(event);
   return socket;
 }
