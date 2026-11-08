@@ -1,5 +1,5 @@
 export const REALTIME_TYPES = new Set([
-  "telemetry.updated", "device.updated", "command.updated", "alert.created", "config.updated",
+  "telemetry.updated", "device.updated", "command.updated", "alert.created", "alert.updated", "config.updated",
 ]);
 
 export function retryDelay(attempt) {
