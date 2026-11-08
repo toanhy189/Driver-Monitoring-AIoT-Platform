@@ -38,16 +38,16 @@ def main():
     suffix = secrets.token_hex(6)
     network = "codex-w4-net-"+suffix
     postgres, broker = "codex-w4-pg-"+suffix, "codex-w3-broker-policy-"+suffix
+    volume = "codex-w4-mqtt-data-"+suffix
     database = "codex_w3_policy_"+suffix  # Existing test fixture requires this disposable prefix.
     db_port, mqtt_port = port(), port()
     password = secrets.token_urlsafe(24)
     OUTPUT.mkdir(parents=True, exist_ok=True)
     made_network = False
+    made_volume = False
     with tempfile.TemporaryDirectory(prefix="codex-w4-") as directory:
         temp = Path(directory).resolve()
         assert temp.is_relative_to(Path(tempfile.gettempdir()).resolve()) and temp.name.startswith("codex-w4-")
-        data = temp/"mqtt-data"
-        data.mkdir()
         env = {**os.environ, "DATABASE_URL":f"postgresql+psycopg://w4_test:{password}@127.0.0.1:{db_port}/{database}",
             "SECRET_KEY":secrets.token_urlsafe(32), "MQTT_HOST":"127.0.0.1", "MQTT_PORT":str(mqtt_port),
             "MQTT_ADMIN_USERNAME":"test-admin", "MQTT_ADMIN_PASSWORD":secrets.token_urlsafe(24),
@@ -67,6 +67,8 @@ def main():
         try:
             docker("network", "create", network)
             made_network = True
+            docker("volume", "create", volume)
+            made_volume = True
             docker("run", "-d", "--name", postgres, "--network", network, "--env-file", str(temp/"postgres.env"),
                    "-p", f"127.0.0.1:{db_port}:5432", "postgres:16")
             for _ in range(50):
@@ -85,11 +87,11 @@ def main():
             sql = "\n".join((ROOT/"database"/name).read_text(encoding="utf-8") for name in scripts)
             docker("exec", "-i", postgres, "psql", "-U", "w4_test", "-d", database, "-v", "ON_ERROR_STOP=1", input=sql)
             docker("run", "--rm", "--env-file", str(temp/"mqtt.env"),
-                "--mount", f"type=bind,source={data},target=/mosquitto/data",
+                "--mount", f"type=volume,source={volume},target=/mosquitto/data",
                 "--mount", f"type=bind,source={ROOT/'deployment/mqtt/init.sh'},target=/mosquitto/config/init.sh,readonly",
                 "--entrypoint", "/bin/sh", "eclipse-mosquitto:2", "/mosquitto/config/init.sh")
             docker("run", "-d", "--name", broker, "--network", network, "-p", f"127.0.0.1:{mqtt_port}:1883",
-                "--mount", f"type=bind,source={data},target=/mosquitto/data",
+                "--mount", f"type=volume,source={volume},target=/mosquitto/data",
                 "--mount", f"type=bind,source={ROOT/'deployment/mqtt/mosquitto.conf'},target=/mosquitto/config/mosquitto.conf,readonly",
                 "eclipse-mosquitto:2")
             for _ in range(50):
@@ -149,6 +151,9 @@ def main():
                 subprocess.run(["docker","rm","-f","-v",name],capture_output=True,timeout=30)
             if made_network:
                 subprocess.run(["docker","network","rm",network],capture_output=True,timeout=30)
+            if made_volume:
+                assert volume.startswith("codex-w4-mqtt-data-") and volume.endswith(suffix)
+                docker("volume","rm",volume)
 
 
 if __name__ == "__main__":

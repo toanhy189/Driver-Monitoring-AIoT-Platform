@@ -1,6 +1,5 @@
 
 from datetime import datetime, timezone
-import cv2
 
 
 def current_timestamp():
@@ -8,6 +7,8 @@ def current_timestamp():
     return datetime.now(timezone.utc).isoformat()
 
 def draw_text(frame, text, y, color=(0, 255, 0)):
+    # MQTT's timestamp helper must also work without the optional camera stack.
+    import cv2
     cv2.putText(
         frame,
         str(text),

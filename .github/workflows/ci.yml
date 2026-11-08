@@ -3,7 +3,7 @@ on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 env:
   PYTHONUTF8: '1'
