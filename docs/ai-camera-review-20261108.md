@@ -2,6 +2,8 @@
 
 ## Kết luận hiện tại
 
+**Cập nhật 15:34 ngày 08/11:** bản kết hợp RF ứng viên + eye guard hiệu chuẩn riêng **đạt lượt chức năng không kính** tại bàn. Người dùng xác nhận nhắm mắt lên DROWSY và nghe âm thanh, mở mắt nhìn thẳng 25 giây về ATTENTIVE, quay đầu vừa phải lên DISTRACTED, rồi bấm Q đóng camera. Đây là một người đã hiệu chuẩn, chưa phải đánh giá độ chính xác trên người mới. **Có kính vẫn chưa đạt; artifact đối chiếu và cấu hình mặc định giữ nguyên.** Các mục bên dưới lưu diễn biến và những lượt lỗi trước đó.
+
 **RF đối chiếu chưa đạt ca camera thật.** Người dùng xác nhận mở mắt, nhìn thẳng nhưng vẫn thấy DROWSY sau hơn 30 giây. Log suy luận có các cửa sổ PERCLOS = 0, thời gian nhắm mắt dài nhất = 0 nhưng RF vẫn vượt ngưỡng 0,4. Không thể giải thích ca này chỉ bằng cửa sổ dữ liệu cũ.
 
 Phiên chẩn đoán đầu đã được người dùng đóng. Chưa thay model mặc định, artifact bàn giao hay policy `driver-bench-20261107-v1`. Các ứng viên ở thư mục thử nghiệm riêng; không sửa BE/FE để che kết quả nhận biết.
@@ -87,3 +89,22 @@ Các lượt có độ phủ quan sát khoảng 98,7–99,9%. Không kính đo �
 Bản kiểm tra hiệu chuẩn đầu có một lỗi tiêu chí: vừa yêu cầu mở mắt/chớp tự nhiên vừa loại lượt có quá 5% thời gian dưới ngưỡng, dù guard không kích hoạt. Đã sửa schema `v2` để đánh giá đúng nguy cơ nhắm liên tục; vẫn báo tỷ lệ thời gian, vẫn giữ cổng phân tách và lượt nhắm kiểm tra. Đã thêm test chớp ngắn để tránh hồi quy.
 
 Báo cáo gốc của cả hai phiên được giữ nguyên ở trạng thái REJECTED. Kết quả v2 ghi file mới, công bố rõ là phân tích lại sau sửa tiêu chí, không phải lượt nghiệm thu mới. Bản không kính là `READY_FOR_TRIAL`; bản có kính vẫn REJECTED. RF, `.env` và cấu hình mặc định chưa đổi. Bộ test sau phần hiệu chuẩn: **110/110 đạt**; `run-camera-trial.ps1 -Check` nạp đúng RF ứng viên và ngưỡng guard riêng mà không mở camera/mạng.
+
+## Lượt chức năng mới sau hiệu chuẩn: không kính
+
+Từ 15:28 đến 15:30 ngày 08/11, chạy lại camera với RF `rf-nthu-lowfa-20261108-a035d671`, eye guard dùng ngưỡng riêng `0,2282818141`. Feature RF vẫn dùng ngưỡng 0,20; policy vẫn là `driver-bench-20261107-v1`. Không điều chỉnh ngưỡng từ dữ liệu của lượt mới này.
+
+| Thao tác | Kết quả được người dùng xác nhận |
+|---|---|
+| Nhắm mắt mô phỏng | DROWSY và có âm thanh |
+| Mở mắt, nhìn thẳng đủ 25 giây | Trở về ATTENTIVE |
+| Quay đầu vừa phải | DISTRACTED |
+| Bấm Q | Camera đóng bình thường |
+
+156 mẫu debug khoảng 1 Hz có 21 mẫu DROWSY, 14 DISTRACTED, 92 ATTENTIVE và 29 UNKNOWN; eye guard bật ở 7 mẫu. Có UNKNOWN khi khởi động và ở các khoảng thiếu quan sát; kết quả đạt các thao tác không có nghĩa mọi frame đều nhận được. Các số đếm không phải số giây chính xác, confusion matrix hay accuracy. Nhãn nhắm mắt mô phỏng không thay nhãn buồn ngủ tự nhiên; không tính detection delay khi thiếu mốc thao tác đồng bộ.
+
+Docker/Backend/broker không hoạt động trong lượt thử; camera vẫn xử lý và người dùng nghe cảnh báo tại máy. Sau khi bật lại stack, worker thật gửi bù **180 bản tin MQTT nhận SAVED và 14 clip upload thành công**. Queue MQTT từ 180 về 0, queue video từ 14 PENDING về 0, không xóa queue thủ công. Tổng backlog có thể gồm clip tồn từ lượt trước. Mất khoảng 5 giây trong lần phục hồi này; không coi đây là cam kết tốc độ chung.
+
+Rule Engine giữ tắt theo giới hạn kiểm tra mạch. Vì vậy ca này chứng minh cảnh báo local và phục hồi dữ liệu, **chưa nghiệm thu việc không bật tải cũ trên ESP32 thật**. Clip đã được lưu vào kho Backend riêng tại laptop; bản sao Edge chỉ được dọn sau xác nhận hợp lệ. Không đưa clip, log quan sát hay file hiệu chuẩn cá nhân lên GitHub.
+
+Minh chứng tổng hợp: [verification.json](evidence/final-20261108/verification.json), mục `camera-calibrated-no-glasses` và `real-queue-recovery`. CI của commit `230152f` có [đủ 6 job đạt](https://github.com/toanhy189/Driver-Monitoring-AIoT-Platform/actions/runs/42463236985). Phần kính, ánh sáng khác, người mới và tải thật vẫn cần kiểm tra riêng.

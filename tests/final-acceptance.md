@@ -31,11 +31,11 @@ Mỗi tổ hợp ánh sáng tốt/yếu × có/không kính: người tham gia �
 
 | Ca | Ngày / người thử | Kết quả | File minh chứng / ID |
 |---|---|---|---|
-| Camera + audio thật | Chưa ghi | Chưa nghiệm thu | |
+| Camera + audio thật | 08/11/2026; TV3, không kính | Đạt thao tác nhắm/mở mắt và quay đầu với RF ứng viên + guard hiệu chuẩn; kính chưa đạt, chưa phải accuracy | `docs/ai-camera-review-20261108.md`; `verification.json`: `camera-calibrated-no-glasses` |
 | Ba mức + nhắc + hồi phục | Chưa ghi | Chưa nghiệm thu | |
 | UNKNOWN / mất mặt / SESSION_ENDED | Chưa ghi | Chưa nghiệm thu | |
 | Mất Internet, reboot ESP32, NTP LAN | Chưa ghi | Chưa nghiệm thu | |
-| Mất BE/broker, gửi bù không kích tải muộn | Chưa ghi | Chưa nghiệm thu | |
+| Mất BE/broker, gửi bù không kích tải muộn | 08/11/2026; TV3 | Camera/loa và gửi bù đạt: 180 MQTT + 14 clip về 0; phần không kích tải muộn trên ESP32 chưa nghiệm thu (rule tắt) | `verification.json`: `real-queue-recovery` |
 | Config/NVS sau reboot, lệnh trùng, TTL hết hạn | Chưa ghi | Chưa nghiệm thu | |
 | Restore DB tạm | 08/11/2026 | Đạt; 17 bảng phục hồi vào DB tạm, không ghi đè DB ứng dụng | `docs/evidence/final-20261108/verification.json` |
 | Phát lại demo dự phòng | Chưa ghi | Chưa nghiệm thu | |

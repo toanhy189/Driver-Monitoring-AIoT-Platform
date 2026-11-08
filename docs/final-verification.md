@@ -19,11 +19,13 @@ Nguồn tổng hợp: [verification.json](evidence/final-20261108/verification.j
 | Backup | Restore thành công 17 bảng vào DB tạm | DB ứng dụng không bị ghi đè |
 | Tính toàn vẹn model | `run-submission.ps1 -Check` đạt đúng phiên bản | Chỉ kiểm tra nạp artifact, không chứng minh độ chính xác |
 | Camera thật | RF đối chiếu **chưa đạt**: người dùng mở mắt nhưng vẫn báo DROWSY | Có log score/đặc trưng; xem [chẩn đoán](ai-camera-review-20261108.md) |
+| Camera + loa, bản kết hợp hiệu chuẩn | **Đạt lượt chức năng không kính**, người dùng xác nhận | Nhắm mắt → DROWSY + âm thanh; mở mắt nhìn thẳng 25 giây → ATTENTIVE; quay đầu vừa phải → DISTRACTED; một người đã hiệu chuẩn, kính chưa đạt |
 | Hiệu năng camera | FPS trung vị 28,85; RSS đỉnh khoảng 360,8 MiB | 37 snapshot trong một phiên tại laptop này; estimator p95 khoảng 89,39 ms, khác thời gian chờ cửa sổ 20 giây |
 | Upload video | Có upload HTTPS thành công và xóa mục queue sau phản hồi hợp lệ | Clip giữ riêng trên máy; không phải minh chứng chất lượng AI |
 | Chẩn đoán ML | 18 test ML mechanics đạt sau bổ sung score/feature diagnostics | Là một phần của bộ AI, không cộng thành 18 test mới |
-| CI GitHub | Đủ 6 job đạt trên `58853cb` | [Run 42450603218](https://github.com/toanhy189/Driver-Monitoring-AIoT-Platform/actions/runs/42450603218); phần hiệu chuẩn sau đó cần run riêng |
+| CI GitHub | Đủ 6 job đạt trên `230152f`, gồm phần hiệu chuẩn | [Run 42463236985](https://github.com/toanhy189/Driver-Monitoring-AIoT-Platform/actions/runs/42463236985); commit tài liệu sau đó có run riêng |
 | Hiệu chuẩn mắt thật | Có kính bị từ chối; không kính có thể thử tiếp sau phân tích lại v2 | Chỉ số mắt, không phải metrics DROWSY; báo cáo cũ và dữ liệu giữ riêng |
+| Mất BE/broker và gửi bù thật | Camera/loa tiếp tục; sau phục hồi 180 MQTT và 14 video về 0 pending | 180 ACK SAVED, 14 upload thành công; không xóa queue thủ công. Rule tắt nên chưa nghiệm thu chống bật tải muộn trên board thật |
 
 Không cộng các lượt unit/integration thành một con số “test duy nhất” vì chúng có thể chạy lại cùng chức năng ở lớp khác nhau. Không dùng kiểm thử giả lập để tuyên bố phần tải vật lý hoặc chất lượng AI trên người mới đã đạt.
 
@@ -39,6 +41,6 @@ Không cộng các lượt unit/integration thành một con số “test duy nh
 
 ## Công việc nhóm còn cần làm
 
-TV1 xác nhận mạch/nguồn và chuẩn bị credential trước khi flash. TV2 phối hợp node/binding/clock/ACK, TV3 xử lý lỗi nhận biết trên camera, kiểm tra ứng viên và xác nhận audio; TV4 quan sát React/lịch sử/video. Nhóm hoàn tất kịch bản 10 bước, clip dự phòng, ảnh mạch, nội dung báo cáo/slide và tag release sau rehearsal.
+TV1 xác nhận mạch/nguồn và chuẩn bị credential trước khi flash. TV2 phối hợp node/binding/clock/ACK; TV3 tiếp tục điều kiện có kính, ánh sáng khác và đánh giá người/phiên mới. Lượt camera + audio không kính và gửi bù thật đã có kết quả, không cần chạy lại chỉ để lặp minh chứng. TV4 phối hợp quan sát React/lịch sử/video. Nhóm hoàn tất luồng tới tải thật, kịch bản 10 bước, clip dự phòng, ảnh mạch, báo cáo/slide và tag release sau rehearsal.
 
 CI trên GitHub chỉ được ghi “đạt” khi kiểm tra được run của nhánh mới; build/test local không thay kết quả CI.

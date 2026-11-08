@@ -4,13 +4,15 @@ Phạm vi nhị phân kết hợp quy tắc đã được TV3 chốt ngày 08/11
 
 Xem [kết quả chẩn đoán camera](ai-camera-review-20261108.md). Không dùng kết quả CV để kết luận ca camera này đã đạt.
 
+**Cập nhật sau thử mới:** RF ứng viên `rf-nthu-lowfa-20261108-a035d671` kết hợp eye guard hiệu chuẩn riêng đã đạt thao tác không kính trên TV3: nhắm mắt có DROWSY/âm thanh, mở lại về ATTENTIVE, quay đầu vừa phải có DISTRACTED. Có kính vẫn chưa đạt. Artifact đối chiếu dưới đây và launcher mặc định không đổi; kết quả chức năng cá nhân chưa phải metrics của hệ kết hợp.
+
 ## Pipeline
 
 Camera → MediaPipe landmark → hình học mắt/hướng đầu theo pixel → đặc trưng thời gian → RF nhị phân → kết hợp quy tắc DISTRACTED → xác nhận trạng thái → policy → local audio + MQTT.
 
 MediaPipe dùng mô hình thị giác có sẵn để tìm landmark. RF là mô hình nhóm huấn luyện trên đặc trưng; DISTRACTED dùng quy tắc hướng đầu. Không gọi toàn bộ pipeline là CNN tự huấn luyện, hay gọi xác suất RF là độ tin cậy của toàn bộ hệ thống. Khi thiếu dữ liệu, UNKNOWN chặn việc nối thời gian qua khoảng không quan sát được.
 
-Quy tắc DISTRACTED được xét độc lập khi hướng đầu hiện tại hợp lệ, đã hiệu chuẩn và lệch đủ thời gian, kể cả khi cửa sổ RF đang thiếu lịch sử. Nếu không có bằng chứng đó và RF chưa sẵn sàng thì UNKNOWN. Thay đổi ghép này đã qua test tự động, còn chờ thử lại camera; mất landmark thật vẫn UNKNOWN.
+Quy tắc DISTRACTED được xét độc lập khi hướng đầu hiện tại hợp lệ, đã hiệu chuẩn và lệch đủ thời gian, kể cả khi cửa sổ RF đang thiếu lịch sử. Nếu không có bằng chứng đó và RF chưa sẵn sàng thì UNKNOWN. Thay đổi ghép này đã qua test tự động và lượt quay đầu vừa phải không kính; mất landmark thật vẫn UNKNOWN.
 
 Sau lượt thử RF giảm báo nhầm vẫn bỏ sót nhắm mắt, TV3 đồng ý thử thêm quy tắc nhắm mắt liên tục 1 giây, hồi phục mở mắt 1 giây, ngắt khi mất quan sát. Tùy chọn `AI_EYE_CLOSURE_GUARD_ENABLED` mặc định tắt; chỉ bật trong lượt thử đã chốt. Đây là thêm bằng chứng nguy cơ trong bước ghép trạng thái, không thay feature RF hay policy cảnh báo. Chưa công bố metrics cho hệ kết hợp và chưa coi các số CV của RF là metrics của hệ mới. Xem [chi tiết và giới hạn](ai-camera-review-20261108.md).
 

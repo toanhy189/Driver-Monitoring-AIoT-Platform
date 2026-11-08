@@ -136,21 +136,21 @@
     "Physical wiring and power confirmation",
     "ESP32 credentials and firmware flash",
     "LAN NTP from ESP32 after reboot without Internet",
-    "Camera/local audio and physical outputs end to end",
-    "Ground truth evaluation on new people/sessions",
-    "Final rehearsal video and release tag",
-    "Resolve awake-camera false positives; validate candidate detection and recovery before model acceptance"
+    "Camera/local audio and physical outputs end to end, including replay suppression",
+    "Glasses-condition detection; current calibration rejected",
+    "Ground truth evaluation on new people/sessions and varied light",
+    "Final rehearsal video and release tag"
   ],
   "source_base": "fc5cee0633478f22527205f89102970494f056cf",
-  "github_ci_status": "All 6 jobs passed for 58853cb; new calibration changes require their own run",
+  "github_ci_status": "All 6 jobs passed for 230152f, including calibration; later documentation-only commits have separate runs",
   "restart-only": {
     "pass": true,
     "cases": 1,
     "scope": "Disposable Docker backend restart with real PostgreSQL/MQTT and WebSocket; no production containers restarted"
   },
   "github_ci": {
-    "commit": "58853cb",
-    "url": "https://github.com/toanhy189/Driver-Monitoring-AIoT-Platform/actions/runs/42450603218",
+    "commit": "230152f",
+    "url": "https://github.com/toanhy189/Driver-Monitoring-AIoT-Platform/actions/runs/42463236985",
     "jobs_passed": 6
   },
   "camera-performance": {
@@ -211,10 +211,11 @@
     "audio_confirmation": "User heard audio; DROWSY warning not demonstrated; monitoring faults also present",
     "candidate_live_status": "FAIL: user reports weak DROWSY detection with glasses and frequent UNKNOWN during head turns",
     "candidate_live_camera_closed": true,
-    "head_fusion_fix": "Valid calibrated current distracted head can produce DISTRACTED while RF window is unavailable; automated tests pass; camera retest pending",
-    "hybrid_eye_guard": "TV3 approved implementation and live trial; default false; >=1s measured closure, >=1s open recovery, interrupts on missing/gap; live acceptance pending",
+    "head_fusion_fix": "Automated tests pass and fresh guided no-glasses trial produced DISTRACTED; invalid/missing pose still UNKNOWN",
+    "hybrid_eye_guard": "Opt-in, default false; measured closure and opening 1s, resets on missing/gap; personal calibrated no-glasses functional trial passed",
     "hybrid_live_status": "FAIL: user reports no DROWSY; guard never activated in reviewed observations",
-    "hybrid_camera_closed": true
+    "hybrid_camera_closed": true,
+    "latest_scoped_acceptance": "PASS for calibrated no-glasses guided sequence and audio; glasses rejected; default/reference unchanged"
   },
   "eye_calibration": {
     "scope": "Guided actions in two local sessions; NOT drowsiness/new-person acceptance; numeric data private",
@@ -238,5 +239,88 @@
     "review": "V1 wrongly penalized allowed natural blinks by fraction; V2 checks actual prolonged-closure activation; original reports preserved; reanalysis not fresh acceptance",
     "rf_feature_threshold_changed": false,
     "policy_changed": false
+  },
+  "camera-calibrated-no-glasses": {
+    "scope": "Fresh guided functional webcam/audio trial on the same participant without glasses; not labelled accuracy, natural drowsiness or new-person evaluation",
+    "model_version": "rf-nthu-lowfa-20261108-a035d671",
+    "model_sha256": "a46e09221e8159235a3628f44aab73ddffb266b54ada5e9b24d324bb03fe7e15",
+    "guard_threshold": 0.22828181409345663,
+    "rf_feature_threshold": 0.2,
+    "policy_version": "driver-bench-20261107-v1",
+    "first_observation": "2026-11-08T08:28:08.076390+00:00",
+    "last_observation": "2026-11-08T08:30:46.667424+00:00",
+    "sampled_observations": 156,
+    "sampled_state_counts": {
+      "UNKNOWN": 29,
+      "ATTENTIVE": 92,
+      "DROWSY": 21,
+      "DISTRACTED": 14
+    },
+    "sampled_state_transitions": [
+      "UNKNOWN",
+      "ATTENTIVE",
+      "UNKNOWN",
+      "ATTENTIVE",
+      "UNKNOWN",
+      "ATTENTIVE",
+      "DROWSY",
+      "ATTENTIVE",
+      "DISTRACTED",
+      "ATTENTIVE",
+      "DISTRACTED",
+      "ATTENTIVE",
+      "UNKNOWN"
+    ],
+    "sampled_guard_active": 7,
+    "event_counts": {
+      "STATE_CHANGED": 13,
+      "MONITORING_FAULT": 1,
+      "DROWSY_THRESHOLD_REACHED": 4,
+      "RISK_SUSPENDED": 3,
+      "DISTRACTED_THRESHOLD_REACHED": 2,
+      "SESSION_ENDED": 1
+    },
+    "user_confirmed": {
+      "eye_closure_produced_drowsy_and_audio": true,
+      "eyes_open_forward_25s_recovered_attentive": true,
+      "moderate_head_turn_produced_distracted": true,
+      "camera_closed_with_q": true
+    },
+    "pass_for_guided_no_glasses_sequence": true,
+    "glasses_accepted": false,
+    "physical_esp32_outputs_tested": false,
+    "backend_and_broker_unavailable_during_trial": true,
+    "default_configuration_changed": false,
+    "log_sha256": "10f839f004ede929132d6192486f0c17ba45b1c06f058d1c21eef673df39cba1",
+    "raw_log_published": false,
+    "limitations": [
+      "Same participant after personal calibration",
+      "No full time-aligned ground truth, confusion matrix or detection delay",
+      "Glasses condition remains rejected",
+      "Rule engine disabled; no live physical replay-suppression acceptance"
+    ]
+  },
+  "real-queue-recovery": {
+    "before": {
+      "mqtt_pending": 180,
+      "videos": {
+        "PENDING": 14
+      }
+    },
+    "after": {
+      "mqtt_pending": 0,
+      "videos": {}
+    },
+    "elapsed_s": 5.0282862996682525,
+    "all_drained": true,
+    "scope": "Real local HTTP(S)/MQTT recovery using existing workers after Docker outage; no camera/audio or physical outputs",
+    "camera_opened": false,
+    "manual_queue_deletion": false,
+    "policy_enabled": false,
+    "successful_video_upload_log_entries": 14,
+    "video_queue_removal_log_entries": 14,
+    "upload_failure_log_entries": 0,
+    "mqtt_saved_ack_log_entries": 180,
+    "scope_note": "Backlog may include earlier pending clips; 180 messages and 14 videos are total queues, not exclusively the final trial. Real workers preserved IDs; no manual deletion. Rule engine disabled, so this does not prove physical replay suppression."
   }
 }

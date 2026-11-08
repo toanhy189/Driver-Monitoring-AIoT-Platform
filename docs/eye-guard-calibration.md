@@ -53,3 +53,7 @@ Sau khi xem kết quả và sẵn sàng mở camera/loa:
 Script khóa đúng hash của RF ứng viên, bật quy tắc mắt cho tiến trình thử và khôi phục biến môi trường khi thoát. Không thay `run-submission.ps1` vốn dùng RF đối chiếu cũ. Bản thử AI chính có ghi clip và upload theo cấu hình hiện có; bước hiệu chuẩn ở trên chỉ ghi số liệu. API/broker và credential vẫn cần cấu hình như runbook. Để dùng HTTPS, cấu hình `BACKEND_HOST` và `REQUESTS_CA_BUNDLE` đúng CA riêng trước khi chạy.
 
 Runtime từ chối file hiệu chuẩn bị từ chối, chưa hoàn tất, sai thiết bị hoặc khác phiên bản mã hình học mắt. File đúng schema chỉ có nghĩa nạp được; vẫn phải thử chớp mắt tự nhiên, nhắm kéo dài, mở lại, quay đầu và mất mặt. Nếu không đạt, giữ báo cáo lỗi và chưa chốt bản nộp.
+
+## Kết quả hiện có ngày 08/11
+
+Có kính: dữ liệu chưa tách biệt ổn định, hiệu chuẩn bị từ chối. Không kính: sau phân tích lại v2, đã thực hiện **một lượt camera mới** với ngưỡng riêng 0,2282818141; người dùng xác nhận DROWSY + âm thanh khi nhắm mắt, ATTENTIVE khi mở lại và DISTRACTED khi quay đầu vừa phải. Chỉ nghiệm thu các thao tác trong điều kiện đó. Kết quả và giới hạn ở [báo cáo camera](ai-camera-review-20261108.md); không áp dụng file cá nhân cho người khác hoặc tuyên bố đã xử lý kính.

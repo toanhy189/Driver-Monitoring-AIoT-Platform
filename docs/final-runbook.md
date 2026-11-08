@@ -72,6 +72,18 @@ python -m venv edge-ai/.venv
 
 Copy model riêng đúng đường dẫn/hash trước lệnh cuối; xem [model card](final-ai-model.md). **RF hiện chưa đạt ca mở mắt trên camera thật**; lệnh này dùng để kiểm tra lại, chưa phải bản demo AI đã nghiệm thu. Nhìn thẳng để hiệu chuẩn, dùng ánh sáng phù hợp. Clip/queue ở đường dẫn cấu hình Edge; video đã upload ở Docker volume `deployment_video_data`, không phải thư mục public của React.
 
+### Bản kết hợp đã thử chức năng không kính
+
+TV3 đã xác nhận bản RF ứng viên + eye guard hiệu chuẩn riêng nhận nhắm mắt, hồi phục mở mắt và quay đầu; loa hoạt động cả khi BE/broker tắt. Đây là bản thử riêng, điều kiện có kính vẫn chưa đạt. Xem [kết quả và giới hạn](ai-camera-review-20261108.md), [cách hiệu chuẩn](eye-guard-calibration.md). Trên đúng laptop/người/điều kiện vừa thử, dùng file riêng đã tạo:
+
+```powershell
+$taskCalibration = './edge-ai/ml-runs/eye-calibration/20261108T081950Z-343298b0/reanalysis-v2.json'
+./edge-ai/run-camera-trial.ps1 -CalibrationPath $taskCalibration -Check
+./edge-ai/run-camera-trial.ps1 -CalibrationPath $taskCalibration
+```
+
+Lệnh thứ hai mở camera/loa và ghi clip; chỉ chạy khi sẵn sàng. File hiệu chuẩn và model không nằm trên GitHub. Máy/người khác phải nhận bundle riêng và kiểm tra/hiệu chuẩn lại, không dùng ngưỡng cá nhân này làm ngưỡng chung. Script không sửa `.env` hay launcher đối chiếu. Nếu dùng cổng HTTPS riêng, cấu hình `BACKEND_HOST=https://localhost:8443` và `REQUESTS_CA_BUNDLE` trỏ đúng CA cục bộ như phần HTTPS; không tắt xác minh chứng chỉ.
+
 Mở Camera là bắt đầu ghi clip theo chương trình. Nếu dùng gương mặt người khác, xin đồng ý trước. Backend giữ clip cho tới khi người có quyền xóa; quota đầy trả 507, Edge giữ clip để retry.
 
 ## 5. ESP32 và giờ LAN
