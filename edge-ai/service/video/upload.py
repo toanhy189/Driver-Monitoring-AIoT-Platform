@@ -6,7 +6,7 @@ from datetime import datetime
 import cv2
 import requests
 
-from config import API_STR, BACKEND_HOST, DEVICE_CODE
+from config import API_STR, BACKEND_HOST, DEVICE_CODE, MQTT_PASSWORD, MQTT_USERNAME
 
 # URL của backend
 BACKEND_URL = (
@@ -55,10 +55,12 @@ def upload_video(video_path, device_code, state, message_id):
         logger.error("Video file not found: %s", video_path)
         return False
 
+    auth = (MQTT_USERNAME, MQTT_PASSWORD) if MQTT_USERNAME else None
     try:
         with open(video_path, "rb") as video_file:
             response = requests.post(
                 BACKEND_URL,
+                auth=auth,
                 files={
                     "file": (
                         os.path.basename(video_path),
@@ -74,6 +76,9 @@ def upload_video(video_path, device_code, state, message_id):
                 timeout=(5, 120),
             )
 
+        if not response.ok:
+            logger.error("Video upload rejected: HTTP %s %s", response.status_code, response.text[:200])
+            return False
         response.raise_for_status()
         result = response.json()
 

@@ -38,6 +38,7 @@ dụng lần lượt:
 1. `database/migration_fe_be_week2.sql`
 2. `database/migration_be_week3.sql`
 3. `database/migration_ai_videos.sql`
+4. `database/migration_link_alert_video.sql`
 
 Không chạy `database/create.sql` thủ công lên DB đang có dữ liệu: file này xóa
 schema `public`. Không xóa volume PostgreSQL để xử lý lỗi migration.

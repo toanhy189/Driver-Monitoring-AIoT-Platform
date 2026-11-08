@@ -102,6 +102,29 @@ class Week4Integration(unittest.TestCase):
             self.alert_device_id = alert_device.id
             for role in ("Admin", "Employee", "Customer"):
                 session.add(UserDevice(user_id=self.users[role], device_id=self.alert_device_id))
+            self.viewer_vision_code = "w4-view-" + self.suffix
+            viewer_vision = Device(
+                device_code=self.viewer_vision_code,
+                model="Test viewer camera",
+                device_type="VISION_NODE",
+                lifecycle_state="ACTIVE",
+                status="ONLINE",
+                last_seen=now,
+            )
+            session.add(viewer_vision)
+            session.flush()
+            self.viewer_vision_id = viewer_vision.id
+            for role in ("Admin", "Employee", "Customer"):
+                session.add(UserDevice(user_id=self.users[role], device_id=self.viewer_vision_id))
+            session.add(Telemetry(
+                device_id=self.viewer_vision_id,
+                recorded_at=now,
+                ear=0.2,
+                perclos=0.1,
+                driver_state="ATTENTIVE",
+                face_detected=True,
+                model_version="w4-test",
+            ))
             session.add(Telemetry(
                 device_id=self.alert_device_id,
                 recorded_at=now,
@@ -260,65 +283,67 @@ class Week4Integration(unittest.TestCase):
         self.assertEqual(customer_assignments.status_code, 200, customer_assignments.text)
         self.assertEqual(
             {item["id"] for item in customer_assignments.json()},
-            {self.alert_device_id},
+            {self.alert_device_id, self.viewer_vision_id},
         )
         self.assertEqual(customer_status.status_code, 403, customer_status.text)
         self.assertEqual(employee_status.status_code, 200, employee_status.text)
         self.assertEqual(employee_status.json()["status"], "OFFLINE")
 
     def test_viewer_endpoint_and_assignment_matrix(self):
-        """Kiem tra viewer doc cac endpoint duoc gan va bi tu choi voi device chua gan."""
-        # Truc day chi test viewer tren users/devices; mo rong sang cac route doc theo device.
-        routes = {
-            "device_config": f"/devices/{self.alert_device_id}/config",
-            "legacy_config": f"/configs/{self.alert_device_code}",
-            "current_telemetry": f"/{self.alert_device_id}/telemetry",
-            "legacy_telemetry_history": f"/{self.alert_device_id}/telemetry/history",
-            "telemetry_history": f"/devices/{self.alert_device_id}/telemetry/history",
-            "command_history": f"/devices/{self.alert_device_id}/history",
-            "timeline": f"/devices/{self.alert_device_id}/timeline",
-            "metrics": f"/devices/{self.alert_device_id}/metrics",
-            "alerts": f"/alerts?device_id={self.alert_device_id}",
-            "commands": f"/commands?device_id={self.alert_device_id}",
-            "videos": f"/devices/{self.alert_device_id}/videos",
+        """Kiem tra viewer doc route duoc gan, route chi cho Vision Node va thiet bi chua gan."""
+        # Telemetry/metrics chi dung cho VISION_NODE; ALERT_NODE bi tu choi 409 sau khi tach node.
+        vision_only = ("current_telemetry", "legacy_telemetry_history", "telemetry_history", "metrics")
+
+        def device_routes(device_id, device_code):
+            return {
+                "device_config": f"/devices/{device_id}/config",
+                "legacy_config": f"/configs/{device_code}",
+                "current_telemetry": f"/{device_id}/telemetry",
+                "legacy_telemetry_history": f"/{device_id}/telemetry/history",
+                "telemetry_history": f"/devices/{device_id}/telemetry/history",
+                "command_history": f"/devices/{device_id}/history",
+                "timeline": f"/devices/{device_id}/timeline",
+                "metrics": f"/devices/{device_id}/metrics",
+                "alerts": f"/alerts?device_id={device_id}",
+                "commands": f"/commands?device_id={device_id}",
+                "videos": f"/devices/{device_id}/videos",
+            }
+
+        alert_routes = device_routes(self.alert_device_id, self.alert_device_code)
+        vision_routes = {
+            name: path
+            for name, path in device_routes(self.viewer_vision_id, self.viewer_vision_code).items()
+            if name in vision_only
         }
-        actual = {}
+        unassigned_routes = device_routes(self.device_id, self.device_code)
+
+        actual, expected = {}, {}
         for role in ("Admin", "Employee", "Customer"):
-            actual[role] = {}
-            for name, path in routes.items():
+            expected[role] = {name: (409 if name in vision_only else 200) for name in alert_routes}
+            expected[role + "_vision"] = {name: 200 for name in vision_routes}
+            actual[role], actual[role + "_vision"] = {}, {}
+            for name, path in alert_routes.items():
                 with self.subTest(role=role, route=name):
                     response = self.client.get("/api" + path, headers=self.auth(role))
                     actual[role][name] = response.status_code
+                    self.assertEqual(response.status_code, expected[role][name], response.text)
+            for name, path in vision_routes.items():
+                with self.subTest(role=role, vision_route=name):
+                    response = self.client.get("/api" + path, headers=self.auth(role))
+                    actual[role + "_vision"][name] = response.status_code
                     self.assertEqual(response.status_code, 200, response.text)
 
-        unassigned_routes = {
-            "device_config": f"/devices/{self.device_id}/config",
-            "legacy_config": f"/configs/{self.device_code}",
-            "current_telemetry": f"/{self.device_id}/telemetry",
-            "legacy_telemetry_history": f"/{self.device_id}/telemetry/history",
-            "telemetry_history": f"/devices/{self.device_id}/telemetry/history",
-            "command_history": f"/devices/{self.device_id}/history",
-            "timeline": f"/devices/{self.device_id}/timeline",
-            "metrics": f"/devices/{self.device_id}/metrics",
-            "alerts": f"/alerts?device_id={self.device_id}",
-            "commands": f"/commands?device_id={self.device_id}",
-            "videos": f"/devices/{self.device_id}/videos",
-        }
         actual["Customer_unassigned"] = {}
+        expected["Customer_unassigned"] = {name: 404 for name in unassigned_routes}
         for name, path in unassigned_routes.items():
             with self.subTest(role="Customer", unassigned_route=name):
                 response = self.client.get("/api" + path, headers=self.auth("Customer"))
                 actual["Customer_unassigned"][name] = response.status_code
                 self.assertEqual(response.status_code, 404, response.text)
 
-        expected = {
-            role: {name: 200 for name in routes}
-            for role in ("Admin", "Employee", "Customer")
-        }
-        expected["Customer_unassigned"] = {name: 404 for name in unassigned_routes}
         self.assertEqual(actual, expected)
         OBSERVATIONS.append({
-            "case": "Viewer routes and unassigned-device access matrix",
+            "case": "Viewer routes, vision-only routes and unassigned-device access matrix",
             "expected": expected,
             "actual": actual,
             "result": "PASS" if actual == expected else "FAIL",

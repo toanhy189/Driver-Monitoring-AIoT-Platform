@@ -10,7 +10,8 @@ class Alert(SQLModel, table=True):
         primary_key=True,
     )
 
-    device_id: int
+    device_id: int = Field(foreign_key="devices.id")
+    event_id: int | None = Field(default=None, foreign_key="ai_events.id", index=True)
     
     alert_type: str
     description: str | None = None
@@ -23,3 +24,4 @@ class Alert(SQLModel, table=True):
     )
     severity: str | None = None
     source_event_id: str | None = None
+    resolved_at: NaiveDatetime | None = None   # cột đã có trong SQL

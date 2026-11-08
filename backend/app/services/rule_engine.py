@@ -16,7 +16,7 @@ from app.models.device import Device
 from app.schemas.rules import AiEventRequest, RulePolicy
 from app.services.command_dispatch import create_command
 from app.services.time_utils import as_utc
-
+from app.services.event_links import link_event
 
 logger = logging.getLogger(__name__)
 
@@ -52,10 +52,12 @@ def process_event(session: Session, payload: dict, *, commit: bool = True) -> li
                     occurred_at=data.timestamp.astimezone(timezone.utc).replace(tzinfo=None),
                     received_at=now, model_version=data.model_version,
                     state=data.final_state if data.event_type == "SESSION_ENDED" else data.state,
-                    state_duration_ms=data.state_duration_ms, payload_hash=digest, payload=payload)
+                    state_duration_ms=data.state_duration_ms, payload_hash=digest, payload=payload,
+                    segment_message_id=data.state_event_id)
     session.add(event)
     try:
         session.flush()
+        link_event(session, event)
         if data.event_type in {"STATE_CHANGED", "SESSION_ENDED"}:
             finish()
             return []
@@ -87,7 +89,7 @@ def process_event(session: Session, payload: dict, *, commit: bool = True) -> li
             session.add(event)
             finish()
             return []
-        alert = Alert(device_id=source.id, alert_type=data.event_type, status="NEW",
+        alert = Alert(device_id=source.id, event_id=event.id, alert_type=data.event_type, status="NEW",
                       source_event_id=data.event_id, severity=str(severity), created_at=event.occurred_at)
         session.add(alert)
         session.flush()

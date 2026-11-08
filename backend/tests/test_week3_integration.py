@@ -903,6 +903,105 @@ class Week3Integration(unittest.TestCase):
         record("AI deployment setup", "Additive migrations and broker role update run twice; one Vision Node/assignment; read-only readiness passes")
 
 
+    def segment_event(self, message_id, event_type="STATE_CHANGED", **extra):
+        payload = {"message_id": message_id, "device_code": self.source_code,
+                   "timestamp": datetime.now(timezone.utc).isoformat(),
+                   "event_type": event_type, "state": "DROWSY", **extra}
+        result = process_message(f"driver/{self.source_code}/events", payload)
+        self.assertTrue(any(item["type"] == "ingest.saved" for item in result), result)
+        return payload
+
+    def alerts_by_id(self):
+        reply = self.client.get("/api/alerts", headers=self.auth)
+        self.assertEqual(reply.status_code, 200, reply.text)
+        return {item["alert_id"]: item for item in reply.json()}
+
+#Ba test dưới dùng process_message trực tiếp (giống test_22) để không phụ thuộc thời điểm MQTT consumer xử lý. 
+#Riêng upload video vẫn dùng self.video_request(...) có sẵn, và đăng nhập broker thật.
+
+    def test_27_alert_resolves_to_segment_video(self):
+        _, credentials = self.provision_source()
+        start_id, threshold_id = "seg-" + self.suffix, "thr-" + self.suffix
+        with tempfile.TemporaryDirectory(prefix="codex-video-") as directory, \
+             patch.object(settings, "AI_VIDEO_DIR", Path(directory)):
+            self.segment_event(start_id)
+            self.segment_event(threshold_id, "DROWSY_THRESHOLD_REACHED",
+                               state_duration_ms=6500, state_event_id=start_id)
+            with Session(engine) as session:
+                start = session.exec(select(AiEvent).where(AiEvent.event_id == start_id)).one()
+                threshold = session.exec(select(AiEvent).where(AiEvent.event_id == threshold_id)).one()
+                alert = session.exec(select(Alert).where(Alert.source_event_id == threshold_id)).one()
+                self.assertEqual(threshold.segment_event_id, start.id)
+                self.assertEqual(alert.event_id, threshold.id)
+                alert_id = alert.id
+            # Video chưa lên: 404, danh sách alert báo PENDING
+            self.assertEqual(self.client.get(f"/api/alerts/{alert_id}/video", headers=self.auth).status_code, 404)
+            before = self.alerts_by_id()[alert_id]
+            self.assertIsNone(before["video"])
+            self.assertEqual(before["video_status"], "PENDING")
+            # Segment kết thúc -> video lên với message_id của STATE_CHANGED
+            upload = self.video_request(credentials, message_id=start_id)
+            self.assertEqual(upload.status_code, 201, upload.text)
+            self.assertTrue(upload.json()["event_received"])
+            reply = self.client.get(f"/api/alerts/{alert_id}/video", headers=self.auth)
+            self.assertEqual(reply.status_code, 200, reply.text)
+            self.assertEqual(reply.json()["video_id"], upload.json()["video_id"])
+            content = self.client.get(reply.json()["content_url"], headers=self.auth)
+            self.assertEqual(content.status_code, 200)
+            after = self.alerts_by_id()[alert_id]
+            self.assertEqual(after["video_status"], "READY")
+            self.assertEqual(after["video"]["video_id"], upload.json()["video_id"])
+            # Chiều ngược lại: video -> các alert của segment
+            videos = self.client.get(f"/api/devices/{self.source_id}/videos", headers=self.auth).json()
+            self.assertEqual([item["alert_id"] for item in videos[0]["alerts"]], [alert_id])
+            # Người không được gán thiết bị không thấy video của alert
+            with Session(engine) as session:
+                other = User(fullname="Link test", username="link-" + self.suffix,
+                    hash_password=get_password_hash("test-only"), role="Customer",
+                    email="link-" + self.suffix + "@example.test", phone="lk-" + self.suffix)
+                session.add(other); session.commit(); session.refresh(other)
+                other_auth = {"Authorization": "Bearer " + create_access_token(other.id, timedelta(minutes=2))}
+            self.assertEqual(self.client.get(f"/api/alerts/{alert_id}/video", headers=other_auth).status_code, 404)
+        record("Alert-video link", "STATE_CHANGED -> threshold -> alert.event_id/segment_event_id set; 404 then 200 once video uploaded; reverse list; scoped access")
+
+    def test_28_video_before_event_is_linked_when_event_arrives(self):
+        _, credentials = self.provision_source()
+        start_id = "late-" + self.suffix
+        with tempfile.TemporaryDirectory(prefix="codex-video-") as directory, \
+             patch.object(settings, "AI_VIDEO_DIR", Path(directory)):
+            upload = self.video_request(credentials, message_id=start_id)
+            self.assertEqual(upload.status_code, 201, upload.text)
+            self.assertFalse(upload.json()["event_received"])
+            with Session(engine) as session:
+                video = session.exec(select(AiVideo).where(
+                    AiVideo.device_id == self.source_id, AiVideo.message_id == start_id)).one()
+                self.assertIsNone(video.event_id)
+            self.segment_event(start_id)          # event đến sau video
+            with Session(engine) as session:
+                video = session.exec(select(AiVideo).where(
+                    AiVideo.device_id == self.source_id, AiVideo.message_id == start_id)).one()
+                start = session.exec(select(AiEvent).where(AiEvent.event_id == start_id)).one()
+                self.assertEqual(video.event_id, start.id)
+            listed = self.client.get(f"/api/devices/{self.source_id}/videos", headers=self.auth).json()
+            self.assertTrue(listed[0]["event_received"])
+        record("Video-before-event link", "Upload first leaves event_id NULL; STATE_CHANGED arrival back-fills ai_videos.event_id in the same transaction")
+    
+    # 29 cover nhánh thứ hai của link_event (threshold đến trước STATE_CHANGED).
+    def test_29_threshold_before_state_changed_is_linked_later(self):
+        start_id, threshold_id = "seg-late-" + self.suffix, "thr-early-" + self.suffix
+        self.segment_event(threshold_id, "DROWSY_THRESHOLD_REACHED",
+                           state_duration_ms=6500, state_event_id=start_id)
+        with Session(engine) as session:
+            threshold = session.exec(select(AiEvent).where(AiEvent.event_id == threshold_id)).one()
+            self.assertIsNone(threshold.segment_event_id)
+            self.assertEqual(threshold.segment_message_id, start_id)
+        self.segment_event(start_id)
+        with Session(engine) as session:
+            threshold = session.exec(select(AiEvent).where(AiEvent.event_id == threshold_id)).one()
+            start = session.exec(select(AiEvent).where(AiEvent.event_id == start_id)).one()
+            self.assertEqual(threshold.segment_event_id, start.id)
+        record("Threshold-before-segment link", "segment_message_id kept; segment_event_id resolved when STATE_CHANGED arrives")
+
 class EvidenceResult(unittest.TextTestResult):
     def startTest(self, test):
         self.started = time.perf_counter(); super().startTest(test)

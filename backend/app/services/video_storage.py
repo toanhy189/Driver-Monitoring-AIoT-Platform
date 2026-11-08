@@ -74,7 +74,8 @@ def store_video(session: Session, device: Device, upload: UploadFile, state: str
         destination = root / key
         os.replace(temporary, destination)
         row = AiVideo(device_id=device.id, message_id=message_id, state=state,
-                      storage_key=key, sha256=digest.hexdigest(), size_bytes=size)
+                      storage_key=key, sha256=digest.hexdigest(), size_bytes=size,
+                      event_id=event.id if event else None)
         session.add(row)
         session.commit()
         committed = True

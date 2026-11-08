@@ -1,7 +1,7 @@
 {
-  "executed_at": "2026-11-05T15:45:55.920297+00:00",
+  "executed_at": "2026-11-08T02:08:59.484708+00:00",
   "scope": "Real PostgreSQL, HTTP/ASGI, MQTT broker; virtual ESP32, no hardware",
-  "tests_run": 26,
+  "tests_run": 29,
   "broker_scope": "isolated disposable broker",
   "failures": 0,
   "errors": 0,
@@ -15,7 +15,7 @@
       "case": "__main__.Week3Integration.test_01_provision_revoke_and_api_guards",
       "detail": {
         "result": "PASS",
-        "duration_ms": 4759.306
+        "duration_ms": 1696.88
       }
     },
     {
@@ -32,7 +32,7 @@
       "case": "__main__.Week3Integration.test_02_config_offline_invalid_late_and_old_ack",
       "detail": {
         "result": "PASS",
-        "duration_ms": 1083.785
+        "duration_ms": 683.769
       }
     },
     {
@@ -47,7 +47,7 @@
       "case": "__main__.Week3Integration.test_03_publish_failure_never_marks_applied",
       "detail": {
         "result": "PASS",
-        "duration_ms": 322.932
+        "duration_ms": 124.386
       }
     },
     {
@@ -56,32 +56,32 @@
         "after_two_ack": "ACCEPTED",
         "after_three_ack": "COMPLETED",
         "latency": {
-          "http_ms": 215.759,
-          "total_to_completed_ms": 310.081,
+          "http_ms": 63.366,
+          "total_to_completed_ms": 130.395,
           "dispatches": {
             "led": {
-              "mqtt_publish_ms": 9.32,
-              "ack_from_publish_ms": 163.933,
-              "publish_started_at": "2026-11-05T15:45:01.922169Z",
-              "published_at": "2026-11-05T15:45:01.942397Z",
-              "first_ack_at": "2026-11-05T15:45:02.086102Z",
-              "completed_ack_at": "2026-11-05T15:45:02.086102Z"
+              "mqtt_publish_ms": 3.58,
+              "ack_from_publish_ms": 77.632,
+              "publish_started_at": "2026-11-08T02:08:19.101953Z",
+              "published_at": "2026-11-08T02:08:19.109351Z",
+              "first_ack_at": "2026-11-08T02:08:19.179585Z",
+              "completed_ack_at": "2026-11-08T02:08:19.179585Z"
             },
             "motor": {
-              "mqtt_publish_ms": 12.933,
-              "ack_from_publish_ms": 140.415,
-              "publish_started_at": "2026-11-05T15:45:01.972510Z",
-              "published_at": "2026-11-05T15:45:01.993576Z",
-              "first_ack_at": "2026-11-05T15:45:02.112925Z",
-              "completed_ack_at": "2026-11-05T15:45:02.112925Z"
+              "mqtt_publish_ms": 3.948,
+              "ack_from_publish_ms": 79.731,
+              "publish_started_at": "2026-11-08T02:08:19.115192Z",
+              "published_at": "2026-11-08T02:08:19.122852Z",
+              "first_ack_at": "2026-11-08T02:08:19.194923Z",
+              "completed_ack_at": "2026-11-08T02:08:19.194923Z"
             },
             "buzzer": {
-              "mqtt_publish_ms": 10.603,
-              "ack_from_publish_ms": 156.111,
-              "publish_started_at": "2026-11-05T15:45:02.005267Z",
-              "published_at": "2026-11-05T15:45:02.023461Z",
-              "first_ack_at": "2026-11-05T15:45:02.161378Z",
-              "completed_ack_at": "2026-11-05T15:45:02.161378Z"
+              "mqtt_publish_ms": 3.084,
+              "ack_from_publish_ms": 87.396,
+              "publish_started_at": "2026-11-08T02:08:19.126726Z",
+              "published_at": "2026-11-08T02:08:19.132646Z",
+              "first_ack_at": "2026-11-08T02:08:19.214122Z",
+              "completed_ack_at": "2026-11-08T02:08:19.214122Z"
             }
           },
           "clock": "backend_utc"
@@ -92,7 +92,7 @@
       "case": "__main__.Week3Integration.test_04_three_ack_completion_and_latency",
       "detail": {
         "result": "PASS",
-        "duration_ms": 1248.691
+        "duration_ms": 795.647
       }
     },
     {
@@ -103,13 +103,13 @@
       "case": "__main__.Week3Integration.test_05_timeout_and_late_ack",
       "detail": {
         "result": "PASS",
-        "duration_ms": 1043.929
+        "duration_ms": 631.735
       }
     },
     {
       "case": "TV2-14/15",
       "detail": {
-        "event_id": "event-65605edbff5f37e1",
+        "event_id": "event-a8e5059514660ac8",
         "alert_id": 1,
         "request_id": "cmd-3",
         "severity": 3,
@@ -120,7 +120,7 @@
       "case": "__main__.Week3Integration.test_06_rule_chain_severity_cooldown_and_stale",
       "detail": {
         "result": "PASS",
-        "duration_ms": 1499.839
+        "duration_ms": 659.989
       }
     },
     {
@@ -131,7 +131,7 @@
       "case": "__main__.Week3Integration.test_07_event_redelivery_concurrent_and_restart",
       "detail": {
         "result": "PASS",
-        "duration_ms": 3003.987
+        "duration_ms": 3075.881
       }
     },
     {
@@ -145,7 +145,7 @@
       "case": "__main__.Week3Integration.test_08_command_idempotency_concurrent_and_conflict",
       "detail": {
         "result": "PASS",
-        "duration_ms": 796.576
+        "duration_ms": 595.951
       }
     },
     {
@@ -158,8 +158,8 @@
         "legacy_chart_api": "UTC offset converted; latest samples ascending; other user denied",
         "metrics": {
           "device_id": 17,
-          "start": "2026-11-04T15:45:09.263207Z",
-          "end": "2026-11-05T15:45:09.263207Z",
+          "start": "2026-11-07T02:08:24.663837Z",
+          "end": "2026-11-08T02:08:24.663837Z",
           "model_version": "model-a",
           "telemetry": {
             "count": 2,
@@ -191,7 +191,7 @@
       "case": "__main__.Week3Integration.test_09_history_filters_permissions_and_metrics",
       "detail": {
         "result": "PASS",
-        "duration_ms": 543.613
+        "duration_ms": 263.404
       }
     },
     {
@@ -202,7 +202,7 @@
       "case": "__main__.Week3Integration.test_10_ws_ticket_permissions_change",
       "detail": {
         "result": "PASS",
-        "duration_ms": 266.924
+        "duration_ms": 112.455
       }
     },
     {
@@ -213,7 +213,7 @@
       "case": "__main__.Week3Integration.test_11_ack_before_http_response_and_disabled_rule",
       "detail": {
         "result": "PASS",
-        "duration_ms": 1680.981
+        "duration_ms": 587.736
       }
     },
     {
@@ -232,14 +232,14 @@
       "case": "__main__.Week3Integration.test_12_docker_restart_http_websocket_and_persistence",
       "detail": {
         "result": "PASS",
-        "duration_ms": 16595.061
+        "duration_ms": 8051.867
       }
     },
     {
       "case": "TV2-15/22",
       "detail": {
         "path": "AI MQTT -> Rule Engine -> persisted queue -> MQTT commands -> virtual ESP32 ACKs",
-        "event_id": "event-bdef29bfa516a4bb",
+        "event_id": "event-d18f5cf768d0a86d",
         "alert_id": 11,
         "request_id": "cmd-11",
         "severity": 2,
@@ -250,7 +250,7 @@
       "case": "__main__.Week3Integration.test_13_ai_mqtt_to_rule_to_command_to_three_ack",
       "detail": {
         "result": "PASS",
-        "duration_ms": 1579.57
+        "duration_ms": 1319.022
       }
     },
     {
@@ -261,7 +261,7 @@
       "case": "__main__.Week3Integration.test_14_interrupted_publish_is_not_retried_blindly",
       "detail": {
         "result": "PASS",
-        "duration_ms": 612.78
+        "duration_ms": 536.774
       }
     },
     {
@@ -275,7 +275,7 @@
       "case": "__main__.Week3Integration.test_15_concurrent_first_config_put_preserves_latest_revision",
       "detail": {
         "result": "PASS",
-        "duration_ms": 1159.112
+        "duration_ms": 556.068
       }
     },
     {
@@ -290,7 +290,7 @@
       "case": "__main__.Week3Integration.test_16_firmware_reboot_ack_reports_failure",
       "detail": {
         "result": "PASS",
-        "duration_ms": 1023.64
+        "duration_ms": 618.915
       }
     },
     {
@@ -306,7 +306,7 @@
       "case": "__main__.Week3Integration.test_17_scoped_ai_storage_ack_dedup_and_new_events",
       "detail": {
         "result": "PASS",
-        "duration_ms": 1540.139
+        "duration_ms": 1388.833
       }
     },
     {
@@ -317,7 +317,7 @@
       "case": "__main__.Week3Integration.test_18_storage_ack_requires_successful_db_commit",
       "detail": {
         "result": "PASS",
-        "duration_ms": 181.473
+        "duration_ms": 89.192
       }
     },
     {
@@ -328,7 +328,7 @@
       "case": "__main__.Week3Integration.test_19_ai_redelivery_restart_and_historical_snapshot",
       "detail": {
         "result": "PASS",
-        "duration_ms": 3095.923
+        "duration_ms": 2582.155
       }
     },
     {
@@ -345,7 +345,7 @@
       "case": "__main__.Week3Integration.test_20_actual_edge_queue_and_mqtt_client_without_camera",
       "detail": {
         "result": "PASS",
-        "duration_ms": 2863.554
+        "duration_ms": 2052.261
       }
     },
     {
@@ -367,7 +367,7 @@
       "case": "__main__.Week3Integration.test_21_new_ai_topic_rule_command_ack_and_fe_contract",
       "detail": {
         "result": "PASS",
-        "duration_ms": 1355.23
+        "duration_ms": 1163.914
       }
     },
     {
@@ -378,7 +378,7 @@
       "case": "__main__.Week3Integration.test_22_session_ended_receipt_and_schema_diagnostics",
       "detail": {
         "result": "PASS",
-        "duration_ms": 751.956
+        "duration_ms": 652.107
       }
     },
     {
@@ -389,7 +389,7 @@
       "case": "__main__.Week3Integration.test_23_video_auth_upload_retry_download_and_event_order",
       "detail": {
         "result": "PASS",
-        "duration_ms": 960.088
+        "duration_ms": 747.652
       }
     },
     {
@@ -400,7 +400,7 @@
       "case": "__main__.Week3Integration.test_24_video_validation_rollback_and_decommission",
       "detail": {
         "result": "PASS",
-        "duration_ms": 678.666
+        "duration_ms": 551.984
       }
     },
     {
@@ -411,7 +411,7 @@
       "case": "__main__.Week3Integration.test_25_concurrent_video_retries_and_device_scope",
       "detail": {
         "result": "PASS",
-        "duration_ms": 672.549
+        "duration_ms": 559.115
       }
     },
     {
@@ -422,7 +422,40 @@
       "case": "__main__.Week3Integration.test_26_setup_readiness_and_repeat_apply",
       "detail": {
         "result": "PASS",
-        "duration_ms": 5479.294
+        "duration_ms": 8853.002
+      }
+    },
+    {
+      "case": "Alert-video link",
+      "detail": "STATE_CHANGED -> threshold -> alert.event_id/segment_event_id set; 404 then 200 once video uploaded; reverse list; scoped access"
+    },
+    {
+      "case": "__main__.Week3Integration.test_27_alert_resolves_to_segment_video",
+      "detail": {
+        "result": "PASS",
+        "duration_ms": 691.412
+      }
+    },
+    {
+      "case": "Video-before-event link",
+      "detail": "Upload first leaves event_id NULL; STATE_CHANGED arrival back-fills ai_videos.event_id in the same transaction"
+    },
+    {
+      "case": "__main__.Week3Integration.test_28_video_before_event_is_linked_when_event_arrives",
+      "detail": {
+        "result": "PASS",
+        "duration_ms": 539.874
+      }
+    },
+    {
+      "case": "Threshold-before-segment link",
+      "detail": "segment_message_id kept; segment_event_id resolved when STATE_CHANGED arrives"
+    },
+    {
+      "case": "__main__.Week3Integration.test_29_threshold_before_state_changed_is_linked_later",
+      "detail": {
+        "result": "PASS",
+        "duration_ms": 109.619
       }
     }
   ]

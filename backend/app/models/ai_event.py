@@ -20,6 +20,8 @@ class AiEvent(SQLModel, table=True):
     payload_hash: str
     payload: dict = Field(sa_column=Column(JSON, nullable=False))
     outcome: str = "RECORDED"
+    segment_message_id: str | None = Field(default=None, max_length=80)
+    segment_event_id: int | None = Field(default=None, foreign_key="ai_events.id", index=True)
 
 
 class RuleBinding(SQLModel, table=True):

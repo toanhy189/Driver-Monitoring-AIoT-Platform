@@ -18,6 +18,7 @@ from app.services.audit_service import log_action
 from app.services.device_auth import verify_mqtt_login
 from app.services.time_utils import as_utc
 from app.services.video_storage import store_video, video_path
+from app.models.alert import Alert
 
 router = APIRouter(tags=["videos"])
 logger = logging.getLogger(__name__)
@@ -25,11 +26,16 @@ device_basic = HTTPBasic(scheme_name="VisionNodeCredentials", auto_error=False)
 
 
 def _public(session: Session, video: AiVideo) -> dict:
-    event = session.exec(select(AiEvent).where(AiEvent.event_id == video.message_id,
-                                               AiEvent.device_id == video.device_id)).first()
+    alerts = session.exec(
+        select(Alert).join(AiEvent, AiEvent.id == Alert.event_id)
+        .where(AiEvent.segment_event_id == video.event_id)
+        .order_by(Alert.created_at)).all() if video.event_id else []                                              
     return {"video_id": video.id, "device_id": video.device_id, "message_id": video.message_id,
             "state": video.state, "size_bytes": video.size_bytes, "created_at": as_utc(video.created_at),
-            "event_received": event is not None,
+            "event_received": video.event_id is not None,
+            "alerts": [{"alert_id": a.id, "alert_type": a.alert_type,
+                        "severity": a.severity, "status": a.status,
+                        "created_at": as_utc(a.created_at)} for a in alerts],
             "content_url": f"{settings.API_STR}/videos/{video.id}/content"}
 
 

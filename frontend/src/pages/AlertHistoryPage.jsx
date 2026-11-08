@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import AppShell, { Icon } from "../components/AppShell.jsx";
 import FeedbackDialog from "../components/FeedbackDialog.jsx";
+import VideoPlayer from "../components/VideoPlayer.jsx";
 import { acknowledgeAlert, getAlerts } from "../services/alerts.js";
-import { canAcknowledgeAlert, isAlertAcknowledged, mergeAlerts } from "../services/alertModel.js";
+import { alertVideoState, canAcknowledgeAlert, isAlertAcknowledged, mergeAlerts } from "../services/alertModel.js";
 import { alertStatusLabel, alertTypeLabel } from "../services/alertDisplay.js";
 import { commandTime, commandValue } from "../services/commandDisplay.js";
 import { hasPermission } from "../services/permissions.js";
@@ -19,6 +20,7 @@ function AlertHistoryPage({ user, realtime = NO_REALTIME, onDashboard, onDevices
   const [actionError, setActionError] = useState("");
   const [busyId, setBusyId] = useState(null);
   const [feedback, setFeedback] = useState(null);
+  const [playingId, setPlayingId] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const lastEventSequence = useRef(realtime.events.at(-1)?.sequence ?? 0);
   const actionController = useRef(null);
@@ -92,11 +94,20 @@ function AlertHistoryPage({ user, realtime = NO_REALTIME, onDashboard, onDevices
   };
 
   const canManageAlerts = hasPermission(user?.role, "alert:acknowledge");
+  const playing = alerts.find(alert => alert.alert_id === playingId);
 
   return <AppShell user={user} activePage="alerts" serverConnected={realtime.connected}
     onDashboard={onDashboard} onDevices={onDevices} onCommands={() => onCommands()}
     onAlerts={() => {}} onLogout={onLogout}>
     <div className="page-title"><h1>Cảnh báo</h1><p>Lịch sử cảnh báo của các thiết bị bạn được phép xem</p></div>
+    
+    {playing?.video && <VideoPlayer
+      deviceId={playing.video.device_id}
+      messageId={playing.video.message_id}
+      state={playing.video.state}
+      onClose={() => setPlayingId(null)}
+      onUnauthorized={onUnauthorized} />}
+
     <section className="surface-card history-panel" aria-label="Lịch sử cảnh báo">
       <div className="section-heading"><div><h2>Các cảnh báo</h2><p>Xác nhận đã xem chỉ cập nhật cảnh báo, không thay đổi ACK của lệnh thiết bị.</p></div>
         <button className="outline-button" type="button" onClick={() => setReloadKey(value => value + 1)}><Icon name="refresh" size={17} /> Tải lại</button></div>
@@ -106,7 +117,7 @@ function AlertHistoryPage({ user, realtime = NO_REALTIME, onDashboard, onDevices
       {notice && <p className="notice-success" role="status">{notice}</p>}
       {!loading && !error && alerts.length === 0 && <p>Chưa có cảnh báo nào.</p>}
       {alerts.length > 0 && <div className="history-table-wrap"><table className="history-table"><thead><tr>
-        <th>Thiết bị</th><th>Loại cảnh báo</th><th>Mức</th><th>Thời gian</th><th>Trạng thái</th><th>Lệnh liên quan</th>{canManageAlerts && <th>Thao tác</th>}
+        <th>Thiết bị</th><th>Loại cảnh báo</th><th>Mức</th><th>Thời gian</th><th>Trạng thái</th><th>Lệnh liên quan</th><th>Video</th>{canManageAlerts && <th>Thao tác</th>}
       </tr></thead><tbody>{alerts.map(alert => <tr key={alert.alert_id}>
         <td>{commandValue(alert.device_code ?? alert.device_id)}</td>
         <td>{alertTypeLabel(alert.alert_type ?? alert.type)}</td>
@@ -116,6 +127,9 @@ function AlertHistoryPage({ user, realtime = NO_REALTIME, onDashboard, onDevices
         <td>{alert.request_id && hasPermission(user?.role, "command:view") ?
           <button className="text-link" type="button" onClick={() => onCommands(alert)}>Xem lệnh</button> :
           "Không có"}</td>
+        <td>{alertVideoState(alert) === "ready" ?
+          <button className="text-link" type="button" onClick={() => setPlayingId(alert.alert_id)}>Xem video</button> :
+          alertVideoState(alert) === "pending" ? "Đang xử lý…" : "Không có"}</td>
         {canManageAlerts && <td>{canAcknowledgeAlert(alert) ?
           <button className="outline-button" type="button" disabled={busyId !== null} onClick={() => acknowledge(alert)}>
             {busyId === alert.alert_id ? "Đang gửi…" : "Đánh dấu đã xem"}

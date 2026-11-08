@@ -1,5 +1,5 @@
 {
-  "executed_at": "2026-11-05T15:46:14.393353+00:00",
+  "executed_at": "2026-11-08T02:09:12.259330+00:00",
   "exit_code": 0,
   "scope": "Isolated real Docker MQTT broker; temporary accounts; production ACL unchanged"
 }

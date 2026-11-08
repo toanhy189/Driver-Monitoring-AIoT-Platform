@@ -30,3 +30,9 @@ export function canAcknowledgeAlert(alert) {
   if (isAlertAcknowledged(alert)) return false;
   return alert?.status === "NEW";
 }
+
+//Hàm này cũng được DeviceHistoryPanel dùng, vì item.data của alert trong timeline chính là kết quả _public.
+export function alertVideoState(alert) {
+  if (Number.isSafeInteger(alert?.video?.video_id)) return "ready";
+  return alert?.video_status === "PENDING" ? "pending" : "none";
+}

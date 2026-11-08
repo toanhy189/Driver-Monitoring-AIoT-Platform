@@ -125,6 +125,7 @@ def update_confirmed_state(driver_state, state_data, device_code):
         }
 
         state_data["event_sequence"] += 1
+        state_data["segment_message_id"] = event["message_id"]
         return event
 
     # Trạng thái không thay đổi.
@@ -194,6 +195,7 @@ def check_threshold_events(state_data, device_code):
                 "event_type": f"{state}_THRESHOLD_REACHED",
                 "state": state,
                 "state_duration_ms": round(duration * 1000),
+                "state_event_id": state_data.get("segment_message_id"),
             }
 
             events.append(event)
@@ -283,6 +285,7 @@ def main():
         },
 
         "event_sequence": 0,
+        "segment_message_id": None,   # message_id của STATE_CHANGED đang mở segment
     }
 
     try:

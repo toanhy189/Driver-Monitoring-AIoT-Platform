@@ -1,6 +1,6 @@
 {
-  "tests_run": 8,
-  "executed_at": "2026-11-05T15:46:06.748554+00:00",
+  "tests_run": 9,
+  "executed_at": "2026-11-08T02:09:08.650018+00:00",
   "scope": "Disposable codex_w3_ database and isolated Docker MQTT broker; no hardware",
   "failures": 0,
   "errors": 0,
@@ -8,8 +8,12 @@
   "failed_tests": [],
   "observations": [
     {
-      "case": "Admin-only device lifecycle and valid transitions",
-      "purpose": "Kiem tra quyen dang ky, chuyen lifecycle va tu choi role khong phai Admin",
+      "case": "__main__.Week4Integration.test_admin_can_access_unassigned_devices_and_lookup_user_assignments",
+      "result": "PASS"
+    },
+    {
+      "case": "Admin or assigned-owner device lifecycle and valid transitions",
+      "purpose": "Kiem tra Admin/owner thao tac duoc va role khong so huu bi tu choi",
       "expected": {
         "register_Admin": 201,
         "register_Employee": 403,
@@ -59,7 +63,7 @@
       "result": "PASS"
     },
     {
-      "case": "__main__.Week4Integration.test_device_lifecycle_requires_admin_and_allows_valid_transitions",
+      "case": "__main__.Week4Integration.test_device_lifecycle_requires_admin_or_owner_and_allows_valid_transitions",
       "result": "PASS"
     },
     {
@@ -265,46 +269,64 @@
       "result": "PASS"
     },
     {
-      "case": "Viewer routes and unassigned-device access matrix",
+      "case": "Viewer routes, vision-only routes and unassigned-device access matrix",
       "expected": {
         "Admin": {
           "device_config": 200,
           "legacy_config": 200,
-          "current_telemetry": 200,
-          "legacy_telemetry_history": 200,
-          "telemetry_history": 200,
+          "current_telemetry": 409,
+          "legacy_telemetry_history": 409,
+          "telemetry_history": 409,
           "command_history": 200,
           "timeline": 200,
-          "metrics": 200,
+          "metrics": 409,
           "alerts": 200,
           "commands": 200,
           "videos": 200
+        },
+        "Admin_vision": {
+          "current_telemetry": 200,
+          "legacy_telemetry_history": 200,
+          "telemetry_history": 200,
+          "metrics": 200
         },
         "Employee": {
           "device_config": 200,
           "legacy_config": 200,
-          "current_telemetry": 200,
-          "legacy_telemetry_history": 200,
-          "telemetry_history": 200,
+          "current_telemetry": 409,
+          "legacy_telemetry_history": 409,
+          "telemetry_history": 409,
           "command_history": 200,
           "timeline": 200,
-          "metrics": 200,
+          "metrics": 409,
           "alerts": 200,
           "commands": 200,
           "videos": 200
         },
-        "Customer": {
-          "device_config": 200,
-          "legacy_config": 200,
+        "Employee_vision": {
           "current_telemetry": 200,
           "legacy_telemetry_history": 200,
           "telemetry_history": 200,
+          "metrics": 200
+        },
+        "Customer": {
+          "device_config": 200,
+          "legacy_config": 200,
+          "current_telemetry": 409,
+          "legacy_telemetry_history": 409,
+          "telemetry_history": 409,
           "command_history": 200,
           "timeline": 200,
-          "metrics": 200,
+          "metrics": 409,
           "alerts": 200,
           "commands": 200,
           "videos": 200
+        },
+        "Customer_vision": {
+          "current_telemetry": 200,
+          "legacy_telemetry_history": 200,
+          "telemetry_history": 200,
+          "metrics": 200
         },
         "Customer_unassigned": {
           "device_config": 404,
@@ -324,41 +346,59 @@
         "Admin": {
           "device_config": 200,
           "legacy_config": 200,
-          "current_telemetry": 200,
-          "legacy_telemetry_history": 200,
-          "telemetry_history": 200,
+          "current_telemetry": 409,
+          "legacy_telemetry_history": 409,
+          "telemetry_history": 409,
           "command_history": 200,
           "timeline": 200,
-          "metrics": 200,
+          "metrics": 409,
           "alerts": 200,
           "commands": 200,
           "videos": 200
+        },
+        "Admin_vision": {
+          "current_telemetry": 200,
+          "legacy_telemetry_history": 200,
+          "telemetry_history": 200,
+          "metrics": 200
         },
         "Employee": {
           "device_config": 200,
           "legacy_config": 200,
-          "current_telemetry": 200,
-          "legacy_telemetry_history": 200,
-          "telemetry_history": 200,
+          "current_telemetry": 409,
+          "legacy_telemetry_history": 409,
+          "telemetry_history": 409,
           "command_history": 200,
           "timeline": 200,
-          "metrics": 200,
+          "metrics": 409,
           "alerts": 200,
           "commands": 200,
           "videos": 200
         },
-        "Customer": {
-          "device_config": 200,
-          "legacy_config": 200,
+        "Employee_vision": {
           "current_telemetry": 200,
           "legacy_telemetry_history": 200,
           "telemetry_history": 200,
+          "metrics": 200
+        },
+        "Customer": {
+          "device_config": 200,
+          "legacy_config": 200,
+          "current_telemetry": 409,
+          "legacy_telemetry_history": 409,
+          "telemetry_history": 409,
           "command_history": 200,
           "timeline": 200,
-          "metrics": 200,
+          "metrics": 409,
           "alerts": 200,
           "commands": 200,
           "videos": 200
+        },
+        "Customer_vision": {
+          "current_telemetry": 200,
+          "legacy_telemetry_history": 200,
+          "telemetry_history": 200,
+          "metrics": 200
         },
         "Customer_unassigned": {
           "device_config": 404,

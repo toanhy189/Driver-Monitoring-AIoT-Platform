@@ -28,9 +28,9 @@ def main():
         admin.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(database)))
         try:
             with psycopg.connect(**{**connect, "dbname": database}, autocommit=True) as test:
-                for path in ("database/create.sql", "database/migration_fe_be_week2.sql",
-                             "database/migration_be_week3.sql", "database/migration_be_week3.sql",
-                             "database/migration_ai_videos.sql", "database/migration_ai_videos.sql"):
+                for path in ("database/create.sql",
+                             "database/migration_link_alert_video.sql",
+                             "database/migration_link_alert_video.sql"):
                     test.execute((ROOT / path).read_text(encoding="utf-8"))
             env = {**os.environ, "DATABASE_URL": target.render_as_string(hide_password=False),
                    "W3_INTEGRATION": "1", "RULE_ENGINE_ENABLED": "true", "SQL_ECHO": "false",

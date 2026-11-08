@@ -13,6 +13,7 @@ class AiEventRequest(BaseModel):
     state: str | None = Field(default=None, max_length=30)
     final_state: Literal["ATTENTIVE", "DISTRACTED", "DROWSY", "UNKNOWN"] | None = None
     state_duration_ms: StrictInt | None = Field(default=None, ge=0, le=86400000)
+    state_event_id: str | None = Field(default=None, min_length=1, max_length=80)
 
     @field_validator("timestamp")
     @classmethod
