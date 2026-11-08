@@ -30,3 +30,12 @@ export function canAcknowledgeAlert(alert) {
   if (isAlertAcknowledged(alert)) return false;
   return alert?.status === "NEW";
 }
+
+// Adapted from feature/alert-video-link; include current deletion/file states.
+export function alertVideoState(alert) {
+  if (alert?.video_status === "DELETED" || alert?.video?.deleted_at) return "deleted";
+  if (alert?.video_status === "MISSING") return "missing";
+  if (Number.isSafeInteger(alert?.video?.video_id) && alert.video.video_id > 0) return "ready";
+  if (["PENDING", "PENDING_OR_UNAVAILABLE"].includes(alert?.video_status)) return "pending";
+  return "none";
+}

@@ -11,6 +11,7 @@ from app.models.command import Command
 from app.services.access import assigned_device, is_admin
 from app.services.audit_service import log_action
 from app.services.time_utils import as_utc
+from app.services.event_links import event_clip
 
 
 router = APIRouter(tags=["alerts"])
@@ -24,6 +25,7 @@ def _public(session: Session, alert: Alert, user_id: int | None = None) -> dict:
         command_query = command_query.join(UserDevice, UserDevice.device_id == Command.device_id).where(
             UserDevice.user_id == user_id, UserDevice.unassigned_at.is_(None))
     command = session.exec(command_query.order_by(Command.id).limit(1)).first()
+    clip = event_clip(session, alert.device_id, alert.source_event_id)
     return {
         "alert_id": alert.id,
         "device_id": alert.device_id,
@@ -35,6 +37,9 @@ def _public(session: Session, alert: Alert, user_id: int | None = None) -> dict:
         "status": alert.status,
         "request_id": command.request_id if command else None,
         "event_id": alert.source_event_id,
+        "video_status": clip["status"],
+        "clip_message_id": clip["clip_message_id"],
+        "video": clip["video"],
     }
 
 
@@ -63,6 +68,16 @@ def list_alerts(
         query.order_by(Alert.created_at.desc()).offset(offset).limit(limit)
     ).all()
     return [_public(session, alert, None if is_admin(current_user) else current_user.id) for alert in alerts]
+
+
+@router.get("/alerts/{alert_id}/video")
+def alert_video(alert_id: int, current_user: User = Depends(require_viewer),
+                session: Session = Depends(get_session)):
+    alert = session.get(Alert, alert_id)
+    if alert is None:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    assigned_device(session, current_user, alert.device_id)
+    return {"alert_id": alert.id, **event_clip(session, alert.device_id, alert.source_event_id)}
 
 
 @router.post("/alerts/{alert_id}/acknowledge")
