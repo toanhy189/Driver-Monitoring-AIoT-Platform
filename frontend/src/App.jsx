@@ -43,6 +43,18 @@ function App() {
   }, [realtime.unauthorized, handleLogout]);
 
   useEffect(() => {
+    if (session.status !== "authenticated") return;
+    const controller = new AbortController();
+    const token = localStorage.getItem("access_token");
+    const refreshProfile = () => getCurrentUser({ token, signal: controller.signal })
+      .then(user => setSession(current => current.status === "authenticated" && current.user?.id === user.id
+        ? { ...current, user } : current))
+      .catch(error => { if (error.status === 401) handleLogout(); });
+    window.addEventListener("driver:profile-updated", refreshProfile);
+    return () => { controller.abort(); window.removeEventListener("driver:profile-updated", refreshProfile); };
+  }, [session.status, session.user?.id, handleLogout]);
+
+  useEffect(() => {
     if (session.status !== "checking") return;
 
     const token = localStorage.getItem("access_token");

@@ -14,6 +14,7 @@ export default function AccountPanel({ user, onClose, onLogout }) {
         method: password ? "POST" : "PUT", body: password ? passwords : profile,
       });
       if (password) { onLogout(); return; }
+      window.dispatchEvent(new Event("driver:profile-updated"));
       setNotice("Đã lưu thông tin tài khoản.");
     } catch (cause) {
       if (cause.status === 401) onLogout(); else setError(cause.message);
