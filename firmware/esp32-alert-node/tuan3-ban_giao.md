@@ -35,7 +35,7 @@ Các file chính của môi trường `development`:
 | `include/command_handler.h`, `src/app/command_handler.cpp` | Validate/điều khiển lệnh, ACK, thời gian chạy và trạng thái request. |
 | `include/request_log.h`, `src/app/request_log.cpp` | Request log NVS, retry/dedupe, ring 16 record và phục hồi sau reboot. |
 | `src/app/main.cpp` | Thứ tự khởi động an toàn, nạp config và phục hồi request log. |
-| `TV1-19-HANDOFF.md`, `flow.md` | Hướng dẫn build/test, ví dụ payload và luồng ACK. |
+| `tuan3-ban_giao.md`, `flow.md` | Hướng dẫn build/test, ví dụ payload và luồng ACK. |
 
 Build và upload:
 

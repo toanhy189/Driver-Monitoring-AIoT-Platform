@@ -129,6 +129,9 @@ device.reqHash = requestHash;
     device.phaseStart = millis();
     device.outputHigh = true;
 
+    // [W4-TV1-02] Chup (snapshot) timing tai thoi diem nhan lenh.
+    // Neu config_update den trong khi lenh dang chay, cac bien startMs/endMs nay
+    // van duoc giu nguyen khong doi cho den khi lenh hoan thanh.
     device.startMs = val.start;
     device.endMs = val.end;
 

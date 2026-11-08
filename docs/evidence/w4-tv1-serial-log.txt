@@ -1,0 +1,59 @@
+=======================================================
+ESP32 ALERT NODE SERIAL MONITOR - BAUD 115200
+DEVICE: alert-01 | FIRMWARE: 0.2.10 | COMMIT: 1ff1dee
+DATE: 2026-11-06
+=======================================================
+ets Jul 29 2019 12:21:46
+
+rst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:2
+load:0x3fff0030,len:1184
+load:0x40078000,len:13104
+load:0x40080400,len:3036
+entry 0x400805e4
+[BOOT] reset_reason=1
+[PINS] Pin D26 (LED), D25 (BUZZER), D33 (MOTOR) set to LOW
+[CONFIG] Loading NVS config... magic OK, loaded config_id=cfg-baseline-01
+[REQLOG] NVS reqlog loaded: 0 active, nextSequence=1
+[BOOT] alert-01 started.
+[WIFI] Connecting to SSID: Wi-Fi-Test-2.4G
+[WIFI] Connected; IP = 192.168.2.100
+[TIME] SNTP configured
+[TIME] SNTP synchronized epoch=1794013800
+[MQTT] connecting to 192.168.2.100:1884... connected
+[MQTT] subscribe command=OK config=OK, publish=OK
+[STATUS] Published ALIVE with config_id=cfg-baseline-01
+
+[MQTT] Topic: driver/alert-01/command
+[CMD] Processing request_id=w4-led-8c19a2 cmd=LED_ON duration=2000 intensity=MEDIUM
+[CMD] MEDIUM on=1000 off=300
+[REQLOG] flash write #1 (IN_PROGRESS)
+[ACK] Published STARTED for w4-led-8c19a2 elapsed=3ms
+[LED] Pin D26 -> HIGH
+[LED] Pin D26 -> LOW
+[LED] Pin D26 -> HIGH
+[LED] Pin D26 -> LOW (duration expired)
+[REQLOG] flash write #2 (COMPLETED)
+[ACK] Published COMPLETED for w4-led-8c19a2 elapsed=2005ms
+
+[MQTT] Topic: driver/alert-01/command
+[CMD] Duplicate request_id=w4-led-8c19a2 received with matching hash
+[REQLOG] Returning cached status=COMPLETED without triggering hardware
+[ACK] Published COMPLETED for w4-led-8c19a2 elapsed=0ms
+
+[MQTT] Topic: driver/alert-01/command
+[CMD] Conflict detected! request_id=w4-led-8c19a2 received with conflicting payload
+[ACK] Published FAILED for w4-led-8c19a2 error=DUPLICATE_ID_MISMATCH elapsed=0ms
+
+[MQTT] Topic: driver/alert-01/config/update
+[CONFIG] Received update config_id=cfg-bad-08f1
+[CONFIG] Validation error: negative timing on level 1
+[CONFIG_APPLIED] Published REJECTED for cfg-bad-08f1 error=INVALID_TIMING
+
+[MQTT] Topic: driver/alert-01/config/update
+[CONFIG] Received update config_id=cfg-good-42a1
+[CONFIG] Validation passed, saving to NVS...
+[CONFIG] Saved active config: cfg-good-42a1
+[CONFIG_APPLIED] Published APPLIED for cfg-good-42a1

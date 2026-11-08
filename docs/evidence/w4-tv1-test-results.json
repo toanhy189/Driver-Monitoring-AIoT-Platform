@@ -1,0 +1,113 @@
+{
+  "test_suite": "W4-TV1-05 & W4-TV1-09 Integration Test",
+  "device_code": "alert-01",
+  "commit": "1ff1dee",
+  "timestamp": "2026-11-06T19:50:00",
+  "results": [
+    {
+      "test_case": "TC-00",
+      "title": "Kiểm tra Heartbeat ALIVE",
+      "request_id": "N/A",
+      "verdict": "PASS",
+      "details": {
+        "device_code": "alert-01",
+        "status": "ALIVE",
+        "firmware_version": "0.2.10",
+        "config_id": "cfg-baseline-01"
+      },
+      "time": "19:50:02"
+    },
+    {
+      "test_case": "TC-01",
+      "title": "Điều khiển LED D26",
+      "request_id": "w4-led-8c19a2",
+      "verdict": "PASS",
+      "details": {
+        "started": {"request_id": "w4-led-8c19a2", "status": "STARTED", "elapsed_ms": 3},
+        "completed": {"request_id": "w4-led-8c19a2", "status": "COMPLETED", "elapsed_ms": 2005}
+      },
+      "time": "19:50:05"
+    },
+    {
+      "test_case": "TC-02",
+      "title": "Điều khiển Buzzer D25",
+      "request_id": "w4-buzz-3d91b4",
+      "verdict": "PASS",
+      "details": {
+        "started": {"request_id": "w4-buzz-3d91b4", "status": "STARTED", "elapsed_ms": 3}
+      },
+      "time": "19:50:09"
+    },
+    {
+      "test_case": "TC-03",
+      "title": "Điều khiển Motor rung D33",
+      "request_id": "w4-mot-e51c89",
+      "verdict": "PASS",
+      "details": {
+        "started": {"request_id": "w4-mot-e51c89", "status": "STARTED", "elapsed_ms": 4}
+      },
+      "time": "19:50:12"
+    },
+    {
+      "test_case": "TC-04",
+      "title": "Idempotency - Lệnh trùng không kích hoạt lại tải",
+      "request_id": "w4-dup-17a42f",
+      "verdict": "PASS",
+      "details": {
+        "cached_ack": {"request_id": "w4-dup-17a42f", "status": "COMPLETED", "elapsed_ms": 0}
+      },
+      "time": "19:50:16"
+    },
+    {
+      "test_case": "TC-05",
+      "title": "ID trùng khác nội dung trả DUPLICATE_ID_MISMATCH",
+      "request_id": "w4-dup-17a42f",
+      "verdict": "PASS",
+      "details": {
+        "response": {"request_id": "w4-dup-17a42f", "status": "FAILED", "error": "DUPLICATE_ID_MISMATCH", "elapsed_ms": 0}
+      },
+      "time": "19:50:19"
+    },
+    {
+      "test_case": "TC-06",
+      "title": "Từ chối cấu hình sai (Config REJECTED)",
+      "request_id": "cfg-bad-08f1",
+      "verdict": "PASS",
+      "details": {
+        "status": "REJECTED",
+        "error": "INVALID_TIMING"
+      },
+      "time": "19:50:22"
+    },
+    {
+      "test_case": "TC-07",
+      "title": "Áp dụng cấu hình chuẩn (Config APPLIED)",
+      "request_id": "cfg-good-42a1",
+      "verdict": "PASS",
+      "details": {
+        "config_id": "cfg-good-42a1",
+        "status": "APPLIED"
+      },
+      "time": "19:50:25"
+    },
+    {
+      "test_case": "TC-08",
+      "title": "Đo độ trễ Command -> ACK",
+      "request_id": "10-samples",
+      "verdict": "PASS",
+      "details": {
+        "samples_count": 10,
+        "min_ms": 23.6,
+        "avg_ms": 26.89,
+        "max_ms": 31.8
+      },
+      "time": "19:50:30"
+    }
+  ],
+  "latency_stats": {
+    "samples": 10,
+    "min_ms": 23.6,
+    "avg_ms": 26.89,
+    "max_ms": 31.8
+  }
+}

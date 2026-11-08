@@ -1,9 +1,10 @@
 #pragma once
 
 #include <ArduinoJson.h>
+#include <cstdint>
 
-// [CONFIG - tệp mới] Giao diện lưu/khôi phục cấu hình và xử lý config nhận từ MQTT.
-// Nạp NVS lúc khởi động; chỉ báo APPLIED sau khi config hợp lệ đã lưu và áp dụng.
+// [CONFIG - W4-TV1-01] Quản lý vòng đời cấu hình, lưu trữ NVS có metadata và kiểm tra phiên bản.
 bool loadSavedConfig();
 void onConfigMessage(JsonDocument& doc);
 const char* currentConfigId();
+uint32_t currentConfigRevision();
