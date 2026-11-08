@@ -46,3 +46,13 @@ Không cộng các lượt unit/integration thành một con số “test duy nh
 TV1 xác nhận mạch/nguồn và chuẩn bị credential trước khi flash. TV2 phối hợp node/binding/clock/ACK; TV3 tiếp tục điều kiện có kính, ánh sáng khác và đánh giá người/phiên mới. Lượt camera + audio không kính và gửi bù thật đã có kết quả, không cần chạy lại chỉ để lặp minh chứng. TV4 phối hợp quan sát React/lịch sử/video. Nhóm hoàn tất luồng tới tải thật, kịch bản 10 bước, clip dự phòng, ảnh mạch, báo cáo/slide và tag release sau rehearsal.
 
 CI trên GitHub chỉ được ghi “đạt” khi kiểm tra được run của nhánh mới; build/test local không thay kết quả CI.
+
+## Bổ sung video cảnh báo và điều hướng Admin — 08/11/2026
+
+- Backend unit: **69 đạt, 53 skip** trên 122 ca discover. Có 9 ca mới cho liên kết clip, quyền, chuyển mã H.264 bằng video tổng hợp và xóa trong lúc chuyển mã.
+- PostgreSQL/MQTT tạm: policy **3 đạt**, hồi quy **35 đạt/1 skip**, core **12 đạt**. Ca core mới xác nhận cảnh báo chờ clip → nhận clip → xóa, đồng thời chặn tài khoản chưa được gán camera. Ca restart đã có kết quả ở bảng trên, không chạy lại trong lượt này.
+- Frontend: **67 đạt**, production build đạt.
+- Edge headless thật: giải mã, phát và tua bản H.264; tải gốc đúng SHA-256; Customer không có nút xóa/xác nhận; camera ngoài quyền trả 404; clip chờ và chuyển mã lỗi có thông báo; Admin đổi giữa quản trị/giám sát và Back/Forward đúng. Không có page error.
+- Test trình duyệt dùng React build, API FastAPI thật, SQLite tạm và clip đồ họa tổng hợp; không sử dụng video mặt, camera, MQTT hoặc tải vật lý. Chạy lại bằng `backend/tests/run_alert_video_browser.py` sau khi build frontend; cần Playwright cài riêng, biến `PLAYWRIGHT_MODULE` trỏ tới module và Edge đã cài.
+
+Các kết quả bổ sung này kiểm tra chức năng video và điều hướng; không thay kết quả đánh giá chất lượng AI hoặc nghiệm thu mạch.
