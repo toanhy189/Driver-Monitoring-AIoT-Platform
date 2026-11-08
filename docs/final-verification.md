@@ -6,7 +6,7 @@ Nguồn tổng hợp: [verification.json](evidence/final-20261108/verification.j
 |---|---|---|
 | Backend unit | 59 đạt; 52 skip trong lần discover 111 test | Những ca cần DB/broker không chạy trong lượt unit |
 | Policy live | 3 đạt | PostgreSQL/MQTT thật tạm; ESP32 giả lập |
-| Hồi quy tích hợp cũ | 35 đạt, 1 skip | Ca Docker restart chưa chạy trong runner này |
+| Hồi quy tích hợp cũ | 35 đạt, 1 skip trong lượt regression; ca skip đã chạy riêng và đạt | Docker restart, WebSocket và persistence đạt trong container tạm |
 | Core cuối | 11 đạt | Tài khoản, thu hồi JWT/vé, assignment, RBAC, metadata, quota và xóa video |
 | Edge AI | 94 đạt | Không mở camera và không bật loa/tải |
 | Frontend | 63 đạt; production build đạt | Kiểm thử Node và Vite |

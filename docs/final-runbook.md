@@ -98,6 +98,7 @@ Giữ phiên bản `driver-bench-20261107-v1`. TV2 kiểm tra `RULE_ENGINE_ENABL
 ```powershell
 python -X utf8 -m unittest discover -s backend/tests -v
 python -X utf8 backend/tests/run_week4_isolated.py --regression
+python -X utf8 backend/tests/run_week4_isolated.py --restart-only
 ./edge-ai/.venv/Scripts/python.exe -X utf8 -m unittest discover -s edge-ai/tests -v
 node --test frontend/tests/*.test.mjs
 npm --prefix frontend run build

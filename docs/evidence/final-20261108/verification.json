@@ -91,6 +91,10 @@
     "firmware_development_build": {
       "pass": true,
       "flashed": false
+    },
+    "separate_docker_restart": {
+      "passed": 1,
+      "scope": "Disposable backend container restart, WebSocket permissions and persistent history/config/command"
     }
   },
   "ai_model": {
@@ -108,5 +112,10 @@
     "Final rehearsal video and release tag"
   ],
   "source_base": "fc5cee0633478f22527205f89102970494f056cf",
-  "github_ci_status": "Not yet verified for this branch"
+  "github_ci_status": "Not yet verified for this branch",
+  "restart-only": {
+    "pass": true,
+    "cases": 1,
+    "scope": "Disposable Docker backend restart with real PostgreSQL/MQTT and WebSocket; no production containers restarted"
+  }
 }
