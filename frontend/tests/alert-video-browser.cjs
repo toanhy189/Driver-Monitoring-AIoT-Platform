@@ -68,6 +68,8 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE);
     await admin.page.getByRole('button', { name: 'Giám sát AI', exact: true }).waitFor();
     await admin.page.goForward();
     await admin.page.getByRole('heading', { name: 'Giám sát AI', exact: true }).waitFor();
+    await admin.page.getByRole('button', { name: 'Thiết bị', exact: true }).click();
+    assert.match(admin.page.url(), /#\/devices$/);
     await admin.page.getByRole('button', { name: 'Quản trị', exact: true }).click();
     assert.match(admin.page.url(), /#\/dashboard$/);
     await admin.page.getByRole('button', { name: 'Cảnh báo', exact: true }).click();
