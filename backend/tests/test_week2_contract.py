@@ -5,7 +5,9 @@ import json
 import os
 import sys
 import unittest
+import warnings
 from datetime import datetime, timezone
+from ipaddress import IPv4Address, IPv4Interface, IPv6Address, IPv6Interface
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -381,6 +383,21 @@ class Week2ContractTests(unittest.TestCase):
             last_seen=datetime(2026, 10, 11, 9, 1),
         ))
         self.assertEqual(response.last_seen.tzinfo, timezone.utc)
+
+    def test_database_ip_addresses_serialize_without_warnings(self):
+        for address in (None, "192.168.1.10", IPv4Address("192.168.1.10"),
+                        IPv6Address("2001:db8::1"), IPv4Interface("192.168.1.10/24"),
+                        IPv6Interface("2001:db8::1/64")):
+            with self.subTest(address=address):
+                device = Device(id=2, device_code="alert-01", model="Alert",
+                                device_type="ALERT_NODE", ip_address=address,
+                                mqtt_password="not-for-api")
+                with warnings.catch_warnings():
+                    warnings.simplefilter("error")
+                    result = DeviceResponse.from_device(device).model_dump(mode="json")
+                self.assertEqual(result["ip_address"], None if address is None else str(address))
+                self.assertEqual(result["type"], "ALERT_NODE")
+                self.assertNotIn("mqtt_password", result)
 
     def test_websocket_sends_only_to_assigned_device_users(self):
         manager = ConnectionManager()

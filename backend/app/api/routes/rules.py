@@ -23,7 +23,7 @@ def get_rule(device_id: int, current_user: User = Depends(require_admin), sessio
             "enabled": binding.enabled if binding else False,
             "effective_enabled": bool(settings.RULE_ENGINE_ENABLED and binding and binding.enabled),
             "policy": binding.policy if binding else RulePolicy().model_dump(),
-            "policy_note": "Sample defaults require agreement with TV1/TV3 before enabling"}
+            "policy_note": "driver-bench-20261107-v1 uses the agreed bench preset; legacy defaults remain separate"}
 
 
 @router.put("/devices/{device_id}/rule")

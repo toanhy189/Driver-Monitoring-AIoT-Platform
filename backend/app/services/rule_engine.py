@@ -25,6 +25,7 @@ def event_payload_hash(payload: dict, data: AiEventRequest) -> str:
     canonical = {**payload, "event_id": data.event_id, "device_id": data.device_id}
     canonical.pop("message_id", None)
     canonical.pop("device_code", None)
+    canonical.pop("_delivery", None)
     return hashlib.sha256(json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
@@ -56,6 +57,17 @@ def process_event(session: Session, payload: dict, *, commit: bool = True) -> li
     session.add(event)
     try:
         session.flush()
+        if data.policy_version:
+            from app.services.ai_policy import process_versioned_event
+            result = process_versioned_event(session, source, event, data, payload, now)
+            session.add(event)
+            finish()
+            return result
+        if isinstance(payload.get("_delivery"), dict) and payload["_delivery"].get("mode") == "backfill":
+            event.outcome = "BACKFILL_RECORDED"
+            session.add(event)
+            finish()
+            return []
         if data.event_type in {"STATE_CHANGED", "SESSION_ENDED"}:
             finish()
             return []
@@ -73,6 +85,11 @@ def process_event(session: Session, payload: dict, *, commit: bool = True) -> li
         binding = session.exec(select(RuleBinding).where(RuleBinding.source_device_id == source.id)
                                .with_for_update()).first()
         policy = RulePolicy.model_validate(binding.policy) if binding else RulePolicy()
+        if policy.policy_version:
+            event.outcome = "POLICY_METADATA_REQUIRED"
+            session.add(event)
+            finish()
+            return []
         severity = max((level for level in (1, 2, 3)
                         if data.state_duration_ms >= policy.levels[str(level)].threshold_ms), default=0)
         enabled = settings.RULE_ENGINE_ENABLED and binding is not None and binding.enabled

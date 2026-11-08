@@ -34,7 +34,9 @@ class DeviceResponse(BaseModel):
     @classmethod
     def from_device(cls, device):
         return cls.model_validate({
-            **device.model_dump(),
+            # Validate psycopg INET objects before serializing them as strings.
+            **device.model_dump(exclude={"ip_address"}),
+            "ip_address": device.ip_address,
             "type": device.device_type,
         })
 

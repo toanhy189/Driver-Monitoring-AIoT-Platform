@@ -124,7 +124,9 @@ def timeline(device_id: int, window: Window = Depends(history_window),
     items = [{"kind": "event", "id": event.id, "device_id": device_id,
         "timestamp": as_utc(event.occurred_at), "event_id": event.event_id,
         "data": {"event_type": event.event_type, "state": event.state, "outcome": event.outcome,
-                 "model_version": event.model_version, "received_at": as_utc(event.received_at)}} for event in events]
+                 "model_version": event.model_version, "received_at": as_utc(event.received_at),
+                 **{key: event.payload.get(key) for key in ("session_id", "episode_id", "level",
+                    "clip_message_id", "episode_start_event_id", "policy_version", "observed_at")}}} for event in events]
     items += [{"kind": "alert", "id": alert.id, "device_id": device_id,
         "timestamp": as_utc(alert.created_at), "event_id": alert.source_event_id, "alert_id": alert.id,
         "data": alert_public(session, alert, current_user.id)} for alert in alerts]

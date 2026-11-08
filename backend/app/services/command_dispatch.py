@@ -48,6 +48,16 @@ def dispatch_command(session: Session, command_id: int, publisher=None) -> Comma
         if child.get("dispatch_state") != "QUEUED" or command.status in {"FAILED", "TIMEOUT"}:
             session.commit()
             continue
+        if child.get("policy_guard"):
+            from app.services.ai_policy import guard_is_valid
+            if not guard_is_valid(session, child["policy_guard"], now()):
+                command.dispatches = update_dispatch(command.dispatches, key, "FAILED", "Policy expired or episode ended")
+                command.dispatches = {**command.dispatches, key: {
+                    **command.dispatches[key], "dispatch_state": "CANCELLED"}}
+                aggregate(command)
+                session.add(command)
+                session.commit()
+                continue
         device = session.exec(select(Device).where(Device.id == command.device_id).with_for_update()).one()
         fresh = device.last_seen and -5 <= (now() - device.last_seen).total_seconds() <= 90
         if device.lifecycle_state != "ACTIVE" or device.status != "ONLINE" or not fresh:

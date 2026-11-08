@@ -10,7 +10,7 @@ from app.services.mqtt_security import BrokerSecurity, backend_acls, vision_acls
 
 
 def database_readiness() -> dict:
-    required = {"ai_events", "ai_message_receipts", "rule_bindings", "ai_videos"}
+    required = {"ai_events", "ai_message_receipts", "rule_bindings", "ai_videos", "rule_runtime"}
     missing = sorted(required - set(inspect(engine).get_table_names()))
     with Session(engine) as session:
         device = session.exec(select(Device).where(Device.device_code == settings.AI_DEVICE_CODE)).first()

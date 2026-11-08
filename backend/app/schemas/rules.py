@@ -7,22 +7,37 @@ from pydantic import AliasChoices, BaseModel, Field, StrictInt, field_validator,
 class AiEventRequest(BaseModel):
     event_id: str = Field(min_length=1, max_length=80, validation_alias=AliasChoices("event_id", "message_id"))
     device_id: str = Field(min_length=1, max_length=100, validation_alias=AliasChoices("device_id", "device_code"))
-    event_type: Literal["DROWSY_THRESHOLD_REACHED", "DISTRACTED_THRESHOLD_REACHED", "STATE_CHANGED", "SESSION_ENDED"]
+    event_type: Literal["DROWSY_THRESHOLD_REACHED", "DISTRACTED_THRESHOLD_REACHED", "STATE_CHANGED", "SESSION_ENDED", "RISK_SUSPENDED", "MONITORING_FAULT"]
     timestamp: datetime
     model_version: str | None = Field(default=None, max_length=80)
     state: str | None = Field(default=None, max_length=30)
     final_state: Literal["ATTENTIVE", "DISTRACTED", "DROWSY", "UNKNOWN"] | None = None
     state_duration_ms: StrictInt | None = Field(default=None, ge=0, le=86400000)
+    policy_version: str | None = Field(default=None, max_length=80)
+    session_id: str | None = Field(default=None, min_length=1, max_length=80)
+    session_started_at: datetime | None = None
+    episode_id: str | None = Field(default=None, max_length=80)
+    episode_start_event_id: str | None = Field(default=None, max_length=80)
+    clip_message_id: str | None = Field(default=None, max_length=80)
+    sequence_number: StrictInt | None = Field(default=None, ge=0)
+    observed_at: datetime | None = None
+    level: StrictInt | None = Field(default=None, ge=1, le=3)
 
-    @field_validator("timestamp")
+    @field_validator("timestamp", "observed_at", "session_started_at")
     @classmethod
     def timezone_required(cls, value):
-        if value.tzinfo is None or value.utcoffset() is None:
+        if value is not None and (value.tzinfo is None or value.utcoffset() is None):
             raise ValueError("timestamp must include UTC offset")
         return value
 
     @model_validator(mode="after")
     def threshold_duration_required(self):
+        if self.policy_version and (self.session_id is None or self.session_started_at is None or
+                                    self.sequence_number is None or self.model_version is None):
+            raise ValueError("Versioned policy requires session, sequence and model metadata")
+        if self.policy_version and self.event_type.endswith("_THRESHOLD_REACHED") and (
+                not self.episode_id or not self.episode_start_event_id or self.observed_at is None or self.level is None):
+            raise ValueError("Versioned threshold requires episode, level and observation date")
         if self.event_type.endswith("_THRESHOLD_REACHED") and self.state_duration_ms is None:
             raise ValueError("state_duration_ms is required")
         if self.event_type.endswith("_THRESHOLD_REACHED") and self.state != self.event_type.removesuffix("_THRESHOLD_REACHED"):
@@ -45,6 +60,7 @@ class RuleLevel(BaseModel):
 
 
 class RulePolicy(BaseModel):
+    policy_version: Literal["driver-bench-20261107-v1"] | None = None
     levels: dict[Literal["1", "2", "3"], RuleLevel] = Field(default_factory=lambda: {
         "1": RuleLevel(threshold_ms=3000, duration_ms=1000),
         "2": RuleLevel(threshold_ms=6000, duration_ms=2000),
@@ -53,6 +69,18 @@ class RulePolicy(BaseModel):
     cooldown_seconds: StrictInt = Field(default=30, ge=0, le=3600)
     max_event_age_seconds: StrictInt = Field(default=60, ge=1, le=86400)
 
+    @model_validator(mode="before")
+    @classmethod
+    def versioned_defaults(cls, value):
+        if isinstance(value, dict) and value.get("policy_version") == "driver-bench-20261107-v1":
+            value = dict(value)
+            value.setdefault("levels", {str(level): {"threshold_ms": threshold, "duration_ms": duration,
+                "outputs": ["led", "buzzer"] if level == 1 else ["led", "buzzer", "motor"]}
+                for level, threshold, duration in ((1,3000,1000), (2,6000,2000), (3,10000,3000))})
+            value.setdefault("cooldown_seconds", 0)
+            value.setdefault("max_event_age_seconds", 5)
+        return value
+
     @model_validator(mode="after")
     def ordered_levels(self):
         if set(self.levels) != {"1", "2", "3"}:
@@ -60,6 +88,12 @@ class RulePolicy(BaseModel):
         thresholds = [self.levels[str(level)].threshold_ms for level in (1, 2, 3)]
         if not thresholds[0] < thresholds[1] < thresholds[2]:
             raise ValueError("severity thresholds must increase")
+        if self.policy_version:
+            expected = {str(level): RuleLevel(threshold_ms=threshold, duration_ms=duration,
+                outputs=["led", "buzzer"] if level == 1 else ["led", "buzzer", "motor"])
+                for level, threshold, duration in ((1,3000,1000), (2,6000,2000), (3,10000,3000))}
+            if self.levels != expected or self.cooldown_seconds != 0 or self.max_event_age_seconds != 5:
+                raise ValueError("Versioned policy parameters must match the agreed preset")
         return self
 
 
