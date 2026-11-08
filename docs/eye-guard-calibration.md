@@ -56,4 +56,4 @@ Runtime từ chối file hiệu chuẩn bị từ chối, chưa hoàn tất, sai
 
 ## Kết quả hiện có ngày 08/11
 
-Có kính: dữ liệu chưa tách biệt ổn định, hiệu chuẩn bị từ chối. Không kính: sau phân tích lại v2, đã thực hiện **một lượt camera mới** với ngưỡng riêng 0,2282818141; người dùng xác nhận DROWSY + âm thanh khi nhắm mắt, ATTENTIVE khi mở lại và DISTRACTED khi quay đầu vừa phải. Chỉ nghiệm thu các thao tác trong điều kiện đó. Kết quả và giới hạn ở [báo cáo camera](ai-camera-review-20261108.md); không áp dụng file cá nhân cho người khác hoặc tuyên bố đã xử lý kính.
+Có kính: dữ liệu chưa tách biệt ổn định, hiệu chuẩn bị từ chối. Không kính: sau phân tích lại v2, đã thực hiện **một lượt camera mới** với ngưỡng riêng 0,2282818141; người dùng xác nhận DROWSY + âm thanh khi nhắm mắt, ATTENTIVE khi mở lại và DISTRACTED khi quay đầu vừa phải. Chỉ nghiệm thu các thao tác trong điều kiện đó. Kết quả và giới hạn ở [báo cáo camera](final-verification.md); không áp dụng file cá nhân cho người khác hoặc tuyên bố đã xử lý kính.

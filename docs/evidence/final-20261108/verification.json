@@ -322,5 +322,53 @@
     "upload_failure_log_entries": 0,
     "mqtt_saved_ack_log_entries": 180,
     "scope_note": "Backlog may include earlier pending clips; 180 messages and 14 videos are total queues, not exclusively the final trial. Real workers preserved IDs; no manual deletion. Rule engine disabled, so this does not prove physical replay suppression."
+  },
+  "repository_cleanup": {
+    "obsolete_files_removed": 22,
+    "progress_files_untracked_kept_local": 36,
+    "application_backend_frontend_logic_changed": false,
+    "existing_active_migrations_preserved": true,
+    "backend_unit": {
+      "passed": 60,
+      "skipped": 52
+    },
+    "edge_ai": {
+      "passed": 110
+    },
+    "frontend": {
+      "passed": 63,
+      "build_passed": true
+    },
+    "ntp_restart": {
+      "checks": [
+        {
+          "phase": "after_recreate",
+          "timestamp": "2026-11-08T09:09:54.557885+00:00",
+          "host": "127.0.0.1",
+          "port": 123,
+          "stratum": 10,
+          "offset_ms": 1.063,
+          "round_trip_ms": 3.708,
+          "pass": true,
+          "scope": "Laptop UDP probe; ESP32 boot and LAN firewall are separate acceptance steps"
+        },
+        {
+          "phase": "after_restart",
+          "timestamp": "2026-11-08T09:09:55.370906+00:00",
+          "host": "127.0.0.1",
+          "port": 123,
+          "stratum": 10,
+          "offset_ms": 0.659,
+          "round_trip_ms": 2.648,
+          "pass": true,
+          "scope": "Laptop UDP probe; ESP32 boot and LAN firewall are separate acceptance steps"
+        }
+      ],
+      "state": "running",
+      "restart_count": 0,
+      "firewall_changed": false,
+      "system_clock_modified": false,
+      "physical_esp32_used": false
+    }
   }
 }

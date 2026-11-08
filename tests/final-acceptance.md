@@ -31,7 +31,7 @@ Mỗi tổ hợp ánh sáng tốt/yếu × có/không kính: người tham gia �
 
 | Ca | Ngày / người thử | Kết quả | File minh chứng / ID |
 |---|---|---|---|
-| Camera + audio thật | 08/11/2026; TV3, không kính | Đạt thao tác nhắm/mở mắt và quay đầu với RF ứng viên + guard hiệu chuẩn; kính chưa đạt, chưa phải accuracy | `docs/ai-camera-review-20261108.md`; `verification.json`: `camera-calibrated-no-glasses` |
+| Camera + audio thật | 08/11/2026; TV3, không kính | Đạt thao tác nhắm/mở mắt và quay đầu với RF ứng viên + guard hiệu chuẩn; kính chưa đạt, chưa phải accuracy | `docs/final-ai-model.md`; `verification.json`: `camera-calibrated-no-glasses` |
 | Ba mức + nhắc + hồi phục | Chưa ghi | Chưa nghiệm thu | |
 | UNKNOWN / mất mặt / SESSION_ENDED | Chưa ghi | Chưa nghiệm thu | |
 | Mất Internet, reboot ESP32, NTP LAN | Chưa ghi | Chưa nghiệm thu | |

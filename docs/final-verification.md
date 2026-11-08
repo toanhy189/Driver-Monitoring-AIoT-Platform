@@ -18,7 +18,7 @@ Nguồn tổng hợp: [verification.json](evidence/final-20261108/verification.j
 | HTTPS | TLS 1.3, xác minh CA/hostname đạt | React 200, API yêu cầu JWT 401; chưa cài CA vào Windows |
 | Backup | Restore thành công 17 bảng vào DB tạm | DB ứng dụng không bị ghi đè |
 | Tính toàn vẹn model | `run-submission.ps1 -Check` đạt đúng phiên bản | Chỉ kiểm tra nạp artifact, không chứng minh độ chính xác |
-| Camera thật | RF đối chiếu **chưa đạt**: người dùng mở mắt nhưng vẫn báo DROWSY | Có log score/đặc trưng; xem [chẩn đoán](ai-camera-review-20261108.md) |
+| Camera thật | RF đối chiếu **chưa đạt**: người dùng mở mắt nhưng vẫn báo DROWSY | Có log score/đặc trưng; xem [chẩn đoán](final-ai-model.md) |
 | Camera + loa, bản kết hợp hiệu chuẩn | **Đạt lượt chức năng không kính**, người dùng xác nhận | Nhắm mắt → DROWSY + âm thanh; mở mắt nhìn thẳng 25 giây → ATTENTIVE; quay đầu vừa phải → DISTRACTED; một người đã hiệu chuẩn, kính chưa đạt |
 | Hiệu năng camera | FPS trung vị 28,85; RSS đỉnh khoảng 360,8 MiB | 37 snapshot trong một phiên tại laptop này; estimator p95 khoảng 89,39 ms, khác thời gian chờ cửa sổ 20 giây |
 | Upload video | Có upload HTTPS thành công và xóa mục queue sau phản hồi hợp lệ | Clip giữ riêng trên máy; không phải minh chứng chất lượng AI |
@@ -26,6 +26,8 @@ Nguồn tổng hợp: [verification.json](evidence/final-20261108/verification.j
 | CI GitHub | Đủ 6 job đạt trên `230152f`, gồm phần hiệu chuẩn | [Run 42463236985](https://github.com/toanhy189/Driver-Monitoring-AIoT-Platform/actions/runs/42463236985); commit tài liệu sau đó có run riêng |
 | Hiệu chuẩn mắt thật | Có kính bị từ chối; không kính có thể thử tiếp sau phân tích lại v2 | Chỉ số mắt, không phải metrics DROWSY; báo cáo cũ và dữ liệu giữ riêng |
 | Mất BE/broker và gửi bù thật | Camera/loa tiếp tục; sau phục hồi 180 MQTT và 14 video về 0 pending | 180 ACK SAVED, 14 upload thành công; không xóa queue thủ công. Rule tắt nên chưa nghiệm thu chống bật tải muộn trên board thật |
+| Sau dọn repository | Backend 60 đạt/52 skip, AI 110 đạt, FE 63 đạt và build thành công | Giữ test/migration đang dùng; báo cáo tuần và output cũ được Git ignore, vẫn còn trên máy |
+| NTP sau sửa startup | Probe đạt trước và sau restart container; không còn vòng restart do PID cũ | Chỉ probe localhost, chưa nghiệm thu ESP32 qua Wi-Fi; không đổi giờ hệ thống/firewall |
 
 Không cộng các lượt unit/integration thành một con số “test duy nhất” vì chúng có thể chạy lại cùng chức năng ở lớp khác nhau. Không dùng kiểm thử giả lập để tuyên bố phần tải vật lý hoặc chất lượng AI trên người mới đã đạt.
 

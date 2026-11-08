@@ -22,6 +22,11 @@
 **/*.avi
 **/*.joblib
 **/*.zip
+**/*.log
+docs/evidence
+docs/progress
+docs/handoffs
+docs/proposals
 deployment/monitoring/secrets
 deployment/tls/certs
 firmware/esp32-alert-node/include/network_config.h

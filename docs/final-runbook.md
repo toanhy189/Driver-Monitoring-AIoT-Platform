@@ -74,7 +74,7 @@ Copy model riêng đúng đường dẫn/hash trước lệnh cuối; xem [model
 
 ### Bản kết hợp đã thử chức năng không kính
 
-TV3 đã xác nhận bản RF ứng viên + eye guard hiệu chuẩn riêng nhận nhắm mắt, hồi phục mở mắt và quay đầu; loa hoạt động cả khi BE/broker tắt. Đây là bản thử riêng, điều kiện có kính vẫn chưa đạt. Xem [kết quả và giới hạn](ai-camera-review-20261108.md), [cách hiệu chuẩn](eye-guard-calibration.md). Trên đúng laptop/người/điều kiện vừa thử, dùng file riêng đã tạo:
+TV3 đã xác nhận bản RF ứng viên + eye guard hiệu chuẩn riêng nhận nhắm mắt, hồi phục mở mắt và quay đầu; loa hoạt động cả khi BE/broker tắt. Đây là bản thử riêng, điều kiện có kính vẫn chưa đạt. Xem [kết quả và giới hạn](final-ai-model.md), [cách hiệu chuẩn](eye-guard-calibration.md). Trên đúng laptop/người/điều kiện vừa thử, dùng file riêng đã tạo:
 
 ```powershell
 $taskCalibration = './edge-ai/ml-runs/eye-calibration/20261108T081950Z-343298b0/reanalysis-v2.json'
