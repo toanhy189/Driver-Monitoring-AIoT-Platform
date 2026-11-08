@@ -112,7 +112,8 @@ Docker.
   hành và không chia sẻ log thô có thể chứa thông tin nhạy cảm.
 - Prometheus, Grafana và exporter chưa được khai báo trong Compose. Monitoring
   là đầu việc phối hợp, không thể khởi động bằng cách gọi tên service chưa tồn
-  tại. Repo cũng chưa có workflow CI trong `.github/workflows/`.
+  tại. Workflow `.github/workflows/edge-ai.yml` kiểm tra AI không camera và unit
+  test BE; chưa tự triển khai dịch vụ.
 - Các cổng host là dành cho môi trường phát triển; không mở trực tiếp ra Internet
   nếu chưa có kiểm soát truy cập, TLS và cấu hình triển khai phù hợp.
 
@@ -128,3 +129,20 @@ chia sẻ output.
 
 Tham khảo thêm [hướng dẫn MQTT](mqtt/README.md), [hướng dẫn backend](../backend/README.md)
 và [hợp đồng event/video AI](../docs/ai-ingest-video-contract.md).
+
+## Tích hợp AI tuần 4 với schema hiện tại
+
+- `database/create.sql` chỉ dành cho database mới; file này xóa schema khi chạy lại. Không dùng để cập nhật volume đang có dữ liệu.
+- Service `migrate` dùng hai migration bổ sung trong `database/old/` (week 3 và video), rồi `database/migration_ai_policy_v1.sql` để thêm bảng `rule_runtime`. Các bước này không bật rule hoặc đổi binding hiện có.
+- Không chạy lại migration week 2 đã lưu trữ: nó còn tham chiếu bảng `events` cũ và mở rộng danh sách role, không phù hợp schema mới.
+- Backend hỗ trợ policy `driver-bench-20261107-v1`. Binding cũ giữ nguyên policy cũ; TV2 cần chọn đúng preset, bật rule và gán Vision Node với Alert Node khi nghiệm thu. Biến môi trường `RULE_ENGINE_ENABLED` vẫn phải được bật riêng; merge code không tự bật nó.
+- Firmware cần được nạp bản hỗ trợ hạn lệnh và đồng bộ NTP để nghiệm thu toàn bộ đường điều khiển. Build thành công chưa chứng minh tải vật lý đã chạy.
+- FE giữ luồng đăng ký, phân quyền Admin/Employee/Customer, dashboard và API xem video theo `message_id`; bổ sung nhận `alert.updated` cho lịch sử cảnh báo.
+
+Kiểm thử cả ma trận quyền hiện tại trên dịch vụ tạm:
+
+```powershell
+python backend/tests/run_week4_isolated.py --regression
+```
+
+Runner tạo PostgreSQL và broker riêng, dùng video tổng hợp và ESP32 giả lập, rồi dọn tài nguyên. Kết quả mặc định ở `edge-ai/ml-runs/merge-main-20261108/`, không ghi đè minh chứng của TV2. Không mở camera hoặc điều khiển phần cứng thật.

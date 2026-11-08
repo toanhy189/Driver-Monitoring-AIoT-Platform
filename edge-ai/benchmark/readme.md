@@ -1,17 +1,15 @@
-# Facial Landmark Model Benchmark
+# Facial landmark benchmark
 
-Notebook kiểm thử và so sánh 3 mô hình nhận diện khuôn mặt, trích xuất facial landmarks trên dataset [Facial Keypoints Detection](https://www.kaggle.com/competitions/facial-keypoints-detection/data).
+Notebook: `detection_ai.ipynb`. This evaluates five facial points, not driver states.
 
-**Model được kiểm thử:**
-- MediaPipe Face Landmarker
-- RetinaFace
-- MTCNN
+Week-4 corrections:
+- IMAGE mode uses `detect()`, not `detect_for_video()`.
+- Both predictions and ground truth use the same image-x order for eyes and mouth.
+- Invalid/non-finite points and zero interocular ground truth are excluded explicitly.
+- Report detection coverage, NME on each detected subset, and NME on the common detected subset.
+- FPS is inference-only; camera pipeline FPS is measured separately.
+- Saved notebook outputs were cleared because their numbers predate these corrections.
 
-**Thang đánh giá:**
-- Detection Rate
-- Normalized Mean Error (NME)
-- Mean Inference Time
-- FPS (inference only)
-- Errors
+Run the notebook again with the original Facial Keypoints CSV and benchmark-only dependencies before citing new numbers. The old 100% / 8.08 ms claims are not current evidence. Keep the CSV, image IDs, versions and model hashes with the benchmark report.
 
-**Kết quả:** MediaPipe Face Landmarker được lựa chọn nhờ tỷ lệ phát hiện đạt 100% và thời gian suy luận trung bình chỉ khoảng 8,08 ms. Tỷ lệ phát hiện cao giúp giảm nguy cơ gián đoạn dữ liệu landmark, từ đó hạn chế các thay đổi trạng thái sai do thiếu dữ liệu đầu vào. Đồng thời, tốc độ suy luận nhanh đáp ứng tốt yêu cầu xử lý thời gian thực của hệ thống.
+`landmark_metrics.py` is covered by camera-free tests. No large model weights were downloaded or benchmark runs repeated during the policy implementation.

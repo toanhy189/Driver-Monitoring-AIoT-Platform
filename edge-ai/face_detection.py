@@ -1,5 +1,6 @@
 import cv2
 import mediapipe as mp
+import time
 from config import TASK_PATH
 
 
@@ -23,9 +24,10 @@ class FaceLandmarkDetector:
             .create_from_options(options)
         )
 
-        self.timestamp_ms = 0
+        self.started_at = time.monotonic()
+        self.timestamp_ms = -1
 
-    def process(self, frame):
+    def process(self, frame, timestamp_ms=None):
         # OpenCV dùng BGR → chuyển sang RGB
         rgb_frame = cv2.cvtColor(
             frame,
@@ -39,7 +41,15 @@ class FaceLandmarkDetector:
         )
 
         # Timestamp phải tăng dần
-        self.timestamp_ms += 33
+        if timestamp_ms is None:
+            elapsed_ms = int((time.monotonic() - self.started_at) * 1000)
+            self.timestamp_ms = max(self.timestamp_ms + 1, elapsed_ms)
+        else:
+            # Offline video uses source timestamps, never extraction wall time.
+            timestamp_ms = int(timestamp_ms)
+            if timestamp_ms < 0 or timestamp_ms <= self.timestamp_ms:
+                raise ValueError("Video timestamps must be nonnegative and strictly increasing")
+            self.timestamp_ms = timestamp_ms
 
         # Phát hiện khuôn mặt + landmarks
         result = self.landmarker.detect_for_video(

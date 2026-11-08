@@ -54,7 +54,7 @@ function AlertHistoryPage({ user, realtime = NO_REALTIME, onDashboard, onDevices
     for (const event of realtime.events) {
       if (event.sequence <= lastEventSequence.current) continue;
       lastEventSequence.current = event.sequence;
-      if (event.type === "alert.created") setReloadKey(value => value + 1);
+      if (event.type === "alert.created" || event.type === "alert.updated") setReloadKey(value => value + 1);
     }
   }, [realtime.events]);
 

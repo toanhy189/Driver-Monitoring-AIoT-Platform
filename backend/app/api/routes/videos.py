@@ -109,3 +109,21 @@ def download_video(video_id: int, current_user: User = Depends(require_viewer), 
     session.commit()
     return FileResponse(path, media_type="video/mp4", filename=f"video-{video.id}.mp4",
                         headers={"Cache-Control": "private, no-store"})
+
+
+@router.get("/devices/{device_id}/events/{event_id}/video")
+def event_video(device_id: int, event_id: str,
+                current_user: User = Depends(require_viewer), session: Session = Depends(get_session)):
+    assigned_device(session, current_user, device_id)
+    event = session.exec(select(AiEvent).where(AiEvent.event_id == event_id,
+                                               AiEvent.device_id == device_id)).first()
+    if event is None:
+        raise HTTPException(status_code=404, detail="Event not found")
+    message_id = (event.payload.get("clip_message_id") or event.payload.get("episode_start_event_id")
+                  or (event.event_id if event.event_type == "STATE_CHANGED" else None))
+    video = session.exec(select(AiVideo).where(AiVideo.device_id == device_id,
+                                               AiVideo.message_id == message_id)).first() if message_id else None
+    return {"event_id": event_id, "episode_id": event.payload.get("episode_id"),
+            "clip_message_id": message_id,
+            "status": ("AVAILABLE" if video_path(video).is_file() else "MISSING") if video else "PENDING_OR_UNAVAILABLE",
+            "video": _public(session, video) if video else None}

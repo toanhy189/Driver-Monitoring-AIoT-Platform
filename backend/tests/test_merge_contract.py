@@ -44,6 +44,14 @@ class FakeSession:
         self.results = list(value) if isinstance(value, tuple) else None
         self.device = device
         self.statement = None
+        self.added = []
+        self.commits = 0
+
+    def add(self, value):
+        self.added.append(value)
+
+    def commit(self):
+        self.commits += 1
 
     def exec(self, statement):
         self.statement = statement
@@ -77,8 +85,11 @@ class MergeContractTests(unittest.TestCase):
             hash_password=get_password_hash("test-password"),
             email="admin@example.test", phone="000", role="Admin",
         )
-        result = login(LoginRequest(username="admin", password="test-password"), FakeSession(user))
+        session = FakeSession(user)
+        result = login(LoginRequest(username="admin", password="test-password"), session)
         self.assertEqual(decode_access_token(result.access_token), "7")
+        self.assertEqual(session.commits, 1)
+        self.assertEqual([item.action for item in session.added], ["LOGIN_SUCCESS"])
 
     def test_existing_role_names_are_authorized(self):
         admin = User(id=1, fullname="A", username="a", hash_password="x",

@@ -65,6 +65,8 @@ class BrokerPeer:
         self.client.loop_stop()
 
 
+@unittest.skipUnless(os.getenv("W4_ALLOW_BROKER_RESTART") == "1",
+                     "Opt-in integration: restarts the local development broker")
 class MqttPersistenceTest(unittest.TestCase):
     def receive_topic(self, peer, topic):
         while True:

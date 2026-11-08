@@ -43,3 +43,9 @@ class AiMessageReceipt(SQLModel, table=True):
     topic: str = Field(max_length=200)
     payload_hash: str = Field(max_length=64)
     saved_at: NaiveDatetime = Field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+
+
+class RuleRuntime(SQLModel, table=True):
+    __tablename__ = "rule_runtime"
+    source_device_id: int = Field(primary_key=True, foreign_key="devices.id")
+    state: dict = Field(sa_column=Column(JSON, nullable=False))

@@ -73,6 +73,8 @@ def _save_telemetry(session: Session, code: str, payload: dict, *, commit: bool 
         return []
     pose = payload.get("head_pose")
     pose = pose if isinstance(pose, dict) else None
+    delivery = payload.get("_delivery")
+    historical = isinstance(delivery, dict) and delivery.get("mode") == "backfill"
     telemetry = Telemetry(
         device_id=device.id,
         recorded_at=_timestamp(payload.get("timestamp")),
@@ -85,10 +87,13 @@ def _save_telemetry(session: Session, code: str, payload: dict, *, commit: bool 
         model_version=payload.get("model_version"),
     )
     session.add(telemetry)
-    device.status = "ONLINE"
-    device.last_seen = _now()
-    session.add(device)
+    if not historical:
+        device.status = "ONLINE"
+        device.last_seen = _now()
+        session.add(device)
     session.commit() if commit else session.flush()
+    if historical:
+        return []
     return [
         {
             "type": "telemetry.updated",
@@ -148,7 +153,8 @@ def _save_queued_ai(session: Session, code: str, topic: str, kind: str, payload:
         logger.warning("AI ingest rejected: reason=DEVICE_NOT_ALLOWED device=%r topic=%r", code, topic)
         return []
     try:
-        digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
+        application_payload = {key: value for key, value in payload.items() if key != "_delivery"}
+        digest = hashlib.sha256(json.dumps(application_payload, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
     except (TypeError, ValueError):
         return []
     saved = session.exec(select(AiMessageReceipt).where(
@@ -157,14 +163,16 @@ def _save_queued_ai(session: Session, code: str, topic: str, kind: str, payload:
     if saved:
         if saved.topic != topic or saved.payload_hash != digest:
             logger.warning("AI ingest rejected: reason=MESSAGE_ID_CONFLICT device=%r message_id=%r", code, message_id)
-            return []
+            return [{"type": "ingest.rejected", "data": {"device_code": code,
+                "message_id": message_id, "reason": "MESSAGE_ID_CONFLICT"}}]
         return [acknowledgement]
     try:
         if kind == "telemetry":
             data = QueuedTelemetry.model_validate(payload)
             latest = session.exec(select(Telemetry.recorded_at).where(Telemetry.device_id == source.id)
                                   .order_by(Telemetry.recorded_at.desc()).limit(1)).first()
-            events = _save_telemetry(session, code, data.model_dump(mode="json"), commit=False)
+            events = _save_telemetry(session, code, {**data.model_dump(mode="json"),
+                "_delivery": payload.get("_delivery")}, commit=False)
             if latest and data.timestamp.astimezone(timezone.utc).replace(tzinfo=None) < latest:
                 events = [event for event in events if event["type"] != "telemetry.updated"]
         else:
@@ -179,7 +187,8 @@ def _save_queued_ai(session: Session, code: str, topic: str, kind: str, payload:
         fields = [(item["loc"], item["type"]) for item in error.errors()]
         logger.warning("AI ingest rejected: reason=INVALID_SCHEMA device=%r message_id=%r fields=%r",
                        code, message_id, fields)
-        return []
+        return [{"type": "ingest.rejected", "data": {"device_code": code,
+            "message_id": message_id, "reason": "INVALID_SCHEMA"}}]
     session.add(AiMessageReceipt(device_id=source.id, message_id=message_id, topic=topic, payload_hash=digest))
     session.commit()  # Must succeed before the MQTT callback can publish SAVED.
     return [*events, acknowledgement]
@@ -348,10 +357,12 @@ def on_message(client, userdata, msg):
     try:
         payload = json.loads(msg.payload.decode("utf-8"))
         for event in process_message(msg.topic, payload):
-            if event["type"] == "ingest.saved":
+            if event["type"] in {"ingest.saved", "ingest.rejected"}:
                 data = event["data"]
                 result = client.publish(f"driver/{data['device_code']}/storage_ack",
-                    json.dumps({"message_id": data["message_id"], "status": "SAVED"}), qos=1, retain=False)
+                    json.dumps({"message_id": data["message_id"],
+                        "status": "SAVED" if event["type"] == "ingest.saved" else "FAILED",
+                        **({"reason": data["reason"]} if event["type"] == "ingest.rejected" else {})}), qos=1, retain=False)
                 if result.rc != mqtt.MQTT_ERR_SUCCESS:
                     logger.warning("Storage ACK publish failed; the AI queue can retry the same message")
             else:

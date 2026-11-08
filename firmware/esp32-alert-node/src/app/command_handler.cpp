@@ -1,4 +1,5 @@
 #include <ArduinoJson.h>
+#include <sys/time.h>
 #include "config.h"
 #include "device_config.h"
 #include "command_handler.h"
@@ -361,9 +362,48 @@ void runCommand(JsonDocument& doc)
                                 ? doc["intensity"].as<const char*>()
                                 : "";
     uint32_t requestHash = reqHash(command, duration, intensity);
+    uint64_t expiresAt = 0;
+    if (!doc["expires_at_ms"].isNull())
+    {
+        if (!doc["expires_at_ms"].is<uint64_t>())
+        {
+            sendAcks(requestId, "FAILED", millis() - start, "INVALID_EXPIRY");
+            return;
+        }
+        expiresAt = doc["expires_at_ms"].as<uint64_t>();
+        if (expiresAt == 0)
+        {
+            sendAcks(requestId, "FAILED", millis() - start, "INVALID_EXPIRY");
+            return;
+        }
+        // Include the immutable deadline in duplicate-content detection.
+        requestHash = (requestHash ^ static_cast<uint32_t>(expiresAt)) * 16777619U;
+        requestHash ^= static_cast<uint32_t>(expiresAt >> 32);
+    }
     // [TV1-13 - thêm] Tin nhắn lặp trả ACK theo bản ghi, không chạy lại tải.
     if (reqLogHandleDuplicate(requestId, requestHash))
         return;
+    if (expiresAt != 0)
+    {
+        timeval utc;
+        gettimeofday(&utc, nullptr);
+        if (utc.tv_sec < 1704067200)
+        {
+            sendAcks(requestId, "FAILED", millis() - start, "CLOCK_NOT_SYNCED");
+            return;
+        }
+        const uint64_t currentMs = static_cast<uint64_t>(utc.tv_sec) * 1000ULL + utc.tv_usec / 1000;
+        if (currentMs >= expiresAt)
+        {
+            sendAcks(requestId, "FAILED", millis() - start, "COMMAND_EXPIRED");
+            return;
+        }
+        if (expiresAt - currentMs > 5000ULL)
+        {
+            sendAcks(requestId, "FAILED", millis() - start, "CLOCK_SKEW");
+            return;
+        }
+    }
 
     // =========================
     // LED

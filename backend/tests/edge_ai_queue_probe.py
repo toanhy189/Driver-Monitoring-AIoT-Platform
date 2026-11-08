@@ -24,7 +24,7 @@ def load_builders(config, queue):
     from datetime import datetime, timezone
     scope = {"json": json, "uuid": uuid, "time": time, "datetime": datetime, "timezone": timezone,
              "logger": logging.getLogger(__name__), "add_to_queue": queue.add_to_queue,
-             **{name: getattr(config, name) for name in ("DEVICE_CODE", "MODEL_VERSION", "EVENT_TOPIC", "TELEMETRY_TOPIC")}}
+             **{name: getattr(config, name) for name in ("DEVICE_CODE", "MODEL_VERSION", "EVENT_TOPIC", "TELEMETRY_TOPIC", "EVENT_AUDIT_PATH")}}
     exec(compile(ast.Module(body=functions, type_ignores=[]), str(EDGE / "main.py"), "exec"), scope)
     return scope
 
@@ -38,8 +38,11 @@ def main():
     if "codex-edge-" not in str(config.DB_PATH):
         raise RuntimeError("Probe requires an isolated codex-edge- SQLite path")
     assert edge_queue.init_db()
+    def pending_count():
+        with edge_queue.get_connection() as db:
+            return db.execute("SELECT COUNT(*) FROM offline_queue WHERE status='PENDING'").fetchone()[0]
     builders = load_builders(config, edge_queue)
-    sink = type("QueueSink", (), {"connected": False})()
+    sink = type("QueueSink", (), {"connected": False, "notify_queue": lambda self: None})()
     state = {"confirmed_state": "DROWSY", "candidate_state": "DROWSY", "event_sequence": 0,
              "threshold_seconds": {"DROWSY": 3.0, "DISTRACTED": 3.0},
              "threshold_since": {"DROWSY": time.monotonic() - 3.2, "DISTRACTED": None},
@@ -49,7 +52,7 @@ def main():
         builders["publish_event"](sink, event)
     builders["publish_event"](sink, builders["create_session_ended_event"](state, config.DEVICE_CODE))
     before = edge_queue.get_queue()
-    assert len(before) == 3
+    assert pending_count() == 3
 
     with socket.socket() as reservation:
         reservation.bind(("127.0.0.1", 0))
@@ -58,14 +61,14 @@ def main():
         offline = mqtt_client.MQTTClient()
         time.sleep(0.3)
         offline.close()
-    assert len(edge_queue.get_queue()) == 3
+    assert pending_count() == 3
 
     client = mqtt_client.MQTTClient()
     try:
         deadline = time.monotonic() + 15
-        while edge_queue.get_queue() and time.monotonic() < deadline:
+        while pending_count() and time.monotonic() < deadline:
             time.sleep(0.05)
-        assert edge_queue.get_queue() == [], "SQLite must remain until BE sends SAVED"
+        assert pending_count() == 0, "SQLite must remain until BE sends SAVED"
     finally:
         client.close()
     assert not client.worker.is_alive()

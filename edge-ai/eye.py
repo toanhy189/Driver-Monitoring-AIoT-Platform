@@ -1,5 +1,6 @@
 import numpy as np
 import time
+from geometry import image_point
 
 
 # =========================
@@ -29,7 +30,7 @@ RIGHT_EYE = [33, 160, 158, 133, 153, 144]
 # TÍNH EAR
 # =========================
 
-def calculate_ear(face_landmarks, eye_indices):
+def calculate_ear(face_landmarks, eye_indices, frame_size):
 
     points = []
 
@@ -37,7 +38,7 @@ def calculate_ear(face_landmarks, eye_indices):
         landmark = face_landmarks[index]
 
         points.append(
-            np.array([landmark.x, landmark.y])
+            np.array(image_point(landmark, frame_size))
         )
 
     p1, p2, p3, p4, p5, p6 = points
@@ -47,6 +48,8 @@ def calculate_ear(face_landmarks, eye_indices):
 
     horizontal = np.linalg.norm(p1 - p4)
 
+    if horizontal <= 1e-12:
+        return float("nan")
     ear = (
         vertical_1 + vertical_2
     ) / (2.0 * horizontal)
@@ -54,16 +57,18 @@ def calculate_ear(face_landmarks, eye_indices):
     return ear
 
 
-def calculate_average_ear(face_landmarks):
+def calculate_average_ear(face_landmarks, frame_size):
 
     left_ear = calculate_ear(
         face_landmarks,
-        LEFT_EYE
+        LEFT_EYE,
+        frame_size
     )
 
     right_ear = calculate_ear(
         face_landmarks,
-        RIGHT_EYE
+        RIGHT_EYE,
+        frame_size
     )
 
     average_ear = (
@@ -100,9 +105,20 @@ class PerclosCalculator:
 
         self.last_timestamp = None
 
-    def update(self, ear):
+    def reset(self):
+        self.samples.clear()
+        self.valid_time = 0.0
+        self.last_timestamp = None
 
-        current_time = time.monotonic()
+    def interrupt(self):
+        # Do not join the last observed eye state across a missing frame.
+        if self.last_timestamp is not None:
+            self.samples.append((self.last_timestamp, None))
+        self.last_timestamp = None
+
+    def update(self, ear, now=None):
+
+        current_time = time.monotonic() if now is None else float(now)
 
         eye_closed = ear < self.ear_threshold
 
@@ -196,7 +212,7 @@ class PerclosCalculator:
             )
 
             # Bỏ qua khoảng mất dữ liệu
-            if delta > self.max_data_gap:
+            if delta > self.max_data_gap or previous_closed is None:
                 continue
 
             valid_time += delta
@@ -213,6 +229,9 @@ class PerclosCalculator:
 class EyeClosureTracker:
     def __init__(self, ear_threshold=0.20):
         self.ear_threshold = ear_threshold
+        self.closed_since = None
+
+    def reset(self):
         self.closed_since = None
 
     def update(self, ear):

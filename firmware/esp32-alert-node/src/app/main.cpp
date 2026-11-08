@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <time.h>
 
 #include "config.h"
 // [CONFIG - thêm] Nạp timing/ID đã lưu trước khi khởi động MQTT và phát heartbeat.
@@ -59,6 +60,8 @@ void setup()
   reqLogBegin();
 
   initMqtt();
+  // Asynchronous UTC sync. Expiring commands fail closed until time is available.
+  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
   
 }
 

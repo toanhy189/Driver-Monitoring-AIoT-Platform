@@ -9,11 +9,11 @@ Chức năng chính:
 - Gửi THRESHOLD_REACHED khi liên tục state trên x giây.
 """
 
-import os
-
 import cv2
 import time
 import uuid
+import math
+from pathlib import Path
 
 import logging
 
@@ -25,12 +25,21 @@ from eye import (
 )
 
 from mqtt_client import MQTTClient
-from config import DEVICE_CODE, EAR_THRESHOLD, PERCLOS_THRESHOLD
+from config import (DEVICE_CODE, EAR_THRESHOLD, PERCLOS_THRESHOLD,
+                    FACE_LOSS_RESET_SECONDS, MAX_OBSERVATION_GAP_SECONDS,
+                    AI_MODEL_MODE, AI_MODEL_PATH, MODEL_VERSION, METRICS_PATH,
+                    VIDEO_MAX_CLIP_SECONDS, VIDEO_MAX_CLIP_BYTES, VIDEO_STORAGE_MAX_BYTES, RECORDING_DIR)
+from ml.runtime import load_optional_model, fuse_state
 from head_pose import HeadPoseEstimator, HeadPoseTracker
 
 from edge_queue import init_db
 from service.message.publisher import publish_event, publish_telemetry
-from service.video.upload import create_video_writer, upload_video
+from service.video.upload import create_video_writer, recorded_bytes
+from service.video.worker import VideoUploadWorker
+from service.local_alert import LocalAlertWorker
+from service.alert_policy import AlertPolicy
+from service.runtime_metrics import RuntimeMetrics
+from service.observation import ObservationContinuity
 from service.utils import current_timestamp, draw_text
 
 
@@ -73,9 +82,6 @@ thickness = 1
 # =========================
 # OFFLINE QUEUE
 # =========================
-if not init_db():
-    raise RuntimeError("Cannot initialize SQLite offline queue")
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -257,11 +263,18 @@ def main():
     mqtt_client = None
     session_started = False
     detector = None
+    video_worker = None
+    local_alert = None
 
     video_writer = None
     active_video_path = None
     recording_state = "UNKNOWN"
     recording_message_id = None
+    clip_started_at = None
+    next_recording_attempt_at = 0.0
+    policy = None
+    metrics = RuntimeMetrics(METRICS_PATH)
+    last_metrics_at = 0.0
 
     # Trạng thái dùng cho debounce và event.
     state_data = {
@@ -286,6 +299,19 @@ def main():
     }
 
     try:
+        drowsiness_model = load_optional_model(AI_MODEL_MODE, AI_MODEL_PATH)
+        state_data["model_version"] = (drowsiness_model.model_version
+                                       if drowsiness_model is not None else MODEL_VERSION)
+        logger.info("AI classifier: %s", state_data["model_version"])
+        policy = AlertPolicy(DEVICE_CODE, state_data["model_version"], max_gap=MAX_OBSERVATION_GAP_SECONDS)
+        state_data["session_id"] = policy.session_id
+        if not init_db():
+            raise RuntimeError("Cannot initialize SQLite queues")
+        video_worker = VideoUploadWorker()
+        video_worker.start()
+        local_alert = LocalAlertWorker()
+        local_alert.start()
+
         # Khởi tạo camera.
         camera = cv2.VideoCapture(CAMERA_INDEX)
 
@@ -310,9 +336,14 @@ def main():
             calibration_seconds=CALIBRATION_SECONDS,
             distracted_duration=DISTRACTED_DURATION_SECONDS,
         )
+        continuity = ObservationContinuity(
+            eye_tracker, perclos_calculator, head_pose_tracker, state_data,
+            reset_seconds=FACE_LOSS_RESET_SECONDS,
+            max_gap_seconds=MAX_OBSERVATION_GAP_SECONDS,
+        )
 
         # Khởi tạo MQTT.
-        mqtt_client = MQTTClient()
+        mqtt_client = MQTTClient(model_version=state_data["model_version"])
         session_started = True
 
         print("[INFO] Hệ thống phát hiện buồn ngủ đã khởi động.")
@@ -327,6 +358,14 @@ def main():
             success, frame = camera.read()
 
             if not success:
+                local_alert.cancel()
+                for event in policy.update("UNKNOWN", valid=False):
+                    local_alert.notify(event)
+                    publish_event(mqtt_client, event)
+                continuity.update(False)
+                if drowsiness_model is not None:
+                    drowsiness_model.update(time.monotonic())
+                eyes_open_since = None
                 camera_failures += 1
                 print(
                     f"[CAMERA] Không đọc được frame "
@@ -342,7 +381,9 @@ def main():
                 continue
 
             camera_failures = 0
+            loop_started = time.perf_counter()
             frame_time = time.monotonic()
+            frame_observed_at = current_timestamp()
 
             # Giá trị mặc định cho frame không có khuôn mặt.
             face_detected = False
@@ -363,7 +404,19 @@ def main():
             # 1. FACE DETECTION
             # ---------------------------------
 
+            landmark_started = time.perf_counter()
             faces = detector.process(frame)
+            metrics.observe("landmarks", (time.perf_counter()-landmark_started)*1000)
+            if faces:
+                frame_size = (frame.shape[1], frame.shape[0])
+                ear = calculate_average_ear(faces[0], frame_size)
+                pose = head_pose.estimate(faces[0], frame_size)
+                if (not math.isfinite(ear) or pose is None
+                        or not all(math.isfinite(pose[k]) for k in ("yaw", "pitch"))):
+                    # Degenerate landmarks are missing observations, not open eyes.
+                    faces, ear, pose = [], None, None
+            if continuity.update(bool(faces), frame_time):
+                eyes_open_since = None
 
             if faces:
                 face_detected = True
@@ -372,8 +425,6 @@ def main():
                 # ---------------------------------
                 # 2. EYE / EAR / PERCLOS
                 # ---------------------------------
-
-                ear = calculate_average_ear(face)
 
                 eye_status = eye_tracker.update(ear)
                 eye_closed = eye_status["is_closed"]
@@ -399,7 +450,6 @@ def main():
                 # 3. HEAD POSE
                 # ---------------------------------
 
-                pose = head_pose.estimate(face)
                 pose_status = head_pose_tracker.update(pose)
                 if pose is not None:
                     yaw = pose.get("yaw")
@@ -435,67 +485,53 @@ def main():
                 driver_state = "UNKNOWN"
                 eyes_open_since = None
 
+            decision_started = time.perf_counter()
+            if drowsiness_model is not None:
+                binary_prediction = drowsiness_model.update(frame_time, ear, pose)
+                driver_state = fuse_state(binary_prediction, pose_status)
+                metrics.observe("estimator", drowsiness_model.last_inference_ms)
+            metrics.observe("ml_update_and_fusion", (time.perf_counter()-decision_started)*1000)
+
             # ---------------------------------
             # 5. CONFIRM STATE
             # ---------------------------------
 
-            state_event = update_confirmed_state(
-                driver_state,
-                state_data,
-                DEVICE_CODE,
-            )
-
-            if state_event is not None:
-                # Đóng và upload video của trạng thái trước.
-                if video_writer is not None:
-                    video_writer.release()
-                    video_writer = None
-
-                    uploaded = upload_video(
-                        active_video_path,
-                        DEVICE_CODE,
-                        recording_state,
-                        recording_message_id,
-                    )
-
-                    if active_video_path is not None:
-                        if uploaded:
-                            try:
-                                os.remove(active_video_path)
-                            except OSError as exc:
-                                logger.error("Cannot delete uploaded video: %s", exc)
-                        else:
-                            logger.warning(
-                                "Video retained locally: %s",
-                                active_video_path,
-                            )
-                
-                active_video_path = None
-
-                # Event mới là event gắn với video mới.
-                recording_state = state_event["state"]
-                recording_message_id = state_event["message_id"]
-
-                video_writer, active_video_path = create_video_writer(
-                    frame,
-                    recording_state,
-                    camera,
-                )
-
-
-
-            publish_event(mqtt_client, state_event)
-
-            # ---------------------------------
-            # 6. THRESHOLD EVENTS
-            # ---------------------------------
-
-            threshold_events = check_threshold_events(
-                state_data,
-                DEVICE_CODE,
-            )
-
-            for event in threshold_events:
+            events = policy.update(driver_state, valid=face_detected, now=frame_time,
+                                   observed_at=frame_observed_at)
+            state_data["confirmed_state"] = policy.state
+            state_data["candidate_state"] = policy.candidate
+            state_data["observed_at"] = policy.observed_at
+            state_data["episode_id"] = policy.episode_id
+            if policy.suspended or policy.candidate not in {"DROWSY", "DISTRACTED"}:
+                local_alert.cancel()
+            if (video_writer is not None and clip_started_at is not None and
+                    (frame_time - clip_started_at >= VIDEO_MAX_CLIP_SECONDS or
+                     recorded_bytes(active_video_path) >= VIDEO_MAX_CLIP_BYTES) and
+                    not any(event["event_type"] == "STATE_CHANGED" for event in events)):
+                events.append(policy.rotate_clip())
+            if (video_writer is None and policy.state is not None and frame_time >= next_recording_attempt_at
+                    and not any(event["event_type"] == "STATE_CHANGED" for event in events)):
+                events.append(policy.rotate_clip())
+            for event in events:
+                if event["event_type"] == "STATE_CHANGED":
+                    if video_writer is not None:
+                        video_writer.release()
+                        video_writer = None
+                        if active_video_path is not None:
+                            video_worker.enqueue(recording_message_id, active_video_path,
+                                                 DEVICE_CODE, recording_state)
+                    active_video_path = None
+                    recording_state = event["state"]
+                    recording_message_id = event["message_id"]
+                    try:
+                        video_writer, active_video_path = create_video_writer(frame, recording_state, camera)
+                    except OSError:
+                        logger.exception("Recording unavailable; camera and warnings continue")
+                        video_writer, active_video_path = None, None
+                    clip_started_at = frame_time
+                    next_recording_attempt_at = frame_time + 5
+                    event["recording_status"] = "RECORDING" if video_writer is not None else "UNAVAILABLE"
+                local_alert.notify(event)
                 publish_event(mqtt_client, event)
 
             # ---------------------------------
@@ -527,6 +563,9 @@ def main():
             )
 
             y = draw_text(frame, f"State: {display_state}", y)
+            y = draw_text(frame, f"UTC: {frame_observed_at}", y)
+            if drowsiness_model is not None:
+                y = draw_text(frame, f"Model: {state_data['model_version']}", y)
 
             if face_detected:
                 y = draw_text(frame, f"EAR: {ear:.3f}", y)
@@ -588,6 +627,15 @@ def main():
                     (0, 165, 255)
                 )
 
+            metrics.observe("frame_processing", (time.perf_counter()-loop_started)*1000)
+            metrics.frame()
+            if frame_time - last_metrics_at >= 10:
+                try:
+                    metrics.write(timestamp=current_timestamp(), session_id=policy.session_id,
+                                  model_version=state_data["model_version"])
+                except OSError:
+                    logger.exception("Cannot write runtime measurements")
+                last_metrics_at = frame_time
             cv2.imshow("Drowsiness Detection", frame)
 
             if video_writer is not None:
@@ -604,40 +652,24 @@ def main():
         raise
 
     finally:
-        # Đóng video đang ghi và upload video đã hoàn tất.
+        # Persist the final clip without waiting for an HTTP upload on exit.
         if video_writer is not None:
             video_writer.release()
             video_writer = None
 
             if active_video_path is not None:
-                uploaded = upload_video(
-                    active_video_path,
-                    DEVICE_CODE,
-                    recording_state,
-                    recording_message_id,
-                )
+                video_worker.enqueue(recording_message_id, active_video_path,
+                                     DEVICE_CODE, recording_state)
 
-                if uploaded:
-                    try:
-                        os.remove(active_video_path)
-                    except OSError as exc:
-                        logger.error(
-                            "Cannot delete uploaded video: %s",
-                            exc,
-                        )
-                else:
-                    logger.warning(
-                        "Video retained locally: %s",
-                        active_video_path,
-                    )
+        if local_alert is not None:
+            local_alert.stop()
+        if video_worker is not None:
+            video_worker.stop()
 
         # Gửi event kết thúc phiên trước khi đóng MQTT.
         if session_started and mqtt_client is not None:
             try:
-                event = create_session_ended_event(
-                    state_data,
-                    DEVICE_CODE,
-                )
+                event = policy.end()
                 publish_event(mqtt_client, event)
             except Exception as exc:
                 logger.error("Cannot publish SESSION_ENDED: %s", exc)
@@ -645,6 +677,9 @@ def main():
         # Giải phóng các tài nguyên khác.
         if camera is not None:
             camera.release()
+
+        if detector is not None:
+            detector.close()
 
         cv2.destroyAllWindows()
 
@@ -657,5 +692,31 @@ def main():
         print("[INFO] Đã dừng hệ thống.")
 
 
+def check_runtime():
+    """Load native vision/model code without a webcam, network or user queue writes."""
+    import json
+    import sqlite3
+    import numpy as np
+    from ml.runtime import DrowsinessModel
+    from service.alert_policy import POLICY_VERSION
+    with sqlite3.connect(":memory:") as connection:
+        connection.execute("SELECT 1").fetchone()
+    detector = FaceLandmarkDetector()
+    try:
+        detector.process(np.zeros((64, 64, 3), dtype=np.uint8))
+    finally:
+        detector.close()
+    model = DrowsinessModel(AI_MODEL_PATH) if AI_MODEL_MODE == "ml" else None
+    print(json.dumps({"status": "OK", "camera_opened": False, "network_started": False,
+        "model_version": model.model_version if model else MODEL_VERSION,
+        "policy_version": POLICY_VERSION}))
+
+
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser(description="Driver monitoring Edge AI")
+    parser.add_argument("--check", action="store_true", help="Check native dependencies without camera/network")
+    if parser.parse_args().check:
+        check_runtime()
+    else:
+        main()

@@ -1,5 +1,6 @@
 import math
 import time
+from geometry import image_point
 
 
 class HeadPoseEstimator:
@@ -33,46 +34,46 @@ class HeadPoseEstimator:
         return math.sqrt(dx * dx + dy * dy)
 
     @staticmethod
-    def point(face_landmarks, index):
+    def point(face_landmarks, index, frame_size):
         landmark = face_landmarks[index]
 
-        return landmark.x, landmark.y
+        return image_point(landmark, frame_size)
 
-    def estimate(self, face_landmarks):
+    def estimate(self, face_landmarks, frame_size):
 
         nose = self.point(
             face_landmarks,
-            self.NOSE
+            self.NOSE, frame_size
         )
 
         left_eye = self.point(
             face_landmarks,
-            self.LEFT_EYE
+            self.LEFT_EYE, frame_size
         )
 
         right_eye = self.point(
             face_landmarks,
-            self.RIGHT_EYE
+            self.RIGHT_EYE, frame_size
         )
 
         forehead = self.point(
             face_landmarks,
-            self.FOREHEAD
+            self.FOREHEAD, frame_size
         )
 
         chin = self.point(
             face_landmarks,
-            self.CHIN
+            self.CHIN, frame_size
         )
 
         mouth_left = self.point(
             face_landmarks,
-            self.MOUTH_LEFT
+            self.MOUTH_LEFT, frame_size
         )
 
         mouth_right = self.point(
             face_landmarks,
-            self.MOUTH_RIGHT
+            self.MOUTH_RIGHT, frame_size
         )
 
         # =====================================================
@@ -155,7 +156,7 @@ class HeadPoseTracker:
 
         # Calibration
         self.calibrating = True
-        self.calibration_start = time.monotonic()
+        self.calibration_start = None
 
         self.yaw_samples = []
         self.pitch_samples = []
@@ -166,12 +167,23 @@ class HeadPoseTracker:
         # Theo doi lech huong
         self.deviation_since = None
 
+    def interrupt(self):
+        self.deviation_since = None
+        if self.calibrating:
+            # Calibration needs one continuous observed interval.
+            self.calibration_start = None
+            self.yaw_samples.clear()
+            self.pitch_samples.clear()
+
     # =========================================================
     # CALIBRATION
     # =========================================================
 
     def _update_calibration(self, yaw, pitch):
         current_time = time.monotonic()
+
+        if self.calibration_start is None:
+            self.calibration_start = current_time
 
         self.yaw_samples.append(yaw)
         self.pitch_samples.append(pitch)
@@ -228,6 +240,7 @@ class HeadPoseTracker:
         """
 
         if pose is None:
+            self.interrupt()
             return {
                 "calibrating": self.calibrating,
                 "valid": False,
