@@ -1,5 +1,6 @@
 import { hasPermission } from "../services/permissions.js";
-import { useState } from "react";
+import { useContext, useState } from "react";
+import { AppNavigation } from "../services/AppNavigation.jsx";
 import AccountPanel from "./AccountPanel.jsx";
 
 const paths = {
@@ -39,6 +40,7 @@ export function ConnectionBadge({ status, isStale = false }) {
 
 function AppShell({ user, activePage, serverConnected, onDashboard, onDevices, onCommands, onAlerts, onLogout, children }) {
   const [accountOpen, setAccountOpen] = useState(false);
+  const { onMonitoring } = useContext(AppNavigation);
   const connectionClass = serverConnected === true ? "online" : serverConnected === false ? "offline" : "unknown";
   const connectionLabel = serverConnected === true ? "Máy chủ đã kết nối" : serverConnected === false ? "Mất kết nối máy chủ" : "Chưa xác định kết nối máy chủ";
   const isAdmin = hasPermission(user?.role, "user:view");
@@ -46,7 +48,8 @@ function AppShell({ user, activePage, serverConnected, onDashboard, onDevices, o
     <aside className="app-sidebar">
       <div className="brand"><span className="brand-mark"><Icon name="wheel" size={30} /></span><div><strong>DRIVER MONITOR</strong><small>Giám sát tài xế AIoT</small></div></div>
       <nav className="side-nav" aria-label="Điều hướng chính">
-        <button className={activePage === "dashboard" ? "active" : ""} onClick={onDashboard} aria-current={activePage === "dashboard" ? "page" : undefined}><Icon name="home" />Tổng quan</button>
+        <button className={activePage === "dashboard" ? "active" : ""} onClick={onDashboard} aria-current={activePage === "dashboard" ? "page" : undefined}><Icon name="home" />{isAdmin ? "Quản trị" : "Tổng quan"}</button>
+        {isAdmin && <button className={activePage === "monitoring" ? "active" : ""} onClick={onMonitoring} disabled={!onMonitoring} aria-current={activePage === "monitoring" ? "page" : undefined}><Icon name="play" />Giám sát AI</button>}
         <button className={activePage === "devices" ? "active" : ""} onClick={onDevices} aria-current={activePage === "devices" ? "page" : undefined}><Icon name="device" />Thiết bị</button>
         {hasPermission(user?.role, "command:view") && <button className={activePage === "commands" ? "active" : ""} onClick={onCommands} aria-current={activePage === "commands" ? "page" : undefined} disabled={!onCommands}><Icon name="commands" />Lịch sử lệnh</button>}
         {hasPermission(user?.role, "alert:view") && <button className={activePage === "alerts" ? "active" : ""} onClick={onAlerts} aria-current={activePage === "alerts" ? "page" : undefined} disabled={!onAlerts}><Icon name="alert" />Cảnh báo</button>}

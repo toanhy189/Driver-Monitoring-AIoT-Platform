@@ -7,6 +7,22 @@ test("trang cảnh báo có URL riêng", () => {
   assert.deepEqual(viewFromHash("#/alerts"), { page: "alerts" });
 });
 
+test("Admin có URL giám sát riêng và lịch sử quay về trang quản trị", () => {
+  const previousWindow = globalThis.window;
+  globalThis.window = fakeWindow();
+  try {
+    ensureView(1);
+    pushView({ page: "monitoring" }, 1);
+    assert.equal(window.location.hash, "#/monitoring");
+    assert.deepEqual(viewFromHash("#/monitoring"), { page: "monitoring" });
+    window.history.back();
+    assert.deepEqual(ensureView(1), DASHBOARD_VIEW);
+    window.history.forward();
+    assert.deepEqual(ensureView(1), { page: "monitoring" });
+    assert.deepEqual(ensureView(2), DASHBOARD_VIEW);
+  } finally { globalThis.window = previousWindow; }
+});
+
 function fakeWindow(initialHash = "") {
   const entries = [{ hash: initialHash, state: null }];
   let index = 0;

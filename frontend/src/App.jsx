@@ -14,6 +14,7 @@ import { hasPermission } from "./services/permissions.js";
 import { DASHBOARD_VIEW, currentView, ensureView, hasPreviousView, pushView, replaceView } from "./services/navigation.js";
 import useRealtime from "./hooks/useRealtime.js";
 import { authenticatedRequest } from "./services/api.js";
+import { AppNavigation } from "./services/AppNavigation.jsx";
 
 function App() {
   const [session, setSession] = useState(() => ({
@@ -178,117 +179,124 @@ function App() {
     );
   }
 
-  if (view.page === "devices") {
-    return (
-      <DeviceListPage
+  const renderAuthenticated = () => {
+    if (view.page === "devices") {
+      return (
+        <DeviceListPage
+          user={session.user}
+          realtime={realtime}
+          onBack={() => navigateBack(DASHBOARD_VIEW)}
+          onOpenDevice={device => navigateTo({ page: "device-detail", deviceId: device.id, summary: device })}
+          onOpenCommands={() => navigateTo({ page: "commands" })}
+          onOpenAlerts={() => navigateTo({ page: "alerts" })}
+          onLogout={handleLogout}
+          onUnauthorized={handleLogout}
+        />
+      );
+    }
+
+    if (view.page === "device-detail") {
+      return (
+        <DeviceDetailPage
+          key={view.deviceId}
+          user={session.user}
+          realtime={realtime}
+          deviceId={view.deviceId}
+          summary={view.summary}
+          onBack={() => navigateBack({ page: "devices" })}
+          onDashboard={() => navigateTo(DASHBOARD_VIEW)}
+          onOpenHistory={device => navigateTo({ page: "commands", deviceId: view.deviceId, deviceCode: device?.device_code || view.summary?.device_code })}
+          onOpenConfig={device => navigateTo({ page: "config", deviceId: view.deviceId, deviceCode: device?.device_code || view.summary?.device_code, deviceName: device?.name || view.summary?.name, deviceStatus: device?.status })}
+          onOpenCommands={() => navigateTo({ page: "commands" })}
+          onOpenAlerts={() => navigateTo({ page: "alerts" })}
+          onLogout={handleLogout}
+          onUnauthorized={handleLogout}
+        />
+      );
+    }
+
+    if (view.page === "commands") {
+      return (
+        <CommandHistoryPage
+          user={session.user}
+          realtime={realtime}
+          deviceId={view.deviceId}
+          deviceCode={view.deviceCode}
+          onBack={() => navigateBack({ page: "device-detail", deviceId: view.deviceId })}
+          onDashboard={() => navigateTo(DASHBOARD_VIEW)}
+          onDevices={() => navigateTo({ page: "devices" })}
+          onAlerts={() => navigateTo({ page: "alerts" })}
+          onLogout={handleLogout}
+          onUnauthorized={handleLogout}
+        />
+      );
+    }
+
+    if (view.page === "config") {
+      return (
+        <RemoteConfigPage
+          key={view.deviceId}
+          user={session.user}
+          realtime={realtime}
+          deviceId={view.deviceId}
+          deviceCode={view.deviceCode}
+          deviceName={view.deviceName}
+          deviceStatus={view.deviceStatus}
+          onBack={() => navigateBack({ page: "device-detail", deviceId: view.deviceId })}
+          onDashboard={() => navigateTo(DASHBOARD_VIEW)}
+          onDevices={() => navigateTo({ page: "devices" })}
+          onCommands={() => navigateTo({ page: "commands" })}
+          onAlerts={() => navigateTo({ page: "alerts" })}
+          onLogout={handleLogout}
+          onUnauthorized={handleLogout}
+        />
+      );
+    }
+
+    if (view.page === "alerts") {
+      return <AlertHistoryPage
         user={session.user}
         realtime={realtime}
-        onBack={() => navigateBack(DASHBOARD_VIEW)}
+        onDashboard={() => navigateTo(DASHBOARD_VIEW)}
+        onDevices={() => navigateTo({ page: "devices" })}
+        onCommands={alert => navigateTo(alert && Number.isSafeInteger(alert.device_id) ?
+          { page: "commands", deviceId: alert.device_id, deviceCode: alert.device_code } :
+          { page: "commands" })}
+        onLogout={handleLogout}
+        onUnauthorized={handleLogout}
+      />;
+    }
+
+    if (hasPermission(session.user?.role, "user:view") && view.page !== "monitoring") {
+      return <AdminDashboard
+        user={session.user}
+        realtime={realtime}
+        onOpenCommands={() => navigateTo({ page: "commands" })}
+        onOpenAlerts={() => navigateTo({ page: "alerts" })}
+        onOpenDevices={() => navigateTo({ page: "devices" })}
         onOpenDevice={device => navigateTo({ page: "device-detail", deviceId: device.id, summary: device })}
+        onLogout={handleLogout}
+        onUnauthorized={handleLogout}
+      />;
+    }
+
+    return (
+      <Dashboard
+        user={session.user}
+        realtime={realtime}
+        onOpenDevices={() => navigateTo({ page: "devices" })}
         onOpenCommands={() => navigateTo({ page: "commands" })}
         onOpenAlerts={() => navigateTo({ page: "alerts" })}
         onLogout={handleLogout}
         onUnauthorized={handleLogout}
       />
     );
-  }
+  };
 
-  if (view.page === "device-detail") {
-    return (
-      <DeviceDetailPage
-        key={view.deviceId}
-        user={session.user}
-        realtime={realtime}
-        deviceId={view.deviceId}
-        summary={view.summary}
-        onBack={() => navigateBack({ page: "devices" })}
-        onDashboard={() => navigateTo(DASHBOARD_VIEW)}
-        onOpenHistory={device => navigateTo({ page: "commands", deviceId: view.deviceId, deviceCode: device?.device_code || view.summary?.device_code })}
-        onOpenConfig={device => navigateTo({ page: "config", deviceId: view.deviceId, deviceCode: device?.device_code || view.summary?.device_code, deviceName: device?.name || view.summary?.name, deviceStatus: device?.status })}
-        onOpenCommands={() => navigateTo({ page: "commands" })}
-        onOpenAlerts={() => navigateTo({ page: "alerts" })}
-        onLogout={handleLogout}
-        onUnauthorized={handleLogout}
-      />
-    );
-  }
-
-  if (view.page === "commands") {
-    return (
-      <CommandHistoryPage
-        user={session.user}
-        realtime={realtime}
-        deviceId={view.deviceId}
-        deviceCode={view.deviceCode}
-        onBack={() => navigateBack({ page: "device-detail", deviceId: view.deviceId })}
-        onDashboard={() => navigateTo(DASHBOARD_VIEW)}
-        onDevices={() => navigateTo({ page: "devices" })}
-        onAlerts={() => navigateTo({ page: "alerts" })}
-        onLogout={handleLogout}
-        onUnauthorized={handleLogout}
-      />
-    );
-  }
-
-  if (view.page === "config") {
-    return (
-      <RemoteConfigPage
-        key={view.deviceId}
-        user={session.user}
-        realtime={realtime}
-        deviceId={view.deviceId}
-        deviceCode={view.deviceCode}
-        deviceName={view.deviceName}
-        deviceStatus={view.deviceStatus}
-        onBack={() => navigateBack({ page: "device-detail", deviceId: view.deviceId })}
-        onDashboard={() => navigateTo(DASHBOARD_VIEW)}
-        onDevices={() => navigateTo({ page: "devices" })}
-        onCommands={() => navigateTo({ page: "commands" })}
-        onAlerts={() => navigateTo({ page: "alerts" })}
-        onLogout={handleLogout}
-        onUnauthorized={handleLogout}
-      />
-    );
-  }
-
-  if (view.page === "alerts") {
-    return <AlertHistoryPage
-      user={session.user}
-      realtime={realtime}
-      onDashboard={() => navigateTo(DASHBOARD_VIEW)}
-      onDevices={() => navigateTo({ page: "devices" })}
-      onCommands={alert => navigateTo(alert && Number.isSafeInteger(alert.device_id) ?
-        { page: "commands", deviceId: alert.device_id, deviceCode: alert.device_code } :
-        { page: "commands" })}
-      onLogout={handleLogout}
-      onUnauthorized={handleLogout}
-    />;
-  }
-
-  if (hasPermission(session.user?.role, "user:view")) {
-    return <AdminDashboard
-      user={session.user}
-      realtime={realtime}
-      onOpenCommands={() => navigateTo({ page: "commands" })}
-      onOpenAlerts={() => navigateTo({ page: "alerts" })}
-      onOpenDevices={() => navigateTo({ page: "devices" })}
-      onOpenDevice={device => navigateTo({ page: "device-detail", deviceId: device.id, summary: device })}
-      onLogout={handleLogout}
-      onUnauthorized={handleLogout}
-    />;
-  }
-
-  return (
-    <Dashboard
-      user={session.user}
-      realtime={realtime}
-      onOpenDevices={() => navigateTo({ page: "devices" })}
-      onOpenCommands={() => navigateTo({ page: "commands" })}
-      onOpenAlerts={() => navigateTo({ page: "alerts" })}
-      onLogout={handleLogout}
-      onUnauthorized={handleLogout}
-    />
-  );
+  return <AppNavigation.Provider value={{
+    onMonitoring: () => navigateTo({ page: "monitoring" }),
+    onDashboard: () => navigateTo(DASHBOARD_VIEW),
+  }}>{renderAuthenticated()}</AppNavigation.Provider>;
 }
 
 export default App;

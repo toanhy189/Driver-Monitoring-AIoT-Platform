@@ -3,8 +3,13 @@ import DeviceStatusCard from "./DeviceStatusCard.jsx";
 import DriverStatusCard from "./DriverStatusCard.jsx";
 import MetricCard from "./MetricCard.jsx";
 import AiMetricsSection from "./AiMetricsSection.jsx";
+import { useContext } from "react";
+import { AppNavigation } from "../services/AppNavigation.jsx";
+import { hasPermission } from "../services/permissions.js";
 
 function DashboardView({ user, onLogout, onOpenDevices, onOpenCommands, onOpenAlerts, onUnauthorized, realtime, selectedDevice, wsConnected, devices, measurementDevices, devicesLoading, devicesError, selectedDeviceId, onSelectDevice, telemetry, telemetrySource, telemetryStale, telemetryError, earText, perclosText, hasEar, hasPerclos }) {
+  const { onDashboard } = useContext(AppNavigation);
+  const isAdmin = hasPermission(user?.role, "user:view");
   const onlineCount = devices.filter(device => !device.isStale && device.status === "ONLINE").length;
   const offlineCount = devices.filter(device => !device.isStale && device.status === "OFFLINE").length;
   const updatedAt = telemetry?.recorded_at || telemetry?.received_at;
@@ -18,8 +23,8 @@ function DashboardView({ user, onLogout, onOpenDevices, onOpenCommands, onOpenAl
     `${angle(pose.yaw)} / ${angle(pose.pitch)} / ${angle(pose.roll)}` :
     `${angle(telemetry?.angle_x)} / ${angle(telemetry?.angle_y)} / ${angle(telemetry?.angle_z)}`;
 
-  return <AppShell user={user} activePage="dashboard" serverConnected={wsConnected} onDashboard={() => {}} onDevices={onOpenDevices} onCommands={onOpenCommands} onAlerts={onOpenAlerts} onLogout={onLogout}>
-    <div className="page-title"><h1>Tổng quan</h1><p>Theo dõi kết nối thiết bị và trạng thái tài xế</p></div>
+  return <AppShell user={user} activePage={isAdmin ? "monitoring" : "dashboard"} serverConnected={wsConnected} onDashboard={isAdmin ? onDashboard : () => {}} onDevices={onOpenDevices} onCommands={onOpenCommands} onAlerts={onOpenAlerts} onLogout={onLogout}>
+    <div className="page-title"><h1>{isAdmin ? "Giám sát AI" : "Tổng quan"}</h1><p>Theo dõi kết nối thiết bị và trạng thái tài xế</p></div>
     <div className="telemetry-toolbar">
       <label>Thiết bị đo
         <select value={selectedDeviceId ?? ""} onChange={event => onSelectDevice(event.target.value ? Number(event.target.value) : null)}>

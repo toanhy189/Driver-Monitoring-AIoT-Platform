@@ -3,6 +3,7 @@ const STATE_KEY = "driverMonitorView";
 export const DASHBOARD_VIEW = Object.freeze({ page: "dashboard" });
 
 export function viewHash(view) {
+  if (view.page === "monitoring") return "#/monitoring";
   if (view.page === "alerts") return "#/alerts";
   if (view.page === "devices") return "#/devices";
   if (view.page === "device-detail") return `#/devices/${view.deviceId}`;
@@ -13,6 +14,7 @@ export function viewHash(view) {
 }
 
 export function viewFromHash(hash) {
+  if (hash === "#/monitoring") return { page: "monitoring" };
   const detail = /^#\/devices\/([1-9]\d*)$/.exec(hash);
   if (detail && Number.isSafeInteger(Number(detail[1]))) {
     return { page: "device-detail", deviceId: Number(detail[1]) };
