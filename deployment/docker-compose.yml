@@ -57,14 +57,13 @@ services:
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - ../database/migration_fe_be_week2.sql:/migrations/week2.sql:ro
-      - ../database/migration_be_week3.sql:/migrations/week3.sql:ro
-      - ../database/migration_ai_videos.sql:/migrations/videos.sql:ro
+      - ../database/old/migration_be_week3.sql:/migrations/week3.sql:ro
+      - ../database/old/migration_ai_videos.sql:/migrations/videos.sql:ro
       - ../database/migration_ai_policy_v1.sql:/migrations/ai-policy.sql:ro
     depends_on:
       postgres:
         condition: service_healthy
-    command: ["psql", "-h", "postgres", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}", "-v", "ON_ERROR_STOP=1", "-f", "/migrations/week2.sql", "-f", "/migrations/week3.sql", "-f", "/migrations/videos.sql", "-f", "/migrations/ai-policy.sql"]
+    command: ["psql", "-h", "postgres", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}", "-v", "ON_ERROR_STOP=1", "-f", "/migrations/week3.sql", "-f", "/migrations/videos.sql", "-f", "/migrations/ai-policy.sql"]
 
   mosquitto:
     image: eclipse-mosquitto:2

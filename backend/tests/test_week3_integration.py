@@ -681,10 +681,12 @@ class Week3Integration(unittest.TestCase):
                 saved = session.exec(select(AiEvent).where(AiEvent.event_id == event["message_id"])).one()
                 self.assertEqual(saved.outcome, "POLICY_PENDING" if state == "DISTRACTED" else "RECORDED")
         peer.publish(topic, {**payload, "ear": 0.9})
-        with self.assertRaises(queue.Empty): peer.messages.get(timeout=0.3)
+        rejection = json.loads(peer.messages.get(timeout=5)[1])
+        self.assertEqual(rejection["status"], "FAILED")
+        self.assertEqual(rejection["reason"], "MESSAGE_ID_CONFLICT")
         self.assertEqual(receipt_count(), 3)
         record("AI storage acknowledgement", {"lost_ack_retry": "SAVED repeated without extra telemetry",
-            "state_changed": "stored", "distracted": "stored; policy pending", "id_content_mismatch": "no ACK"})
+            "state_changed": "stored", "distracted": "stored; policy pending", "id_content_mismatch": "FAILED; no SAVED"})
 
     def test_18_storage_ack_requires_successful_db_commit(self):
         payload = self.queued_telemetry()
@@ -697,9 +699,11 @@ class Week3Integration(unittest.TestCase):
         with Session(engine) as session:
             self.assertEqual(session.exec(select(Telemetry).where(Telemetry.device_id == self.source_id)).all(), [])
             self.assertEqual(session.exec(select(AiMessageReceipt).where(AiMessageReceipt.device_id == self.source_id)).all(), [])
-        self.assertEqual(process_message(message.topic, {**payload, "timestamp": "invalid"}), [])
+        rejected = process_message(message.topic, {**payload, "timestamp": "invalid"})
+        self.assertEqual(rejected[0]["type"], "ingest.rejected")
+        self.assertEqual(rejected[0]["data"]["reason"], "INVALID_SCHEMA")
         self.assertEqual(process_message(message.topic, {**payload, "device_code": "vision-other"}), [])
-        record("AI storage transaction", "DB commit failure rolls back telemetry and receipt; no SAVED; invalid JSON fields get no ACK")
+        record("AI storage transaction", "DB commit failure rolls back telemetry and receipt; no SAVED; invalid schema returns rejection")
 
     def test_19_ai_redelivery_restart_and_historical_snapshot(self):
         payload = self.queued_telemetry()
@@ -739,8 +743,8 @@ class Week3Integration(unittest.TestCase):
             self.assertEqual(len(session.exec(select(AiMessageReceipt).where(AiMessageReceipt.device_id == self.source_id)).all()), 3)
             events = session.exec(select(AiEvent).where(AiEvent.device_id == self.source_id)).all()
             self.assertEqual({item.event_type for item in events}, {"DROWSY_THRESHOLD_REACHED", "SESSION_ENDED"})
-            # The current AI omits model_version on events. Preserve absence instead of inventing one.
-            self.assertTrue(all(item.model_version is None for item in events))
+            # The producer now freezes its actual model version before SQLite.
+            self.assertTrue(all(item.model_version for item in events))
         record("AI actual components", {"main_payload_builders": "PASS", "sqlite_offline_kept": 3,
             "storage_ack_queue_removed": 3, "camera_opened": False, "opencv_mediapipe_pipeline": "not run"})
 
@@ -791,11 +795,14 @@ class Week3Integration(unittest.TestCase):
             self.assertEqual((saved.state, saved.outcome), ("DROWSY", "RECORDED"))
             self.assertEqual(session.exec(select(Alert).where(Alert.source_event_id == event["message_id"])).all(), [])
         with self.assertLogs("app.services.mqtt_service", level="WARNING") as captured:
-            self.assertEqual(process_message(f"driver/{self.source_code}/events", {**event, "timestamp": "bad"}), [])
+            rejection = process_message(f"driver/{self.source_code}/events", {**event, "timestamp": "bad"})
+            self.assertEqual(rejection[0]["data"]["reason"], "MESSAGE_ID_CONFLICT")
         # Use a fresh message ID to exercise schema validation rather than duplicate-content validation.
         with self.assertLogs("app.services.mqtt_service", level="WARNING") as captured:
-            self.assertEqual(process_message(f"driver/{self.source_code}/events",
-                {**event, "message_id": "bad-" + self.suffix, "timestamp": "bad"}), [])
+            rejection = process_message(f"driver/{self.source_code}/events",
+                {**event, "message_id": "bad-" + self.suffix, "timestamp": "bad"})
+            self.assertEqual(rejection[0]["type"], "ingest.rejected")
+            self.assertEqual(rejection[0]["data"]["reason"], "INVALID_SCHEMA")
         self.assertIn("INVALID_SCHEMA", " ".join(captured.output))
         record("SESSION_ENDED", "Stored final state, SAVED twice, one event, no automatic alert; invalid schema logs field/type")
 

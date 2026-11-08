@@ -114,7 +114,7 @@ def download_video(video_id: int, current_user: User = Depends(require_viewer), 
 @router.get("/devices/{device_id}/events/{event_id}/video")
 def event_video(device_id: int, event_id: str,
                 current_user: User = Depends(require_viewer), session: Session = Depends(get_session)):
-    assigned_device(session, current_user.id, device_id)
+    assigned_device(session, current_user, device_id)
     event = session.exec(select(AiEvent).where(AiEvent.event_id == event_id,
                                                AiEvent.device_id == device_id)).first()
     if event is None:

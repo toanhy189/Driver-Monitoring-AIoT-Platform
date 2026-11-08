@@ -20,8 +20,8 @@ jobs:
         with:
           python-version: '3.13'
           cache: pip
-          cache-dependency-path: edge-ai/ml/requirements.txt
-      - run: python -m pip install -r edge-ai/ml/requirements.txt
+          cache-dependency-path: edge-ai/requirements-lock.txt
+      - run: python -m pip install -r edge-ai/requirements-lock.txt
       - run: python edge-ai/main.py --check
       - run: python -m unittest discover -s edge-ai/tests -v
   policy-contract:
@@ -32,4 +32,4 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install -r backend/requirements.txt httpx websockets
-      - run: python -m unittest discover -s backend/tests -p test_ai_policy_v1.py -v
+      - run: python -m unittest discover -s backend/tests -v

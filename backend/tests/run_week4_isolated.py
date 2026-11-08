@@ -1,5 +1,6 @@
 """Run only new week-4 paths with disposable broker/PostgreSQL containers."""
 import json
+import argparse
 import os
 from pathlib import Path
 import secrets
@@ -10,7 +11,7 @@ import tempfile
 import time
 
 ROOT = Path(__file__).resolve().parents[2]
-OUTPUT = ROOT/"edge-ai/ml-runs/week4-completion-20261107"
+OUTPUT = Path(os.getenv("W4_OUTPUT", str(ROOT/"edge-ai/ml-runs/merge-main-20261108")))
 
 
 def docker(*args, input=None):
@@ -28,9 +29,13 @@ def port():
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--regression", action="store_true",
+                        help="Also run existing W3/W4 HTTP and permission cases on the disposable services")
+    args = parser.parse_args()
     suffix = secrets.token_hex(6)
     network = "codex-w4-net-"+suffix
-    postgres, broker = "codex-w4-pg-"+suffix, "codex-w4-mqtt-"+suffix
+    postgres, broker = "codex-w4-pg-"+suffix, "codex-w3-broker-policy-"+suffix
     database = "codex_w3_policy_"+suffix  # Existing test fixture requires this disposable prefix.
     db_port, mqtt_port = port(), port()
     password = secrets.token_urlsafe(24)
@@ -47,6 +52,9 @@ def main():
             "MQTT_USERNAME":"test-backend", "MQTT_PASSWORD":secrets.token_urlsafe(24),
             "AI_DEVICE_CODE":"vision-test", "AI_MQTT_USERNAME":"vision-test", "AI_MQTT_PASSWORD":secrets.token_urlsafe(24),
             "AI_VIDEO_DIR":str(temp/"videos"), "RULE_ENGINE_ENABLED":"true", "W3_INTEGRATION":"1", "W4_LIVE":"1",
+            "W3_BROKER_SCOPE":"isolated disposable broker", "W3_TEST_MQTT_DOCKER_HOST":broker,
+            "W3_EVIDENCE":str(OUTPUT), "W4_EVIDENCE":str(OUTPUT),
+            "AI_QUEUE_DB":str(temp/"queue.db"), "AI_EVENT_AUDIT_PATH":str(temp/"events.jsonl"),
             "ENABLE_BACKGROUND_TASKS":"false", "ENABLE_MQTT_CONSUMER":"true", "SQL_ECHO":"false",
             "PYTHONIOENCODING":"utf-8", "PYTHONUTF8":"1"}
         (temp/"postgres.env").write_text(f"POSTGRES_USER=w4_test\nPOSTGRES_PASSWORD={password}\nPOSTGRES_DB={database}\n")
@@ -57,15 +65,17 @@ def main():
             docker("run", "-d", "--name", postgres, "--network", network, "--env-file", str(temp/"postgres.env"),
                    "-p", f"127.0.0.1:{db_port}:5432", "postgres:16")
             for _ in range(50):
-                ready = subprocess.run(["docker", "exec", postgres, "pg_isready", "-U", "w4_test", "-d", database],
+                # The image briefly starts a Unix-socket-only init server; wait
+                # for the final TCP server rather than racing its shutdown.
+                ready = subprocess.run(["docker", "exec", postgres, "pg_isready", "-h", "127.0.0.1", "-U", "w4_test", "-d", database],
                                        capture_output=True, timeout=5)
                 if ready.returncode == 0:
                     break
                 time.sleep(.2)
             else:
                 raise RuntimeError("Disposable PostgreSQL did not become ready")
-            scripts = ("create.sql", "migration_fe_be_week2.sql", "migration_be_week3.sql",
-                       "migration_ai_videos.sql", "migration_ai_policy_v1.sql")
+            scripts = ("create.sql", "old/migration_be_week3.sql",
+                       "old/migration_ai_videos.sql", "migration_ai_policy_v1.sql", "migration_ai_policy_v1.sql")
             sql = "\n".join((ROOT/"database"/name).read_text(encoding="utf-8") for name in scripts)
             docker("exec", "-i", postgres, "psql", "-U", "w4_test", "-d", database, "-v", "ON_ERROR_STOP=1", input=sql)
             docker("run", "--rm", "--env-file", str(temp/"mqtt.env"),
@@ -95,10 +105,19 @@ def main():
                 "production_database_modified":False, "physical_outputs_used":False,
                 "cases":3, "full_old_suite_rerun":False},indent=2),encoding="utf-8")
             print((result.stdout+result.stderr)[-3500:])
-            return result.returncode
+            exit_code = result.returncode
+            if args.regression:
+                env["W4_INTEGRATION"] = "1"
+                regression = subprocess.run([sys.executable, "-m", "unittest", "discover",
+                    "-s", "backend/tests", "-p", "test_week[34]_integration.py", "-v"],
+                    cwd=ROOT, env=env, capture_output=True, text=True, encoding="utf-8", timeout=300)
+                (OUTPUT/"main-regression.log").write_text(regression.stdout+regression.stderr, encoding="utf-8")
+                print((regression.stdout+regression.stderr)[-5500:])
+                exit_code = exit_code or regression.returncode
+            return exit_code
         finally:
             for name in (broker, postgres):
-                assert name.startswith("codex-w4-") and name.endswith(suffix)
+                assert name in (broker, postgres) and name.endswith(suffix)
                 subprocess.run(["docker","rm","-f","-v",name],capture_output=True,timeout=30)
             if made_network:
                 subprocess.run(["docker","network","rm",network],capture_output=True,timeout=30)

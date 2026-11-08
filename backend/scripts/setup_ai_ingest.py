@@ -42,7 +42,9 @@ def apply(username: str):
     address = make_url(str(settings.DATABASE_URL))
     with psycopg.connect(host=address.host, port=address.port or 5432, dbname=address.database,
                          user=address.username, password=address.password, connect_timeout=5, autocommit=True) as connection:
-        for name in ("migration_fe_be_week2.sql", "migration_be_week3.sql", "migration_ai_videos.sql", "migration_ai_policy_v1.sql"):
+        # The current create.sql already contains week-2 fields. That archived
+        # migration references the removed events table and broadens role checks.
+        for name in ("old/migration_be_week3.sql", "old/migration_ai_videos.sql", "migration_ai_policy_v1.sql"):
             connection.execute((ROOT / "database" / name).read_text(encoding="utf-8"))
     setup()  # Updates the existing backend/edge-ai roles; does not reset account passwords.
     verify_mqtt_login(settings.AI_MQTT_USERNAME, settings.AI_MQTT_PASSWORD)

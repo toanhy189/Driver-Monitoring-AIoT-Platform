@@ -20,6 +20,7 @@ from app.core.db import engine
 from app.core.security import create_access_token
 from app.main import app
 from app.models.alert import Alert
+from app.models.ai_event import AiEvent
 from app.models.audit_log import AuditLog
 from app.models.command import Command
 from app.models.device import Device
@@ -268,16 +269,27 @@ class Week4Integration(unittest.TestCase):
 
     def test_viewer_endpoint_and_assignment_matrix(self):
         """Kiem tra viewer doc cac endpoint duoc gan va bi tu choi voi device chua gan."""
+        # Current main intentionally restricts telemetry/metrics to Vision Nodes.
+        with Session(engine) as session:
+            vision = Device(device_code="w4-viewer-" + self.suffix, model="Viewer camera",
+                device_type="VISION_NODE", lifecycle_state="ACTIVE")
+            session.add(vision)
+            session.flush()
+            vision_id = vision.id
+            for user_id in self.users.values():
+                session.add(UserDevice(user_id=user_id, device_id=vision_id))
+            session.add(Telemetry(device_id=vision_id, driver_state="ATTENTIVE", ear=0.3))
+            session.commit()
         # Truc day chi test viewer tren users/devices; mo rong sang cac route doc theo device.
         routes = {
             "device_config": f"/devices/{self.alert_device_id}/config",
             "legacy_config": f"/configs/{self.alert_device_code}",
-            "current_telemetry": f"/{self.alert_device_id}/telemetry",
-            "legacy_telemetry_history": f"/{self.alert_device_id}/telemetry/history",
-            "telemetry_history": f"/devices/{self.alert_device_id}/telemetry/history",
+            "current_telemetry": f"/{vision_id}/telemetry",
+            "legacy_telemetry_history": f"/{vision_id}/telemetry/history",
+            "telemetry_history": f"/devices/{vision_id}/telemetry/history",
             "command_history": f"/devices/{self.alert_device_id}/history",
             "timeline": f"/devices/{self.alert_device_id}/timeline",
-            "metrics": f"/devices/{self.alert_device_id}/metrics",
+            "metrics": f"/devices/{vision_id}/metrics",
             "alerts": f"/alerts?device_id={self.alert_device_id}",
             "commands": f"/commands?device_id={self.alert_device_id}",
             "videos": f"/devices/{self.alert_device_id}/videos",
@@ -285,6 +297,9 @@ class Week4Integration(unittest.TestCase):
         actual = {}
         for role in ("Admin", "Employee", "Customer"):
             actual[role] = {}
+            for path in (f"/{self.alert_device_id}/telemetry",
+                         f"/devices/{self.alert_device_id}/metrics"):
+                self.assertEqual(self.client.get("/api" + path, headers=self.auth(role)).status_code, 409)
             for name, path in routes.items():
                 with self.subTest(role=role, route=name):
                     response = self.client.get("/api" + path, headers=self.auth(role))
@@ -600,6 +615,32 @@ class Week4Integration(unittest.TestCase):
             "actual": actual,
             "result": "PASS" if actual == expected else "FAIL",
         })
+
+    def test_event_video_lookup_preserves_main_assignment_permissions(self):
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        event_id = "video-policy-" + self.suffix
+        with Session(engine) as session:
+            session.add(AiEvent(event_id=event_id, device_id=self.device_id,
+                event_type="STATE_CHANGED", occurred_at=now, state="ATTENTIVE",
+                payload_hash="0" * 64, payload={"clip_message_id": event_id}))
+            # Admin on main can inspect devices without an explicit assignment.
+            assignment = session.exec(select(UserDevice).where(
+                UserDevice.device_id == self.device_id,
+                UserDevice.user_id == self.users["Admin"])).one()
+            assignment.unassigned_at = now
+            session.add(assignment)
+            session.commit()
+        route = f"/api/devices/{self.device_id}/events/{event_id}/video"
+        for role in ("Admin", "Employee"):
+            response = self.client.get(route, headers=self.auth(role))
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(response.json()["status"], "PENDING_OR_UNAVAILABLE")
+        self.assertEqual(self.client.get(route, headers=self.auth("Customer")).status_code, 404)
+        self.assertEqual(self.client.get(route).status_code, 401)
+        with Session(engine) as session:
+            session.add(UserDevice(user_id=self.users["Customer"], device_id=self.device_id))
+            session.commit()
+        self.assertEqual(self.client.get(route, headers=self.auth("Customer")).status_code, 200)
 
     # Login/permission truoc day chua duoc kiem tra audit; bo sung va xac nhan khong luu secret.
     def test_login_and_permission_audit_are_secret_safe(self):
