@@ -399,11 +399,14 @@ class TrainingTests(unittest.TestCase):
         camera.isOpened.return_value = True
         camera.read.return_value = (True, frame)
         model = SimpleNamespace(model_version="rf-test", update=Mock(return_value=1), last_inference_ms=0.1,
-                                last_diagnostics=None, last_score=.8, kind="rf", threshold=.5)
+                                last_diagnostics=None, last_score=.8, kind="rf", threshold=.5,
+                                config=FeatureConfig())
         policy = app.AlertPolicy("vision-test", "rf-test")
         policy.update = Mock(wraps=policy.update)
         with patch.object(app, "load_optional_model", return_value=model), \
                 patch.object(app, "AI_EYE_CLOSURE_GUARD_ENABLED", True), \
+                patch.object(app, "AI_EYE_CLOSURE_CALIBRATION", "local-approved-report.json"), \
+                patch.object(app, "load_threshold", return_value=.25) as calibration, \
                 patch.object(app, "AI_DEBUG_PREDICTIONS", True), \
                 patch.object(app, "init_db", return_value=True), \
                 patch.object(app, "VideoUploadWorker"), patch.object(app, "LocalAlertWorker"), \
@@ -420,6 +423,8 @@ class TrainingTests(unittest.TestCase):
             head.return_value.estimate.return_value = POSE
             app.main()
         self.assertEqual(model.update.call_count, 2)
+        calibration.assert_called_once_with("local-approved-report.json", app.DEVICE_CODE)
+        self.assertEqual(model.config.ear_threshold, .20)
         self.assertEqual([call.args[0] for call in policy.update.call_args_list], ["DROWSY", "DROWSY"])
         mqtt.assert_called_once_with(model_version="rf-test")
         camera.release.assert_called_once()

@@ -8,7 +8,7 @@ Nguồn tổng hợp: [verification.json](evidence/final-20261108/verification.j
 | Policy live | 3 đạt | PostgreSQL/MQTT thật tạm; ESP32 giả lập |
 | Hồi quy tích hợp cũ | 35 đạt, 1 skip trong lượt regression; ca skip đã chạy riêng và đạt | Docker restart, WebSocket và persistence đạt trong container tạm |
 | Core cuối | 11 đạt | Tài khoản, thu hồi JWT/vé, assignment, RBAC, metadata, quota và xóa video |
-| Edge AI | 101 đạt sau bản kết hợp tùy chọn | Gồm 7 ca mới kiểm tra timer mắt/gián đoạn/fusion; test không mở camera và không bật loa/tải |
+| Edge AI | 110 đạt sau công cụ hiệu chuẩn | Gồm 9 ca kiểm tra hiệu chuẩn và hủy/kiểm tra riêng; test không mở camera và không bật loa/tải |
 | Frontend | 63 đạt; production build đạt | Kiểm thử Node và Vite |
 | Trình duyệt thật | 6 bước đạt, không có page error | Đã kiểm tra hồ sơ cập nhật khi mở lại form; Customer QA riêng đã khóa sau test |
 | Firmware | Development build đạt | Chưa flash; người dùng yêu cầu chờ kiểm tra mạch |
@@ -22,7 +22,8 @@ Nguồn tổng hợp: [verification.json](evidence/final-20261108/verification.j
 | Hiệu năng camera | FPS trung vị 28,85; RSS đỉnh khoảng 360,8 MiB | 37 snapshot trong một phiên tại laptop này; estimator p95 khoảng 89,39 ms, khác thời gian chờ cửa sổ 20 giây |
 | Upload video | Có upload HTTPS thành công và xóa mục queue sau phản hồi hợp lệ | Clip giữ riêng trên máy; không phải minh chứng chất lượng AI |
 | Chẩn đoán ML | 18 test ML mechanics đạt sau bổ sung score/feature diagnostics | Là một phần của bộ AI, không cộng thành 18 test mới |
-| CI GitHub | Đủ 6 job đạt trên `4844c44` | [Run 42449530147](https://github.com/toanhy189/Driver-Monitoring-AIoT-Platform/actions/runs/42449530147); bản kết hợp sau đó cần run riêng |
+| CI GitHub | Đủ 6 job đạt trên `58853cb` | [Run 42450603218](https://github.com/toanhy189/Driver-Monitoring-AIoT-Platform/actions/runs/42450603218); phần hiệu chuẩn sau đó cần run riêng |
+| Hiệu chuẩn mắt thật | Có kính bị từ chối; không kính có thể thử tiếp sau phân tích lại v2 | Chỉ số mắt, không phải metrics DROWSY; báo cáo cũ và dữ liệu giữ riêng |
 
 Không cộng các lượt unit/integration thành một con số “test duy nhất” vì chúng có thể chạy lại cùng chức năng ở lớp khác nhau. Không dùng kiểm thử giả lập để tuyên bố phần tải vật lý hoặc chất lượng AI trên người mới đã đạt.
 

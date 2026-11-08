@@ -2,6 +2,8 @@
 
 **Cập nhật camera 08/11/2026:** RF đang thử báo DROWSY khi người dùng mở mắt, nhìn thẳng. Model chưa đạt nghiệm thu; các số CV bên dưới không thay kết quả này. Xem [chẩn đoán và bước tiếp theo](../docs/ai-camera-review-20261108.md). Artifact đối chiếu, ngưỡng và policy hiện được giữ nguyên.
 
+Sau lượt thử kết hợp vẫn khó nhận nhắm mắt qua kính, đã bổ sung [công cụ đo và kiểm tra hiệu chuẩn riêng cho eye guard](../docs/eye-guard-calibration.md). Công cụ chỉ lưu số, có hai lượt kiểm tra riêng và không tự đổi cấu hình RF hay `.env`. Chưa có kết quả hiệu chuẩn thật được nghiệm thu.
+
 ## Tuần 4: policy cảnh báo đã thống nhất ngày 07/11/2026
 
 Luồng camera hiện dùng `service/alert_policy.py`, phiên bản

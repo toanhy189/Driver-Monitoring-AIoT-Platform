@@ -14,6 +14,8 @@ Quy tắc DISTRACTED được xét độc lập khi hướng đầu hiện tại
 
 Sau lượt thử RF giảm báo nhầm vẫn bỏ sót nhắm mắt, TV3 đồng ý thử thêm quy tắc nhắm mắt liên tục 1 giây, hồi phục mở mắt 1 giây, ngắt khi mất quan sát. Tùy chọn `AI_EYE_CLOSURE_GUARD_ENABLED` mặc định tắt; chỉ bật trong lượt thử đã chốt. Đây là thêm bằng chứng nguy cơ trong bước ghép trạng thái, không thay feature RF hay policy cảnh báo. Chưa công bố metrics cho hệ kết hợp và chưa coi các số CV của RF là metrics của hệ mới. Xem [chi tiết và giới hạn](ai-camera-review-20261108.md).
 
+Ngưỡng eye guard có thể nạp từ file hiệu chuẩn cá nhân `AI_EYE_CLOSURE_CALIBRATION`, qua kiểm tra riêng và đối chiếu phiên bản hình học. RF vẫn tạo feature với ngưỡng huấn luyện 0,20. File hiệu chuẩn bị từ chối thì runtime không tự lấy ngưỡng từ file đó. `run-camera-trial.ps1` khóa RF ứng viên mới; `run-submission.ps1` vẫn khóa RF đối chiếu cũ. Xem [quy trình hiệu chuẩn và giới hạn](eye-guard-calibration.md).
+
 ## Artifact đối chiếu đã khóa
 
 | Thuộc tính | Giá trị |

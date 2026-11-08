@@ -29,10 +29,12 @@ from mqtt_client import MQTTClient
 from config import (DEVICE_CODE, EAR_THRESHOLD, PERCLOS_THRESHOLD,
                     FACE_LOSS_RESET_SECONDS, MAX_OBSERVATION_GAP_SECONDS,
                     AI_MODEL_MODE, AI_MODEL_PATH, AI_DEBUG_PREDICTIONS, AI_EYE_CLOSURE_GUARD_ENABLED,
+                    AI_EYE_CLOSURE_CALIBRATION,
                     MODEL_VERSION, METRICS_PATH,
                     VIDEO_MAX_CLIP_SECONDS, VIDEO_MAX_CLIP_BYTES, VIDEO_STORAGE_MAX_BYTES, RECORDING_DIR)
 from ml.runtime import load_optional_model, fuse_state
 from service.eye_closure_guard import EyeClosureGuard
+from service.eye_calibration import load_threshold
 from head_pose import HeadPoseEstimator, HeadPoseTracker
 
 from edge_queue import init_db
@@ -308,10 +310,12 @@ def main():
                                        if drowsiness_model is not None else MODEL_VERSION)
         logger.info("AI classifier: %s", state_data["model_version"])
         if drowsiness_model is not None and AI_EYE_CLOSURE_GUARD_ENABLED:
-            eye_guard = EyeClosureGuard(ear_threshold=EAR_THRESHOLD,
+            guard_threshold = (load_threshold(AI_EYE_CLOSURE_CALIBRATION, DEVICE_CODE)
+                               if AI_EYE_CLOSURE_CALIBRATION else EAR_THRESHOLD)
+            eye_guard = EyeClosureGuard(ear_threshold=guard_threshold,
                                         max_gap_seconds=MAX_OBSERVATION_GAP_SECONDS)
-            logger.info("AI fusion: %s; measured closure >=1s, open recovery >=1s; experimental",
-                        eye_guard.VERSION)
+            logger.info("AI fusion: %s; EAR threshold %.4f; closure >=1s, recovery >=1s; experimental",
+                        eye_guard.VERSION, eye_guard.ear_threshold)
         policy = AlertPolicy(DEVICE_CODE, state_data["model_version"], max_gap=MAX_OBSERVATION_GAP_SECONDS)
         state_data["session_id"] = policy.session_id
         if not init_db():
@@ -562,6 +566,7 @@ def main():
                 if AI_DEBUG_PREDICTIONS:
                     diagnostic = {"observed_at": frame_observed_at, "face_detected": face_detected,
                         "ear": ear, "eye_closure_risk": bool(eye_guard and eye_guard.active),
+                        "eye_guard_threshold": eye_guard.ear_threshold if eye_guard else None,
                         "raw_state": driver_state, "policy_candidate": policy.candidate,
                         "confirmed_state": policy.state, "frame_gap_ms": policy_gap_ms,
                         "head": pose_status, "ml_last_snapshot_quality":
@@ -599,18 +604,20 @@ def main():
                                   f" / threshold: {drowsiness_model.threshold:.3f}")
                     y = draw_text(frame, score_text, y)
             if eye_guard is not None:
-                y = draw_text(frame, "Eye guard: " + ("CLOSED RISK" if eye_guard.active else "observing"), y)
+                y = draw_text(frame, f"Eye guard (<{eye_guard.ear_threshold:.3f}): " +
+                              ("CLOSED RISK" if eye_guard.active else "observing"), y)
 
             if face_detected:
                 y = draw_text(frame, f"EAR: {ear:.3f}", y)
                 y = draw_text(frame, perclos_text, y)
                 y = draw_text(frame, f"Candidate: {driver_state}", y)
-                y = draw_text(frame, f"Eye closed: {eye_closed}", y)
+                eye_label = f"Eye feature (<{EAR_THRESHOLD:.2f})" if eye_guard else "Eye closed"
+                y = draw_text(frame, f"{eye_label}: {eye_closed}", y)
 
                 if eye_status is not None:
                     y = draw_text(
                         frame,
-                        f"Closed: {eye_status['closed_duration_ms']:.0f} ms",
+                        f"Feature closed: {eye_status['closed_duration_ms']:.0f} ms",
                         y
                     )
 
@@ -741,8 +748,13 @@ def check_runtime():
     finally:
         detector.close()
     model = DrowsinessModel(AI_MODEL_PATH) if AI_MODEL_MODE == "ml" else None
+    guard_threshold = None
+    if model is not None and AI_EYE_CLOSURE_GUARD_ENABLED:
+        guard_threshold = (load_threshold(AI_EYE_CLOSURE_CALIBRATION, DEVICE_CODE)
+                           if AI_EYE_CLOSURE_CALIBRATION else EAR_THRESHOLD)
     print(json.dumps({"status": "OK", "camera_opened": False, "network_started": False,
         "model_version": model.model_version if model else MODEL_VERSION,
+        "eye_guard_enabled": guard_threshold is not None, "eye_guard_threshold": guard_threshold,
         "policy_version": POLICY_VERSION}))
 
 

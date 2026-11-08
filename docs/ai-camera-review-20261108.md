@@ -66,3 +66,24 @@ Log/overlay ghi rõ eye guard đang bật và có kích hoạt hay không. Debug
 Các ngưỡng mắt là tham số thử nghiệm đã được TV3 đồng ý thử, chưa được kiểm chứng cho sử dụng ngoài thực tế. Nhắm mắt kéo dài là dấu hiệu đo được, không phải chẩn đoán buồn ngủ tự nhiên. **Chưa nghiệm thu bản kết hợp trên camera, chưa chốt làm model mặc định.**
 
 Bộ test sau bổ sung quy tắc mắt đạt **101/101**, gồm 7 ca mới về nhắm liên tục, chớp mắt rời nhau, hồi phục, mất dữ liệu và ghép với RF. Đây là kiểm thử cơ chế bằng dữ liệu tổng hợp, không phải độ chính xác nhận biết.
+
+## Phản hồi lượt thử kết hợp và bước hiệu chuẩn
+
+Người dùng vẫn báo chưa lên DROWSY khi nhắm mắt, đồng thời xác nhận **có nghe âm thanh**. Log có MONITORING_FAULT và các đoạn DISTRACTED; chưa có căn cứ gán âm đã nghe là cảnh báo DROWSY. Trong các mẫu debug khoảng 1 Hz có EAR hợp lệ, EAR thấp nhất khoảng 0,223, cao hơn ngưỡng 0,20. Không có tín hiệu eye guard trong lượt được kiểm tra. Đây không phải thống kê toàn bộ frame hay recall theo điều kiện kính.
+
+Do đó bản kết hợp cũng **chưa đạt nghiệm thu camera**. Chuẩn bị [hiệu chuẩn có kiểm tra riêng](eye-guard-calibration.md): hai lượt đầu lấy ngưỡng, hai lượt sau chỉ kiểm tra, từ chối nếu số đo không tách biệt hoặc quá thiếu quan sát. Ngưỡng hiệu chuẩn chỉ áp dụng cho quy tắc mắt khi được chọn rõ; feature của RF và policy cảnh báo giữ nguyên. Camera hiệu chuẩn không ghi video hay gửi dữ liệu lên mạng. Kết quả số được giữ riêng, không tự áp dụng hoặc công bố đạt trước khi có dữ liệu thật.
+
+## Hai lượt đo có kính và không kính
+
+Người dùng xác nhận đã nhắm kín mắt đến bíp kết thúc ở hai lượt nhắm của lần có kính. Sau đó đồng ý đo đối chứng không kính, giữ cùng công cụ và cách đo. Số đo chỉ phản ánh hai phiên tại laptop này; chưa chứng minh kính là nguyên nhân duy nhất.
+
+| Điều kiện | EAR trung vị mở / nhắm ở lượt lấy ngưỡng | EAR trung vị mở / nhắm ở lượt kiểm tra | Kết quả |
+|---|---|---|---|
+| Có kính | 0,327 / 0,246 | 0,336 / 0,290 | Từ chối; ngưỡng thử 0,282 còn bỏ sót lượt nhắm kiểm tra |
+| Không kính | 0,323 / 0,129 | 0,307 / 0,124 | Có thể thử tiếp eye guard với ngưỡng riêng 0,228 sau phân tích lại v2 |
+
+Các lượt có độ phủ quan sát khoảng 98,7–99,9%. Không kính đo được nhắm mắt rõ hơn trong hai phiên này. Có kính, ngưỡng 0,282 chỉ có khoảng 25% thời gian lượt nhắm kiểm tra nằm dưới ngưỡng, không đủ kích hoạt guard. Vì vậy không tự áp dụng ngưỡng này.
+
+Bản kiểm tra hiệu chuẩn đầu có một lỗi tiêu chí: vừa yêu cầu mở mắt/chớp tự nhiên vừa loại lượt có quá 5% thời gian dưới ngưỡng, dù guard không kích hoạt. Đã sửa schema `v2` để đánh giá đúng nguy cơ nhắm liên tục; vẫn báo tỷ lệ thời gian, vẫn giữ cổng phân tách và lượt nhắm kiểm tra. Đã thêm test chớp ngắn để tránh hồi quy.
+
+Báo cáo gốc của cả hai phiên được giữ nguyên ở trạng thái REJECTED. Kết quả v2 ghi file mới, công bố rõ là phân tích lại sau sửa tiêu chí, không phải lượt nghiệm thu mới. Bản không kính là `READY_FOR_TRIAL`; bản có kính vẫn REJECTED. RF, `.env` và cấu hình mặc định chưa đổi. Bộ test sau phần hiệu chuẩn: **110/110 đạt**; `run-camera-trial.ps1 -Check` nạp đúng RF ứng viên và ngưỡng guard riêng mà không mở camera/mạng.

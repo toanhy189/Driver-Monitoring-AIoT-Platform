@@ -81,10 +81,10 @@
       "passed": 11
     },
     "edge_ai": {
-      "ran": 101,
-      "passed": 101,
+      "ran": 110,
+      "passed": 110,
       "camera_used": false,
-      "scope": "Full suite after optional eye-closure guard and head fusion; 7 new synthetic timing/fusion cases; not model accuracy"
+      "scope": "Full suite after calibration v2; tests use synthetic measurements and mocked camera, not accuracy"
     },
     "frontend_node": {
       "passed": 63
@@ -115,6 +115,11 @@
       "ran": 7,
       "passed": 7,
       "scope": "Subset of 101: blink, continuous closure, recovery, interruptions, invalid clock and fusion"
+    },
+    "eye_calibration": {
+      "ran": 9,
+      "passed": 9,
+      "scope": "Subset of 110; separate fit/validation, natural blinks, rejection and cancelled capture privacy"
     }
   },
   "ai_model": {
@@ -137,15 +142,15 @@
     "Resolve awake-camera false positives; validate candidate detection and recovery before model acceptance"
   ],
   "source_base": "fc5cee0633478f22527205f89102970494f056cf",
-  "github_ci_status": "All 6 jobs passed for 4844c44; later hybrid changes require their own run",
+  "github_ci_status": "All 6 jobs passed for 58853cb; new calibration changes require their own run",
   "restart-only": {
     "pass": true,
     "cases": 1,
     "scope": "Disposable Docker backend restart with real PostgreSQL/MQTT and WebSocket; no production containers restarted"
   },
   "github_ci": {
-    "commit": "4844c44",
-    "url": "https://github.com/toanhy189/Driver-Monitoring-AIoT-Platform/actions/runs/42449530147",
+    "commit": "58853cb",
+    "url": "https://github.com/toanhy189/Driver-Monitoring-AIoT-Platform/actions/runs/42450603218",
     "jobs_passed": 6
   },
   "camera-performance": {
@@ -203,10 +208,35 @@
     "scope": "Previously inspected, filtered awake diagnostic session; not independent acceptance accuracy or FPR",
     "candidate_default_activated": false,
     "physical_outputs_tested": false,
-    "audio_confirmation": "pending",
+    "audio_confirmation": "User heard audio; DROWSY warning not demonstrated; monitoring faults also present",
     "candidate_live_status": "FAIL: user reports weak DROWSY detection with glasses and frequent UNKNOWN during head turns",
     "candidate_live_camera_closed": true,
     "head_fusion_fix": "Valid calibrated current distracted head can produce DISTRACTED while RF window is unavailable; automated tests pass; camera retest pending",
-    "hybrid_eye_guard": "TV3 approved implementation and live trial; default false; >=1s measured closure, >=1s open recovery, interrupts on missing/gap; live acceptance pending"
+    "hybrid_eye_guard": "TV3 approved implementation and live trial; default false; >=1s measured closure, >=1s open recovery, interrupts on missing/gap; live acceptance pending",
+    "hybrid_live_status": "FAIL: user reports no DROWSY; guard never activated in reviewed observations",
+    "hybrid_camera_closed": true
+  },
+  "eye_calibration": {
+    "scope": "Guided actions in two local sessions; NOT drowsiness/new-person acceptance; numeric data private",
+    "glasses": {
+      "status_v2": "REJECTED",
+      "fit_open_median": 0.3274820521,
+      "fit_closed_median": 0.2458504875,
+      "validation_open_median": 0.3358751382,
+      "validation_closed_median": 0.2901029669,
+      "threshold_applied": false
+    },
+    "no_glasses": {
+      "status_v2": "READY_FOR_TRIAL",
+      "fit_open_median": 0.3228278602,
+      "fit_closed_median": 0.1291807428,
+      "validation_open_median": 0.3071544803,
+      "validation_closed_median": 0.123882793,
+      "candidate_guard_threshold": 0.2282818141,
+      "threshold_default_changed": false
+    },
+    "review": "V1 wrongly penalized allowed natural blinks by fraction; V2 checks actual prolonged-closure activation; original reports preserved; reanalysis not fresh acceptance",
+    "rf_feature_threshold_changed": false,
+    "policy_changed": false
   }
 }
