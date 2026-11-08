@@ -1,7 +1,6 @@
-# ESP32 alert node — các bài thử tuần 1
+# ESP32 Alert Node
 
-Firmware tuần 1 dùng PlatformIO (thêm Arduino.h; PubSubClient đã khai báo
-trong platformio.ini). Board: ESP32 DOIT DevKit V1; Serial: **115200 baud**.
+Board PlatformIO: **ESP32 DOIT DevKit V1**, Serial **115200 baud**. Firmware demo dùng môi trường `development`; các bài thử phần cứng dưới đây dùng `test`.
 
 ## Chọn bài thử
 
@@ -54,7 +53,7 @@ constexpr TestMode TEST_MODE = TestMode::Motor;
 
 Lưu, Build, Upload rồi mở Monitor **115200 baud**. Sau khi thấy `MOTOR ON/OFF`
 và kiểm tra mạch/nguồn, bật nguồn motor. Kết quả: rung **400 ms**, nghỉ **2500 ms**,
-lặp lại; không cần nhấn nút TEST. `src/main.cpp` đã có bài test này.
+lặp lại; không cần nhấn nút TEST. `src/tests/main.cpp` đã có bài test này.
 
 **Dây thử tạm E7–E5:** rút USB/ngắt nguồn,
 thêm một dây đực–đực E7→E5 để bỏ qua transistor và thử motor khoảng 1 giây với
@@ -62,64 +61,24 @@ nguồn phù hợp. Giữ nguyên dây D5→GND. Dây thử làm motor có thể
 không theo code; **ngắt nguồn rồi tháo E7–E5 trước khi thử chu kỳ Motor**.
 Motor rung với dây thử chưa chứng minh phần điều khiển bằng transistor hoạt động.
 
-## Wi-Fi và MQTT
+## Kết nối để demo với Backend
 
-Copy `include/network_config.example.h` thành `include/network_config.h`,
-điền SSID, mật khẩu, IP laptop TV2 và cổng broker. Nếu cần tài khoản broker, điền
-MQTT_USER và MQTT_PASSWORD; nếu không thì để trống. File network_config.h được
-Git bỏ qua. Chỉ giữ giá trị mẫu trong file .example.h. Khi thiếu file riêng,
-firmware dùng mẫu và in lời nhắc ở Serial.
+Firmware chính nằm trong `src/app/`, môi trường PlatformIO **development**. Các bài thử tải ở trên thuộc `src/tests/`, chỉ chạy khi chọn môi trường **test**; không dùng chúng thay firmware demo.
 
-- Wi-Fi 2,4 GHz, cùng mạng với laptop TV2.
-- Device ID: alert-01.
-- Subscribe: driver/alert-01/command.
-- Publish: driver/alert-01/status, nội dung ONLINE mỗi lần kết nối MQTT thành công.
-- Chờ khoảng 5 giây trước lần thử MQTT đầu tiên; thử lại sau khoảng 5 giây.
-- Mất Wi-Fi: thử kết nối lại. Khi mạng/broker trở lại: đăng ký topic và gửi ONLINE lại.
-- Callback chỉ in đúng số byte nhận. BUZZER_TEST cũng **chỉ được in**, không bật tải.
-- Tuần 1 chưa có ACK, heartbeat hay xử lý lệnh điều khiển tải.
-
-## Build, Upload và Serial
-
-Trong PlatformIO, chọn project firmware/esp32-alert-node rồi dùng Build, Upload,
-Monitor. Trong terminal PlatformIO ở thư mục gốc repository:
+1. Kiểm tra mạch/nguồn và [bảng phần cứng](../../hardware/README.md) trước khi nạp/bật tải.
+2. Copy `include/network_config.example.h` thành `include/network_config.h`.
+3. Điền Wi-Fi 2,4 GHz, IP LAN laptop, MQTT port **1884**, username/password đã cấp cho Alert Node. Broker dự án bắt buộc xác thực.
+4. `DEVICE_CODE` trong `include/config.h` phải khớp thiết bị đã đăng ký và provision. File credential được Git bỏ qua.
 
 ```powershell
-pio run -d firmware/esp32-alert-node
-pio run -d firmware/esp32-alert-node -t upload
-pio device monitor -d firmware/esp32-alert-node
+pio run -d firmware/esp32-alert-node -e development
+# Chỉ sau khi xác nhận mạch, thay COM4 bằng cổng thực tế:
+pio run -d firmware/esp32-alert-node -e development -t upload --upload-port COM4
+pio device monitor -d firmware/esp32-alert-node --port COM4 --baud 115200
 ```
 
-Build kiểm tra biên dịch; cần cắm board và Upload để chạy. Chọn cổng COM thực tế
-của board, Serial 115200 baud. Khi mở cả repository, cập nhật IntelliSense sau
-khi đổi thư viện bằng:
+Firmware gửi heartbeat mỗi 5 giây; nhận command/config, trả ACK; tự reconnect và đăng ký lại topic. Lệnh có TTL/kiểm tra giờ, chống thực thi trùng request_id; cấu hình có revision, lưu NVS và phản hồi APPLIED/REJECTED. Firmware hỏi NTP ở host broker trong LAN trước nguồn Internet dự phòng.
 
-```powershell
-pio run -d firmware/esp32-alert-node -t compiledb
-```
+Gửi lệnh bằng React hoặc API Backend để có kiểm tra quyền và lịch sử. MQTT consumer chạy sẵn trong Backend, không mở thêm script consumer/publisher cũ. Xem [luồng command/config](flow.md), [10 bước demo](../../README.md#4-demo-theo-mục-84-của-đề-bài).
 
-Để kiểm tra MQTT, TV2 subscribe topic status trước khi ESP32 kết nối, sau đó
-publish BUZZER_TEST lên topic command. Serial cần có IP, connected,
-subscribe=OK, publish=OK và đúng tin nhận. Buzzer/motor tiếp tục tắt trong bài MQTT.
-
-
-# TUẦN 2
- - file pin_config chứa config thời gian đèn/buzzer/motor chạy
- - Flow chạy lệnh:
-    build(1) -> cắm esp32 vào -> upload(2) -> -> mở monitor(3) -> chạy file mqtt.consumer.py để bắt subcribe ack -> chạy file mqtt.esp_test.py để gửi command
- - Dùng 3 Terminal tất cả:
- - Build device
-    ```powershell
-        pio run -d firmware/esp32-alert-node -e development
-        pio run -d firmware/esp32-alert-node -e development -t upload
-        pio device monitor -d firmware/esp32-alert-node
-    ```
-- Tạo kết nối MQTT:
-    ```bash
-        set PYTHONPATH=backend
-        python -m mqtt.consumer
-    ```
-- Gửi thử payload ảo
-    ```bash
-        python -m mqtt.esp_test
-    ```
+Khi cần thử từng linh kiện độc lập, chọn TestMode trong `include/config.h` rồi dùng `-e test` ở cả Build và Upload. Mạch của nhóm chưa được nghiệm thu chỉ từ kết quả biên dịch; không tự suy nguồn tải hay chân transistor từ GPIO.

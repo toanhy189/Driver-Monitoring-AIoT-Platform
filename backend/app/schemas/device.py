@@ -1,6 +1,6 @@
 from datetime import datetime
 from ipaddress import IPv4Address, IPv4Interface, IPv6Address, IPv6Interface
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from app.services.time_utils import as_utc
 
@@ -11,6 +11,11 @@ class DeviceRegisterRequest(BaseModel):
     name: str | None = None
     ip_address: str | None = None
     mac_address: str | None = None
+    hardware_version: str | None = Field(default=None, min_length=1, max_length=80)
+
+
+class HardwareVersionUpdate(BaseModel):
+    hardware_version: str = Field(min_length=1, max_length=80)
 
 
 class DeviceStatusRequest(BaseModel):
@@ -26,6 +31,7 @@ class DeviceResponse(BaseModel):
     type: str | None = None
     lifecycle_state: str = "REGISTERED"
     firmware_version: str | None = None
+    hardware_version: str | None = None
     ip_address: str | None = None
     mac_address: str | None = None
     last_seen: datetime | None = None

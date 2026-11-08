@@ -63,6 +63,7 @@ def _device_event(device: Device) -> dict:
             "status": device.status,
             "last_seen": device.last_seen.isoformat() + "Z" if device.last_seen else None,
             "firmware_version": device.firmware_version,
+            "hardware_version": device.hardware_version,
         },
     }
 
@@ -128,6 +129,9 @@ def _save_status(session: Session, code: str, payload: dict) -> list[dict]:
     firmware = payload.get("firmware_version")
     if isinstance(firmware, str) and firmware:
         device.firmware_version = firmware[:80]
+    hardware = payload.get("hardware_version")
+    if isinstance(hardware, str) and hardware:
+        device.hardware_version = hardware[:80]
     session.add(device)
     session.commit()
     return [_device_event(device)]
@@ -347,6 +351,8 @@ def process_message(topic: str, payload: dict) -> list[dict]:
 
 def on_connect(client, userdata, flags, reason_code, properties=None):
     if reason_code == 0:
+        from app.services.monitoring import record_mqtt_connection
+        record_mqtt_connection()
         client.subscribe(TOPICS)
 
 

@@ -61,7 +61,7 @@ void setup()
 
   initMqtt();
   // Asynchronous UTC sync. Expiring commands fail closed until time is available.
-  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+    // updateNetwork configures the LAN broker host as the first NTP server.
   
 }
 

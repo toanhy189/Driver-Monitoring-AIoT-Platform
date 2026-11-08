@@ -4,6 +4,7 @@ import { displayValue, formatLastSeen } from "../services/deviceDisplay.js";
 import { deviceActionBlockReason } from "../services/deviceModel.js";
 import TestAlertSection from "../components/TestAlertSection.jsx";
 import DeviceHistoryPanel from "../components/DeviceHistoryPanel.jsx";
+import HardwareVersionForm from "../components/HardwareVersionForm.jsx";
 
 const ACTIONS = [
   { key: "provision", label: "Cấp thông tin kết nối", hint: "Thiết lập thông tin kết nối thiết bị", icon: "wifi" },
@@ -43,15 +44,18 @@ function DeviceDetailView({ user, realtime, deviceId, device, detailSource, load
       <div><dt>Kết nối</dt><dd><ConnectionBadge status={device?.status} isStale={device?.isStale} /></dd></div>
       <div><dt>Hoạt động cuối</dt><dd>{formatLastSeen(device?.last_seen)}</dd></div>
       <div><dt>Phiên bản firmware</dt><dd>{displayValue(device?.firmware_version)}</dd></div>
+      <div><dt>Phiên bản phần cứng</dt><dd>{displayValue(device?.hardware_version)}</dd></div>
     </dl></section>
 
     {canManage && <section className="surface-card lifecycle-panel" aria-labelledby="lifecycle-heading"><div className="panel-heading"><Icon name="settings" /><h2 id="lifecycle-heading">Quản lý thiết bị</h2></div><p>Các thao tác gửi yêu cầu tới BE. Trạng thái chỉ đổi sau khi BE trả dữ liệu mới.</p><div className="action-grid">{ACTIONS.filter(item => item.key !== "decommission" || canDecommission).map(item => {
       const reason = deviceActionBlockReason(device, item.key);
       return <button key={item.key} className={`action-tile action-tile--${item.key}`} disabled={busyAction !== null || Boolean(reason)} title={reason || undefined} onClick={() => performAction(item.key)}><Icon name={item.icon} size={28} /><span><strong>{busyAction === item.key ? "Đang gửi…" : item.label}</strong><small>{reason || item.hint}</small></span></button>;
     })}</div>{actionError && <p className="notice-error" role="alert">{actionError}</p>}{actionNotice && <p className="notice-success" role="status">{actionNotice}</p>}</section>}
+    {canManage && detailSource === "detail" && <HardwareVersionForm key={deviceId} deviceId={deviceId} initialValue={device?.hardware_version} onSaved={retry} onUnauthorized={onUnauthorized} />}
     {detailSource === "detail" && !detailError && <DeviceHistoryPanel
       deviceId={deviceId}
       deviceType={type}
+      canDeleteVideo={canSendCommand}
       onUnauthorized={onUnauthorized}
     />}
   </AppShell>;

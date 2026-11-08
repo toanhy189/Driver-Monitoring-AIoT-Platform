@@ -7,3 +7,4 @@
 bool loadSavedConfig();
 void onConfigMessage(JsonDocument& doc);
 const char* currentConfigId();
+uint32_t currentConfigRevision();

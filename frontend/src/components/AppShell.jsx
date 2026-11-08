@@ -1,4 +1,6 @@
 import { hasPermission } from "../services/permissions.js";
+import { useState } from "react";
+import AccountPanel from "./AccountPanel.jsx";
 
 const paths = {
   wheel: <><circle cx="12" cy="12" r="10" /><circle cx="12" cy="11" r="3" /><path d="M3 9h6m6 0h6M12 14v8M3.5 10.5C6 11 8 12 9 14m11.5-3.5C18 11 16 12 15 14" /></>,
@@ -36,6 +38,7 @@ export function ConnectionBadge({ status, isStale = false }) {
 }
 
 function AppShell({ user, activePage, serverConnected, onDashboard, onDevices, onCommands, onAlerts, onLogout, children }) {
+  const [accountOpen, setAccountOpen] = useState(false);
   const connectionClass = serverConnected === true ? "online" : serverConnected === false ? "offline" : "unknown";
   const connectionLabel = serverConnected === true ? "Máy chủ đã kết nối" : serverConnected === false ? "Mất kết nối máy chủ" : "Chưa xác định kết nối máy chủ";
   const isAdmin = hasPermission(user?.role, "user:view");
@@ -45,14 +48,15 @@ function AppShell({ user, activePage, serverConnected, onDashboard, onDevices, o
       <nav className="side-nav" aria-label="Điều hướng chính">
         <button className={activePage === "dashboard" ? "active" : ""} onClick={onDashboard} aria-current={activePage === "dashboard" ? "page" : undefined}><Icon name="home" />Tổng quan</button>
         <button className={activePage === "devices" ? "active" : ""} onClick={onDevices} aria-current={activePage === "devices" ? "page" : undefined}><Icon name="device" />Thiết bị</button>
-        {!isAdmin && hasPermission(user?.role, "command:view") && <button className={activePage === "commands" ? "active" : ""} onClick={onCommands} aria-current={activePage === "commands" ? "page" : undefined}><Icon name="commands" />Lịch sử lệnh</button>}
-        {!isAdmin && hasPermission(user?.role, "alert:view") && <button className={activePage === "alerts" ? "active" : ""} onClick={onAlerts} aria-current={activePage === "alerts" ? "page" : undefined} disabled={!onAlerts}><Icon name="alert" />Cảnh báo</button>}
+        {hasPermission(user?.role, "command:view") && <button className={activePage === "commands" ? "active" : ""} onClick={onCommands} aria-current={activePage === "commands" ? "page" : undefined} disabled={!onCommands}><Icon name="commands" />Lịch sử lệnh</button>}
+        {hasPermission(user?.role, "alert:view") && <button className={activePage === "alerts" ? "active" : ""} onClick={onAlerts} aria-current={activePage === "alerts" ? "page" : undefined} disabled={!onAlerts}><Icon name="alert" />Cảnh báo</button>}
       </nav>
       <div className="sidebar-user"><span className="avatar"><Icon name="user" /></span><div><strong>{user?.fullname || user?.username || "Người dùng"}</strong><small>{user?.role}{!hasPermission(user?.role, "command:send") && " · Chỉ xem"}</small></div></div>
     </aside>
     <div className="app-workspace">
-      <header className="app-topbar"><span className={`connection-status connection-status--${connectionClass}`}><span className="badge-dot" />{connectionLabel}</span><span className="topbar-user"><span className="avatar"><Icon name="user" /></span>{user?.fullname || user?.username || "Người dùng"}</span><button className="topbar-logout" onClick={onLogout} aria-label="Đăng xuất" title="Đăng xuất"><Icon name="logout" /></button></header>
+      <header className="app-topbar"><span className={`connection-status connection-status--${connectionClass}`}><span className="badge-dot" />{connectionLabel}</span><button className="outline-button topbar-user" onClick={() => setAccountOpen(true)} aria-label="Mở tài khoản"><span className="avatar"><Icon name="user" /></span>{user?.fullname || user?.username || "Người dùng"}</button><button className="topbar-logout" onClick={onLogout} aria-label="Đăng xuất" title="Đăng xuất"><Icon name="logout" /></button></header>
       <main className="app-content">{children}</main>
+      {accountOpen && <AccountPanel user={user} onClose={() => setAccountOpen(false)} onLogout={onLogout} />}
     </div>
   </div>;
 }

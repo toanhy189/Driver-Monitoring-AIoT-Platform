@@ -18,12 +18,13 @@ password_hash = PasswordHash.recommended()
 ALGORITHM = "HS256"
 
 
-def create_access_token(subject: str | Any, expires_delta: timedelta,) -> str:
+def create_access_token(subject: str | Any, expires_delta: timedelta, session_version: int = 0) -> str:
     expire = datetime.now(UTC) + expires_delta
 
     payload = {
         "exp": expire,
         "sub": str(subject),
+        "ver": session_version,
     }
 
     return jwt.encode(

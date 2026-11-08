@@ -6,6 +6,8 @@ import unittest
 from pathlib import Path
 
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 os.environ.setdefault(
     "DATABASE_URL", "postgresql+psycopg://postgres:test@localhost:5432/test"
@@ -64,9 +66,9 @@ class FakeSession:
 class MergeContractTests(unittest.TestCase):
     def test_existing_fe_routes_are_kept(self):
         http_routes = {
-            (route.path, method)
-            for route in app.routes
-            for method in getattr(route, "methods", [])
+            (path, method.upper())
+            for path, operations in app.openapi()["paths"].items()
+            for method in operations
         }
         for path_and_method in (
             ("/api/login", "POST"),
@@ -77,7 +79,12 @@ class MergeContractTests(unittest.TestCase):
             path, method = path_and_method
             expected_path = "/api/{device_id}/telemetry" if path == "/api/1/telemetry" else path
             self.assertIn((expected_path, method), http_routes)
-        self.assertIn("/ws/telemetry", [route.path for route in app.routes])
+        # FastAPI >=0.137 preserves nested routers instead of flattening
+        # app.routes. An actual handshake verifies the mounted WS endpoint.
+        with self.assertRaises(WebSocketDisconnect) as denied:
+            with TestClient(app).websocket_connect("/ws/telemetry?ticket=invalid-contract-ticket"):
+                pass
+        self.assertEqual(denied.exception.code, 1008)
 
     def test_login_still_accepts_json_schema_and_returns_user_id_token(self):
         user = User(

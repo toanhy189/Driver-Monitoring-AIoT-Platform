@@ -319,7 +319,21 @@ class TrainingTests(unittest.TestCase):
                 self.assertIn(prediction, (0, 1))
                 self.assertEqual(score.call_count, 1)
                 np.testing.assert_allclose(score.call_args.args[1][0], frame.iloc[4][list(FEATURE_NAMES)].to_numpy(dtype=float))
+            diagnostic = model.last_diagnostics
+            self.assertEqual(diagnostic["prediction"], prediction)
+            self.assertEqual(diagnostic["model_version"], model.model_version)
+            self.assertEqual(diagnostic["feature_version"], FEATURE_VERSION)
+            self.assertEqual(diagnostic["score"], model.last_score)
+            self.assertEqual(diagnostic["end_s"], 10)
+            self.assertEqual(diagnostic["start_s"], 0)
+            json.dumps(diagnostic, allow_nan=False)
+            # A cached prediction must not masquerade as a new inference record.
+            self.assertEqual(model.update(10.125, 0.12, POSE), prediction)
+            self.assertIsNone(model.last_diagnostics)
+            self.assertEqual(model.last_score, diagnostic["score"])
             self.assertIsNone(model.update(10.25))
+            self.assertIsNone(model.last_score)
+            self.assertIsNone(model.last_diagnostics)
             self.assertIsNone(model.update(15, 0.12, POSE))
             selected = joblib.load(root / "run" / "selected.joblib")
             # Gap-free synthetic training values are identical between v2/v3.
@@ -342,7 +356,11 @@ class TrainingTests(unittest.TestCase):
 
     def test_fusion_unknown_and_distraction_not_overwritten_by_alert_class(self):
         distracted = {"valid": True, "calibrating": False, "is_distracted": True}
-        self.assertEqual(fuse_state(None, distracted), "UNKNOWN")
+        self.assertEqual(fuse_state(None, distracted), "DISTRACTED")
+        self.assertEqual(fuse_state(None, {**distracted, "valid": False}), "UNKNOWN")
+        self.assertEqual(fuse_state(None, {**distracted, "calibrating": True}), "UNKNOWN")
+        self.assertEqual(fuse_state(None, {**distracted, "is_distracted": False}), "UNKNOWN")
+        self.assertEqual(fuse_state(None, None), "UNKNOWN")
         self.assertEqual(fuse_state(0, distracted), "DISTRACTED")
         self.assertEqual(fuse_state(1, distracted), "DROWSY")
         self.assertEqual(fuse_state(0, {"valid": True, "calibrating": False}), "ATTENTIVE")
@@ -354,11 +372,14 @@ class TrainingTests(unittest.TestCase):
     def test_runtime_failure_never_returns_stale_prediction(self):
         model = DrowsinessModel.__new__(DrowsinessModel)
         model.failed, model.prediction = False, 1
+        model.last_score, model.last_diagnostics = 0.9, {"prediction": 1}
         model.window = Mock()
         model.window.add.side_effect = ValueError("bad observation")
         with self.assertLogs("ml.runtime", level="ERROR"):
             self.assertIsNone(model.update(10, 0.1, POSE))
         self.assertTrue(model.failed)
+        self.assertIsNone(model.last_score)
+        self.assertIsNone(model.last_diagnostics)
         self.assertIsNone(model.update(11, 0.1, POSE))
 
     def test_actual_loaded_version_is_used_in_status_and_telemetry(self):
@@ -377,10 +398,16 @@ class TrainingTests(unittest.TestCase):
         camera = Mock()
         camera.isOpened.return_value = True
         camera.read.return_value = (True, frame)
-        model = SimpleNamespace(model_version="rf-test", update=Mock(return_value=1), last_inference_ms=0.1)
+        model = SimpleNamespace(model_version="rf-test", update=Mock(return_value=1), last_inference_ms=0.1,
+                                last_diagnostics=None, last_score=.8, kind="rf", threshold=.5,
+                                config=FeatureConfig())
         policy = app.AlertPolicy("vision-test", "rf-test")
         policy.update = Mock(wraps=policy.update)
         with patch.object(app, "load_optional_model", return_value=model), \
+                patch.object(app, "AI_EYE_CLOSURE_GUARD_ENABLED", True), \
+                patch.object(app, "AI_EYE_CLOSURE_CALIBRATION", "local-approved-report.json"), \
+                patch.object(app, "load_threshold", return_value=.25) as calibration, \
+                patch.object(app, "AI_DEBUG_PREDICTIONS", True), \
                 patch.object(app, "init_db", return_value=True), \
                 patch.object(app, "VideoUploadWorker"), patch.object(app, "LocalAlertWorker"), \
                 patch.object(app.cv2, "VideoCapture", return_value=camera), \
@@ -396,6 +423,8 @@ class TrainingTests(unittest.TestCase):
             head.return_value.estimate.return_value = POSE
             app.main()
         self.assertEqual(model.update.call_count, 2)
+        calibration.assert_called_once_with("local-approved-report.json", app.DEVICE_CODE)
+        self.assertEqual(model.config.ear_threshold, .20)
         self.assertEqual([call.args[0] for call in policy.update.call_args_list], ["DROWSY", "DROWSY"])
         mqtt.assert_called_once_with(model_version="rf-test")
         camera.release.assert_called_once()

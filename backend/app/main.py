@@ -8,7 +8,9 @@ from sqlmodel import Session
 from app.core.db import engine
 from app.models.command import Command
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException
+from fastapi.responses import PlainTextResponse
+import hmac
 from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
@@ -75,6 +77,16 @@ app.include_router(api_router, prefix=settings.API_STR)
 app.include_router(websocket_router)
 
 
+@app.get("/metrics", include_in_schema=False, response_class=PlainTextResponse)
+def prometheus_metrics(authorization: str = Header(default="")):
+    if not settings.METRICS_TOKEN:
+        raise HTTPException(status_code=503, detail="Metrics access is not configured")
+    if not hmac.compare_digest(authorization, "Bearer " + settings.METRICS_TOKEN):
+        raise HTTPException(status_code=401, detail="Metrics credentials required")
+    from app.services.monitoring import render
+    return PlainTextResponse(render(), media_type="text/plain; version=0.0.4")
+
+
 # Middleware gan correlation ID cho HTTP log/audit va giu cac header do luong cua ung dung.
 @app.middleware("http")
 async def record_http_duration(request, call_next):
@@ -116,6 +128,9 @@ async def record_http_duration(request, call_next):
                     session.commit()
         return response
     finally:
+        if request.url.path != "/metrics":
+            from app.services.monitoring import record_request
+            record_request(request.method, response.status_code if response else 500, (perf_counter()-started)*1000)
         # Ghi mot dong ket qua cho moi request truoc khi don context de khoanh vung loi.
         logger.info(
             "HTTP request completed",

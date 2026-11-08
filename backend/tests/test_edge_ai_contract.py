@@ -16,6 +16,12 @@ from app.services.mqtt_service import process_message
 
 
 class EdgeAiContractTests(unittest.TestCase):
+    def test_queue_timestamp_helper_does_not_require_camera_library(self):
+        utils_path = Path(__file__).resolve().parents[2] / "edge-ai/service/utils.py"
+        with patch.dict(sys.modules, {"cv2": None}):
+            helpers = runpy.run_path(str(utils_path))
+            self.assertTrue(helpers["current_timestamp"]().endswith("+00:00"))
+
     def test_new_event_aliases_and_distracted_observation(self):
         event = AiEventRequest.model_validate({"message_id": "message-test", "device_code": "vision-01",
             "event_type": "DISTRACTED_THRESHOLD_REACHED", "state": "DISTRACTED",

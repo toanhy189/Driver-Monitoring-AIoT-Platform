@@ -2,6 +2,7 @@ import asyncio
 
 from fastapi import WebSocket
 from sqlmodel import Session, select
+from sqlalchemy import or_
 
 from app.core.db import engine
 from app.models.user_device import UserDevice
@@ -25,6 +26,19 @@ class ConnectionManager:
     def disconnect(self, websocket: WebSocket):
         self.connections.pop(websocket, None)
 
+    async def close_user(self, user_id: int):
+        for websocket, owner in list(self.connections.items()):
+            if owner == user_id:
+                self.disconnect(websocket)
+                try:
+                    await websocket.close(code=1008)
+                except Exception:
+                    pass
+
+    def close_user_from_thread(self, user_id: int):
+        if self.loop is not None and self.loop.is_running():
+            asyncio.run_coroutine_threadsafe(self.close_user(user_id), self.loop)
+
     async def send_to_device_users(self, event: dict):
         data = event.get("data")
         device_id = data.get("device_id") if isinstance(data, dict) else None
@@ -32,12 +46,11 @@ class ConnectionManager:
             return
         with Session(engine) as session:
             user_ids = set(session.exec(
-                select(UserDevice.user_id).where(
-                    UserDevice.device_id == device_id,
-                    UserDevice.unassigned_at.is_(None),
-                ).join(User, User.id == UserDevice.user_id).where(
-                    User.role.in_(["Admin", "Employee", "Customer", "ADMIN", "OPERATOR", "VIEWER"])
-                )
+                select(User.id).where(User.status == "ACTIVE",
+                    User.role.in_(["Admin", "Employee", "Customer", "ADMIN", "OPERATOR", "VIEWER"]),
+                    or_(User.role.in_(["Admin", "ADMIN"]), User.id.in_(
+                        select(UserDevice.user_id).where(UserDevice.device_id == device_id,
+                                                        UserDevice.unassigned_at.is_(None)))))
             ).all())
         for websocket, user_id in list(self.connections.items()):
             if user_id not in user_ids:

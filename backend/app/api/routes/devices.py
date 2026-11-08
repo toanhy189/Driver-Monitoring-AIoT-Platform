@@ -8,7 +8,7 @@ from app.models.device import Device
 from app.models.telemetry import Telemetry
 from app.models.user import User
 from app.models.user_device import UserDevice
-from app.schemas.device import DeviceRegisterRequest, DeviceResponse, DeviceStatusRequest, ProvisionResponse
+from app.schemas.device import DeviceRegisterRequest, DeviceResponse, DeviceStatusRequest, ProvisionResponse, HardwareVersionUpdate
 from app.schemas.telemetry import TelemetryHistoryItem, TelemetryHistoryResponse, TelemetryResponse
 from app.services.access import assigned_device, assigned_devices, is_admin, require_vision_node
 from app.services.audit_service import log_action
@@ -40,6 +40,22 @@ def require_device_manager(
 
 def _response(device: Device) -> DeviceResponse:
     return DeviceResponse.from_device(device)
+
+
+@router.patch("/devices/{device_id}/hardware", response_model=DeviceResponse)
+def update_hardware_version(device_id: int, data: HardwareVersionUpdate,
+                            current_user: User = Depends(require_device_manager),
+                            session: Session = Depends(get_session)):
+    device = assigned_device(session, current_user, device_id)
+    value = data.hardware_version.strip()
+    if not value:
+        raise HTTPException(status_code=422, detail="Hardware version cannot be blank")
+    device.hardware_version = value
+    session.add(device)
+    log_action(session, current_user.id, "UPDATE_HARDWARE_VERSION", "Device", str(device.id))
+    session.commit()
+    session.refresh(device)
+    return _response(device)
 
 
 def _kind(code: str, model: str) -> str | None:
@@ -163,6 +179,7 @@ def register_device(
         device_code=data.device_code,
         model=data.model,
         name=data.name,
+        hardware_version=data.hardware_version,
         device_type=_kind(data.device_code, data.model),
         ip_address=data.ip_address,
         mac_address=data.mac_address,

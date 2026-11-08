@@ -1,0 +1,8 @@
+# Optional verified HTTPS entry point; existing HTTP remains available for local tooling.
+services:
+  frontend:
+    ports: ["8443:443"]
+    volumes:
+      - ./tls/https.conf:/etc/nginx/conf.d/https.conf:ro
+      - ./tls/certs/server.crt:/etc/nginx/tls/server.crt:ro
+      - ./tls/certs/server.key:/etc/nginx/tls/server.key:ro

@@ -6,7 +6,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 import logging
 from sqlmodel import Session, select
 
-from app.api.deps import require_viewer
+from app.api.deps import require_viewer, require_operator, require_admin
 from app.core.config import settings
 from app.core.db import get_session
 from app.models.ai_event import AiEvent
@@ -17,7 +17,7 @@ from app.services.access import assigned_device
 from app.services.audit_service import log_action
 from app.services.device_auth import verify_mqtt_login
 from app.services.time_utils import as_utc
-from app.services.video_storage import store_video, video_path
+from app.services.video_storage import store_video, video_path, storage_usage
 
 router = APIRouter(tags=["videos"])
 logger = logging.getLogger(__name__)
@@ -30,6 +30,7 @@ def _public(session: Session, video: AiVideo) -> dict:
     return {"video_id": video.id, "device_id": video.device_id, "message_id": video.message_id,
             "state": video.state, "size_bytes": video.size_bytes, "created_at": as_utc(video.created_at),
             "event_received": event is not None,
+            "deleted_at": as_utc(video.deleted_at) if video.deleted_at else None,
             "content_url": f"{settings.API_STR}/videos/{video.id}/content"}
 
 
@@ -84,7 +85,7 @@ def list_videos(device_id: int, limit: int = Query(default=20, ge=1, le=100),
                 message_id: Annotated[str | None, Query(min_length=1, max_length=80)] = None,
                 current_user: User = Depends(require_viewer), session: Session = Depends(get_session)):
     assigned_device(session, current_user, device_id)
-    query = select(AiVideo).where(AiVideo.device_id == device_id)
+    query = select(AiVideo).where(AiVideo.device_id == device_id, AiVideo.deleted_at.is_(None))
     if message_id:
         query = query.where(AiVideo.message_id == message_id)
     rows = session.exec(query.order_by(AiVideo.created_at.desc(), AiVideo.id.desc())
@@ -95,7 +96,7 @@ def list_videos(device_id: int, limit: int = Query(default=20, ge=1, le=100),
 @router.get("/videos/{video_id}/content")
 def download_video(video_id: int, current_user: User = Depends(require_viewer), session: Session = Depends(get_session)):
     video = session.get(AiVideo, video_id)
-    if video is None:
+    if video is None or video.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Video not found")
     assigned_device(session, current_user, video.device_id)
     path = video_path(video)
@@ -125,5 +126,27 @@ def event_video(device_id: int, event_id: str,
                                                AiVideo.message_id == message_id)).first() if message_id else None
     return {"event_id": event_id, "episode_id": event.payload.get("episode_id"),
             "clip_message_id": message_id,
-            "status": ("AVAILABLE" if video_path(video).is_file() else "MISSING") if video else "PENDING_OR_UNAVAILABLE",
+            "status": ("DELETED" if video.deleted_at else "AVAILABLE" if video_path(video).is_file() else "MISSING") if video else "PENDING_OR_UNAVAILABLE",
             "video": _public(session, video) if video else None}
+
+
+@router.get("/videos/storage")
+def video_storage_status(current_user: User = Depends(require_admin)):
+    return storage_usage()
+
+
+@router.delete("/videos/{video_id}", status_code=204)
+def delete_video(video_id: int, current_user: User = Depends(require_operator), session: Session = Depends(get_session)):
+    from datetime import datetime, timezone
+    video = session.exec(select(AiVideo).where(AiVideo.id == video_id).with_for_update()).first()
+    if video is None:
+        raise HTTPException(status_code=404, detail="Video not found")
+    assigned_device(session, current_user, video.device_id)
+    # Keep the metadata tombstone so retrying the same upload never restores a
+    # clip that a permitted user explicitly erased.
+    video_path(video).unlink(missing_ok=True)
+    video.deleted_at = video.deleted_at or datetime.now(timezone.utc).replace(tzinfo=None)
+    session.add(video)
+    log_action(session, current_user.id, "DELETE_VIDEO", "AiVideo", str(video.id), {"video_id": video.id})
+    session.commit()
+    return Response(status_code=204)

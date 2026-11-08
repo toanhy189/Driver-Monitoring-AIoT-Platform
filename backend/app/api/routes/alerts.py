@@ -8,7 +8,7 @@ from app.models.device import Device
 from app.models.user import User
 from app.models.user_device import UserDevice
 from app.models.command import Command
-from app.services.access import assigned_device
+from app.services.access import assigned_device, is_admin
 from app.services.audit_service import log_action
 from app.services.time_utils import as_utc
 
@@ -51,12 +51,10 @@ def list_alerts(
         assigned_device(session, current_user, device_id)
     if not 1 <= limit <= 200 or offset < 0:
         raise HTTPException(status_code=422, detail="Invalid pagination")
-    query = (
-        select(Alert)
-        .join(UserDevice, UserDevice.device_id == Alert.device_id)
-        .where(UserDevice.user_id == current_user.id, UserDevice.unassigned_at.is_(None))
-        .distinct()
-    )
+    query = select(Alert)
+    if not is_admin(current_user):
+        query = query.join(UserDevice, UserDevice.device_id == Alert.device_id).where(
+            UserDevice.user_id == current_user.id, UserDevice.unassigned_at.is_(None)).distinct()
     if device_id is not None:
         query = query.where(Alert.device_id == device_id)
     if status is not None:
@@ -64,7 +62,7 @@ def list_alerts(
     alerts = session.exec(
         query.order_by(Alert.created_at.desc()).offset(offset).limit(limit)
     ).all()
-    return [_public(session, alert, current_user.id) for alert in alerts]
+    return [_public(session, alert, None if is_admin(current_user) else current_user.id) for alert in alerts]
 
 
 @router.post("/alerts/{alert_id}/acknowledge")

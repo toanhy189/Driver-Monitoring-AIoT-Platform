@@ -13,6 +13,7 @@ import cv2
 import time
 import uuid
 import math
+import json
 from pathlib import Path
 
 import logging
@@ -27,9 +28,13 @@ from eye import (
 from mqtt_client import MQTTClient
 from config import (DEVICE_CODE, EAR_THRESHOLD, PERCLOS_THRESHOLD,
                     FACE_LOSS_RESET_SECONDS, MAX_OBSERVATION_GAP_SECONDS,
-                    AI_MODEL_MODE, AI_MODEL_PATH, MODEL_VERSION, METRICS_PATH,
+                    AI_MODEL_MODE, AI_MODEL_PATH, AI_DEBUG_PREDICTIONS, AI_EYE_CLOSURE_GUARD_ENABLED,
+                    AI_EYE_CLOSURE_CALIBRATION,
+                    MODEL_VERSION, METRICS_PATH,
                     VIDEO_MAX_CLIP_SECONDS, VIDEO_MAX_CLIP_BYTES, VIDEO_STORAGE_MAX_BYTES, RECORDING_DIR)
 from ml.runtime import load_optional_model, fuse_state
+from service.eye_closure_guard import EyeClosureGuard
+from service.eye_calibration import load_threshold
 from head_pose import HeadPoseEstimator, HeadPoseTracker
 
 from edge_queue import init_db
@@ -265,6 +270,7 @@ def main():
     detector = None
     video_worker = None
     local_alert = None
+    eye_guard = None
 
     video_writer = None
     active_video_path = None
@@ -303,6 +309,13 @@ def main():
         state_data["model_version"] = (drowsiness_model.model_version
                                        if drowsiness_model is not None else MODEL_VERSION)
         logger.info("AI classifier: %s", state_data["model_version"])
+        if drowsiness_model is not None and AI_EYE_CLOSURE_GUARD_ENABLED:
+            guard_threshold = (load_threshold(AI_EYE_CLOSURE_CALIBRATION, DEVICE_CODE)
+                               if AI_EYE_CLOSURE_CALIBRATION else EAR_THRESHOLD)
+            eye_guard = EyeClosureGuard(ear_threshold=guard_threshold,
+                                        max_gap_seconds=MAX_OBSERVATION_GAP_SECONDS)
+            logger.info("AI fusion: %s; EAR threshold %.4f; closure >=1s, recovery >=1s; experimental",
+                        eye_guard.VERSION, eye_guard.ear_threshold)
         policy = AlertPolicy(DEVICE_CODE, state_data["model_version"], max_gap=MAX_OBSERVATION_GAP_SECONDS)
         state_data["session_id"] = policy.session_id
         if not init_db():
@@ -363,6 +376,8 @@ def main():
                     local_alert.notify(event)
                     publish_event(mqtt_client, event)
                 continuity.update(False)
+                if eye_guard is not None:
+                    eye_guard.reset()
                 if drowsiness_model is not None:
                     drowsiness_model.update(time.monotonic())
                 eyes_open_since = None
@@ -417,6 +432,8 @@ def main():
                     faces, ear, pose = [], None, None
             if continuity.update(bool(faces), frame_time):
                 eyes_open_since = None
+                if eye_guard is not None:
+                    eye_guard.reset()
 
             if faces:
                 face_detected = True
@@ -488,14 +505,21 @@ def main():
             decision_started = time.perf_counter()
             if drowsiness_model is not None:
                 binary_prediction = drowsiness_model.update(frame_time, ear, pose)
-                driver_state = fuse_state(binary_prediction, pose_status)
+                closure_risk = eye_guard.update(frame_time, ear) if eye_guard is not None else False
+                driver_state = fuse_state(binary_prediction, pose_status, eye_closure_risk=closure_risk)
                 metrics.observe("estimator", drowsiness_model.last_inference_ms)
+                if AI_DEBUG_PREDICTIONS and drowsiness_model.last_diagnostics:
+                    logger.info("ML diagnostic: %s", json.dumps(drowsiness_model.last_diagnostics,
+                                                               sort_keys=True, allow_nan=False))
             metrics.observe("ml_update_and_fusion", (time.perf_counter()-decision_started)*1000)
 
             # ---------------------------------
             # 5. CONFIRM STATE
             # ---------------------------------
 
+            policy_gap_ms = None
+            if AI_DEBUG_PREDICTIONS and policy.last_update is not None:
+                policy_gap_ms = (frame_time - policy.last_update) * 1000
             events = policy.update(driver_state, valid=face_detected, now=frame_time,
                                    observed_at=frame_observed_at)
             state_data["confirmed_state"] = policy.state
@@ -539,6 +563,15 @@ def main():
             # ---------------------------------
 
             if frame_time - last_mqtt_time >= MQTT_INTERVAL:
+                if AI_DEBUG_PREDICTIONS:
+                    diagnostic = {"observed_at": frame_observed_at, "face_detected": face_detected,
+                        "ear": ear, "eye_closure_risk": bool(eye_guard and eye_guard.active),
+                        "eye_guard_threshold": eye_guard.ear_threshold if eye_guard else None,
+                        "raw_state": driver_state, "policy_candidate": policy.candidate,
+                        "confirmed_state": policy.state, "frame_gap_ms": policy_gap_ms,
+                        "head": pose_status, "ml_last_snapshot_quality":
+                            getattr(getattr(drowsiness_model, "window", None), "last_quality_reason", None)}
+                    logger.info("AI observation: %s", json.dumps(diagnostic, sort_keys=True, allow_nan=False))
                 publish_telemetry(
                     mqtt_client=mqtt_client,
                     state_data=state_data,
@@ -566,17 +599,25 @@ def main():
             y = draw_text(frame, f"UTC: {frame_observed_at}", y)
             if drowsiness_model is not None:
                 y = draw_text(frame, f"Model: {state_data['model_version']}", y)
+                if AI_DEBUG_PREDICTIONS and drowsiness_model.last_score is not None:
+                    score_text = (f"{drowsiness_model.kind.upper()} score: {drowsiness_model.last_score:.3f}"
+                                  f" / threshold: {drowsiness_model.threshold:.3f}")
+                    y = draw_text(frame, score_text, y)
+            if eye_guard is not None:
+                y = draw_text(frame, f"Eye guard (<{eye_guard.ear_threshold:.3f}): " +
+                              ("CLOSED RISK" if eye_guard.active else "observing"), y)
 
             if face_detected:
                 y = draw_text(frame, f"EAR: {ear:.3f}", y)
                 y = draw_text(frame, perclos_text, y)
                 y = draw_text(frame, f"Candidate: {driver_state}", y)
-                y = draw_text(frame, f"Eye closed: {eye_closed}", y)
+                eye_label = f"Eye feature (<{EAR_THRESHOLD:.2f})" if eye_guard else "Eye closed"
+                y = draw_text(frame, f"{eye_label}: {eye_closed}", y)
 
                 if eye_status is not None:
                     y = draw_text(
                         frame,
-                        f"Closed: {eye_status['closed_duration_ms']:.0f} ms",
+                        f"Feature closed: {eye_status['closed_duration_ms']:.0f} ms",
                         y
                     )
 
@@ -707,8 +748,13 @@ def check_runtime():
     finally:
         detector.close()
     model = DrowsinessModel(AI_MODEL_PATH) if AI_MODEL_MODE == "ml" else None
+    guard_threshold = None
+    if model is not None and AI_EYE_CLOSURE_GUARD_ENABLED:
+        guard_threshold = (load_threshold(AI_EYE_CLOSURE_CALIBRATION, DEVICE_CODE)
+                           if AI_EYE_CLOSURE_CALIBRATION else EAR_THRESHOLD)
     print(json.dumps({"status": "OK", "camera_opened": False, "network_started": False,
         "model_version": model.model_version if model else MODEL_VERSION,
+        "eye_guard_enabled": guard_threshold is not None, "eye_guard_threshold": guard_threshold,
         "policy_version": POLICY_VERSION}))
 
 

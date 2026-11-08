@@ -14,7 +14,7 @@ from app.models.device import Device
 from app.models.user import User
 from app.models.user_device import UserDevice
 from app.schemas.command import LegacyCommandRequest, TestAlertRequest
-from app.services.access import assigned_device
+from app.services.access import assigned_device, is_admin
 from app.services.audit_service import log_action
 from app.services.command_service import publish_command
 from app.services.command_state import aggregate, update_dispatch
@@ -158,12 +158,10 @@ def list_commands(
 ):
     if device_id is not None:
         assigned_device(session, current_user, device_id)
-    query = (
-        select(Command)
-        .join(UserDevice, UserDevice.device_id == Command.device_id)
-        .where(UserDevice.user_id == current_user.id, UserDevice.unassigned_at.is_(None))
-        .distinct()
-    )
+    query = select(Command)
+    if not is_admin(current_user):
+        query = query.join(UserDevice, UserDevice.device_id == Command.device_id).where(
+            UserDevice.user_id == current_user.id, UserDevice.unassigned_at.is_(None)).distinct()
     if device_id is not None:
         query = query.where(Command.device_id == device_id)
     commands = session.exec(query.order_by(Command.created_at.desc(), Command.id.desc()).offset(offset).limit(limit)).all()

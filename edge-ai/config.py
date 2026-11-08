@@ -23,6 +23,9 @@ MQTT_PASSWORD = os.getenv("AI_MQTT_PASSWORD") or None
 DEVICE_CODE = os.getenv("AI_DEVICE_CODE", "vision-01")
 MODEL_VERSION = "drowsiness-v3.1-pixel"
 AI_MODEL_MODE = os.getenv("AI_MODEL_MODE", "baseline").lower()
+AI_DEBUG_PREDICTIONS = os.getenv("AI_DEBUG_PREDICTIONS", "false").lower() in {"true", "1", "yes"}
+AI_EYE_CLOSURE_GUARD_ENABLED = os.getenv("AI_EYE_CLOSURE_GUARD_ENABLED", "false").lower() in {"true", "1", "yes"}
+AI_EYE_CLOSURE_CALIBRATION = os.getenv("AI_EYE_CLOSURE_CALIBRATION") or None
 AI_MODEL_PATH = Path(os.getenv("AI_MODEL_PATH", str(BASE_DIR / "ml-runs" / "uta-optimized-v2" / "selected.joblib")))
 if AI_MODEL_MODE not in {"baseline", "ml"}:
     raise ValueError("AI_MODEL_MODE must be baseline or ml")

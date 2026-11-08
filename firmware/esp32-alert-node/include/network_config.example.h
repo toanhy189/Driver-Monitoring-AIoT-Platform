@@ -5,8 +5,8 @@
 constexpr char WIFI_SSID[] = "TEN_HOTSPOT";
 constexpr char WIFI_PASSWORD[] = "MAT_KHAU";
 constexpr char MQTT_HOST[] = "192.168.137.1"; // Thay bằng IP laptop TV2.
-constexpr int MQTT_PORT = 1883;
+constexpr int MQTT_PORT = 1884; // Host port of deployment/docker-compose.yml.
 
-// Để trống nếu broker không yêu cầu tài khoản.
+// Required by the project broker: use credentials provisioned for this node.
 constexpr char MQTT_USER[] = "";
 constexpr char MQTT_PASSWORD[] = "";

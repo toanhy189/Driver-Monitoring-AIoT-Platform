@@ -74,7 +74,7 @@ test("video của sự kiện được lấy theo message_id và content dùng e
   assert.equal(await videos.getVideoContent(7), "video-bytes");
   assert.match(calls[1].url, /videos\/7\/content$/);
   assert.equal(calls[1].options.headers.Accept, "video/mp4");
-  assert.equal(calls[1].options.headers.Authorization, "******");
+  assert.equal(calls[1].options.headers.Authorization, "Bearer test-token");
 });
 
 test("biểu đồ TV4 giữ response cũ và gọi route riêng, không trùng API phân trang", async () => {

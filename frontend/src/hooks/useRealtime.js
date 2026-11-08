@@ -52,9 +52,10 @@ export default function useRealtime(userId) {
             sequence += 1;
             setEvents(old => [...old.slice(-(MAX_EVENTS - 1)), { ...event, sequence }]);
           },
-          onClose: () => {
+          onClose: event => {
             if (socket !== current) return;
             socket = null;
+            if (event?.code === 1008) { setConnected(false); setUnauthorized(true); return; }
             scheduleRetry();
           },
           onError: () => {

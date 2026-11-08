@@ -22,6 +22,7 @@ class Device(SQLModel, table=True):
     device_type: str | None = None
     lifecycle_state: str = "REGISTERED"
     firmware_version: str | None = None
+    hardware_version: str | None = None
 
     ip_address: str | None = Field(
         default=None,

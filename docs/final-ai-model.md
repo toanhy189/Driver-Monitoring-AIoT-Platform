@@ -1,0 +1,81 @@
+# AI bản nộp: model nhị phân và quy tắc hướng đầu
+
+Phạm vi nhị phân kết hợp quy tắc đã được TV3 chốt ngày 08/11/2026. **Model RF bên dưới chưa đạt nghiệm thu camera**: thử trên người dùng thật ghi nhận mở mắt, nhìn thẳng nhưng vẫn báo DROWSY. Artifact cũ được giữ làm mốc đối chiếu; các thử nghiệm sửa lỗi ở thư mục riêng, chưa thay bản chạy.
+
+Xem [kết quả chẩn đoán camera](final-verification.md). Không dùng kết quả CV để kết luận ca camera này đã đạt.
+
+**Cập nhật sau thử mới:** RF ứng viên `rf-nthu-lowfa-20261108-a035d671` kết hợp eye guard hiệu chuẩn riêng đã đạt thao tác không kính trên TV3: nhắm mắt có DROWSY/âm thanh, mở lại về ATTENTIVE, quay đầu vừa phải có DISTRACTED. Có kính vẫn chưa đạt. Artifact đối chiếu dưới đây và launcher mặc định không đổi; kết quả chức năng cá nhân chưa phải metrics của hệ kết hợp.
+
+## Pipeline
+
+Camera → MediaPipe landmark → hình học mắt/hướng đầu theo pixel → đặc trưng thời gian → RF nhị phân → kết hợp quy tắc DISTRACTED → xác nhận trạng thái → policy → local audio + MQTT.
+
+MediaPipe dùng mô hình thị giác có sẵn để tìm landmark. RF là mô hình nhóm huấn luyện trên đặc trưng; DISTRACTED dùng quy tắc hướng đầu. Không gọi toàn bộ pipeline là CNN tự huấn luyện, hay gọi xác suất RF là độ tin cậy của toàn bộ hệ thống. Khi thiếu dữ liệu, UNKNOWN chặn việc nối thời gian qua khoảng không quan sát được.
+
+Quy tắc DISTRACTED được xét độc lập khi hướng đầu hiện tại hợp lệ, đã hiệu chuẩn và lệch đủ thời gian, kể cả khi cửa sổ RF đang thiếu lịch sử. Nếu không có bằng chứng đó và RF chưa sẵn sàng thì UNKNOWN. Thay đổi ghép này đã qua test tự động và lượt quay đầu vừa phải không kính; mất landmark thật vẫn UNKNOWN.
+
+Sau lượt thử RF giảm báo nhầm vẫn bỏ sót nhắm mắt, TV3 đồng ý thử thêm quy tắc nhắm mắt liên tục 1 giây, hồi phục mở mắt 1 giây, ngắt khi mất quan sát. Tùy chọn `AI_EYE_CLOSURE_GUARD_ENABLED` mặc định tắt; chỉ bật trong lượt thử đã chốt. Đây là thêm bằng chứng nguy cơ trong bước ghép trạng thái, không thay feature RF hay policy cảnh báo. Chưa công bố metrics cho hệ kết hợp và chưa coi các số CV của RF là metrics của hệ mới. Xem [chi tiết và giới hạn](final-verification.md).
+
+Ngưỡng eye guard có thể nạp từ file hiệu chuẩn cá nhân `AI_EYE_CLOSURE_CALIBRATION`, qua kiểm tra riêng và đối chiếu phiên bản hình học. RF vẫn tạo feature với ngưỡng huấn luyện 0,20. File hiệu chuẩn bị từ chối thì runtime không tự lấy ngưỡng từ file đó. `run-camera-trial.ps1` khóa RF ứng viên mới; `run-submission.ps1` vẫn khóa RF đối chiếu cũ. Xem [quy trình hiệu chuẩn và giới hạn](eye-guard-calibration.md).
+
+## Artifact và phiên bản chạy
+
+### Artifact dùng cho bản kết hợp thử camera
+
+| Thuộc tính | Giá trị |
+|---|---|
+| RF ứng viên | `rf-nthu-lowfa-20261108-a035d671` |
+| File riêng | `edge-ai/ml-runs/nthu-camera-review-20261108/low-false-alarm/selected.joblib` |
+| SHA256 | `a46e09221e8159235a3628f44aab73ddffb266b54ada5e9b24d324bb03fe7e15` |
+| Ngưỡng RF | 0,75; 19 đặc trưng, cửa sổ 20 giây / bước 2 giây |
+| Development CV, trung bình theo người | Accuracy 85,35%; Macro F1 0,7866; recall 84,02%; FPR 9,58% |
+| Runtime | `run-camera-trial.ps1` khóa hash; eye guard bật riêng, có thể nạp hiệu chuẩn |
+| Giới hạn | CV là của RF; lượt không kính là chức năng cá nhân. Chưa có metrics chung của RF + guard + head rule |
+
+Artifact không có trong Git. File hiệu chuẩn cũng được bàn giao riêng, chỉ dùng đúng người/thiết bị/điều kiện và phải qua kiểm tra. Dưới đây là artifact đối chiếu cũ, không thay cho bản kết hợp vừa thử.
+
+### Artifact đối chiếu cũ
+
+| Thuộc tính | Giá trị |
+|---|---|
+| Model | `rf-nthu-full-20261107-8d459c63` |
+| File riêng | `edge-ai/ml-runs/nthu-gap-history-20261107/full/selected.joblib` |
+| SHA256 | `5e25b03d26a7577982d9c357d3f87fe2a1bf2a31c205b447b782ec5006ea7b0d` |
+| Feature version | `ear-pose-pixel-blink-v3-gap-history` |
+| Đặc trưng | 19; thống kê EAR/PERCLOS, nhắm mắt, chuyển động mí, yaw/pitch |
+| RF | 300 cây, max_depth 10, min_samples_leaf 5, max_features sqrt; class_weight 0:1, 1:0.75 |
+| Ngưỡng RF | 0.4 |
+| Cửa sổ / bước | 20 giây / 2 giây; chỉ nhận cửa sổ đủ chất lượng |
+| Môi trường | Python 3.13; sklearn 1.9.1; `requirements-lock.txt` |
+
+Chỉ load joblib từ bundle tin cậy; định dạng này có thể thực thi code khi nạp. Hash giúp đối chiếu đúng bundle đã bàn giao.
+
+## Dữ liệu và kết quả đã có
+
+Nguồn NTHU-DDD tải qua Kaggle theo xác nhận của người dùng. **Chưa có URL bản Kaggle cụ thể**; cần TV3 ghi đúng trang đã tải vào báo cáo, không tự điền một bản mirror bất kỳ.
+
+279 video, 14 người trong development, 5.551 cửa sổ đánh giá, 1.287 âm và 4.264 dương; 4 fold chia theo người. Nhãn lấy từ dataset/quy trình đã xây, không gán ATTENTIVE/DISTRACTED/DROWSY giả từ một bộ nhãn khác. Video lỗi/thiếu quan sát được kiểm tra qua các cổng chất lượng và báo cáo diagnostics.
+
+| Cách tính | Accuracy | Macro F1 | Recall DROWSY | False positive rate |
+|---|---:|---:|---:|---:|
+| Gộp các cửa sổ OOF development | 92,51% | 0,8850 | 98,62% | 27,74% |
+| Trung bình theo người | 93,17% | 0,8805 | 98,43% | 23,22% |
+
+Các chỉ số được lấy từ kết quả đã có, không phải số đo camera mới. Cửa sổ chồng lấn không phải các thử nghiệm độc lập. `selection-frozen.json` ghi `heldout_already_inspected=true`, `selection_before_heldout=false`; vì vậy **không gọi các số này là kiểm thử cuối độc lập chưa từng được xem**. Cần người/phiên mới có nhãn để nghiệm thu khả năng khái quát.
+
+FPR trên cửa sổ khác số lần cảnh báo nhầm trong một giờ; delay model khác inference latency và delay toàn hệ thống. Đánh giá DISTRACTED/quy tắc, UNKNOWN, ánh sáng/kính và phần tải thực còn cần ca nghiệm thu riêng.
+
+## Cách chạy lại artifact để kiểm tra
+
+Từ gốc repo, khi đã có `.venv` và bundle riêng:
+
+```powershell
+./edge-ai/run-submission.ps1 -Check
+./edge-ai/run-submission.ps1
+```
+
+`-Check` không mở camera, không phát âm và không ghi hàng đợi. Lệnh thứ hai mở camera và tạo dữ liệu riêng trên máy. Script chọn rõ model ML trong tiến trình chạy; không âm thầm đổi baseline mặc định cho mọi người.
+
+Khi cần chẩn đoán, đặt `$env:AI_DEBUG_PREDICTIONS = 'true'` trước khi chạy. Log thêm score, ngưỡng, phiên bản và đặc trưng của từng lần suy luận thực; overlay hiện score. Bỏ biến này hoặc đặt `false` để tắt. RF score là đầu ra chưa hiệu chuẩn; SVM score là decision margin. Log đặc trưng giữ riêng tại máy, không đưa log camera lên GitHub. Tùy chọn này không sửa quyết định hay ngưỡng.
+
+Artifact, dataset, CSV quan sát, clip và SQLite không đưa lên Git. Bàn giao model riêng kèm manifest/hash và môi trường khóa. DMD, mô hình ba lớp và các mô hình ảnh/chuỗi sâu hơn thuộc phát triển sau; cần nhãn, tài nguyên và đánh giá phù hợp trước khi thay bản nộp.

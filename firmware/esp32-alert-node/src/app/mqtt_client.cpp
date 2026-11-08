@@ -102,7 +102,7 @@ void runMqtt()
         printWifiIP();
         if (!ntpConfigured)
         {
-            configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+            configTime(0, 0, MQTT_HOST, "pool.ntp.org", "time.nist.gov");
             ntpConfigured = true;
             Serial.println("[TIME] SNTP configured");
         }
@@ -225,14 +225,16 @@ void sendHeartbeat(){
     response["device_code"] = DEVICE_CODE;
     response["status"] = "ALIVE";
     response["firmware_version"] = FIRMWARE_VERSION;
+    response["hardware_version"] = HARDWARE_VERSION;
     // [CONFIG - thêm] Backend có thể đối chiếu config thiết bị đang thực sự chạy.
     response["config_id"] = currentConfigId();
+    response["config_revision"] = currentConfigRevision();
 
     serializeJson(response, Serial);
     Serial.println();
 
     // [CONFIG - sửa] Tăng buffer để chứa thêm config_id trong heartbeat.
-    char buffer[192];
+    char buffer[320];
     serializeJson(response, buffer);
 
     mqtt.publish(STATUS_TOPIC, buffer);
@@ -246,6 +248,7 @@ void sendConfigAck(const char* config_id, const char* status, const char* error)
         response["config_id"] = config_id;
     response["device_code"] = DEVICE_CODE;
     response["status"] = status;
+    if (strcmp(status, "APPLIED") == 0) response["revision"] = currentConfigRevision();
     if (error != nullptr)
         response["error"] = error;
 

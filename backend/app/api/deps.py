@@ -72,6 +72,9 @@ def get_current_user(
             detail="User not found",
         )
 
+    if user.status != "ACTIVE" or payload.get("ver", 0) != user.session_version:
+        raise HTTPException(status_code=401, detail="Account disabled or session revoked")
+
     return user
 
 
