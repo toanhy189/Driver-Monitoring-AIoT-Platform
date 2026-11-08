@@ -10,4 +10,4 @@ router = APIRouter(tags=["websocket"])
 
 @router.post("/ws-ticket")
 def get_ws_ticket(current_user: User = Depends(require_viewer)):
-    return {"ticket": issue_ticket(current_user.id), "expires_in": TTL_SECONDS}
+    return {"ticket": issue_ticket(current_user.id, current_user.session_version), "expires_in": TTL_SECONDS}

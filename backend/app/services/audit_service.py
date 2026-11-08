@@ -19,6 +19,7 @@ _SAFE_DETAIL_KEYS = {
     "size_bytes",
     "status",
     "target_device_id",
+    "target_user_id",
     "to_state",
     "video_id",
 }

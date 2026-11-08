@@ -424,6 +424,10 @@ class Week3Integration(unittest.TestCase):
         sent = []
         class Socket:
             async def send_json(self, event): sent.append(event)
+        # Admin now has system-wide visibility; use an assigned operator to test revocation.
+        with Session(engine) as session:
+            operator = session.get(User, self.user_id)
+            operator.role = "Employee"; session.add(operator); session.commit()
         manager = ConnectionManager(); manager.connections = {Socket(): self.user_id}
         event = {"type": "device.updated", "data": {"device_id": self.source_id}}
         asyncio.run(manager.send_to_device_users(event)); self.assertEqual(len(sent), 1)
@@ -518,6 +522,11 @@ class Week3Integration(unittest.TestCase):
                 with Session(engine) as session:
                     link = session.exec(select(UserDevice).where(UserDevice.user_id == self.user_id,
                         UserDevice.device_id == self.source_id)).one()
+                    # Admin is globally authorized. Verify assignment revocation
+                    # with an assigned Employee instead of assuming Admin needs a binding.
+                    user = session.get(User, self.user_id)
+                    user.role = "Employee"
+                    session.add(user)
                     link.unassigned_at = datetime.now(timezone.utc).replace(tzinfo=None); session.add(link); session.commit()
                 ai.publish("driver/status", {"device_id": self.source_code, "status": "ALIVE"})
                 with self.assertRaises(TimeoutError): owner.recv(timeout=0.5)

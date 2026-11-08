@@ -31,7 +31,8 @@ def main():
                 for path in ("database/create.sql",
                              "database/old/migration_be_week3.sql", "database/old/migration_be_week3.sql",
                              "database/old/migration_ai_videos.sql", "database/old/migration_ai_videos.sql",
-                             "database/migration_ai_policy_v1.sql", "database/migration_ai_policy_v1.sql"):
+                             "database/migration_ai_policy_v1.sql", "database/migration_ai_policy_v1.sql",
+                             "database/migration_final_core.sql", "database/migration_final_core.sql"):
                     test.execute((ROOT / path).read_text(encoding="utf-8"))
             env = {**os.environ, "DATABASE_URL": target.render_as_string(hide_password=False),
                    "W3_INTEGRATION": "1", "RULE_ENGINE_ENABLED": "true", "SQL_ECHO": "false",

@@ -10,10 +10,12 @@ CREATE SCHEMA public;
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     fullname VARCHAR(255) NOT NULL,
-    username VARCHAR(255) NOT NULL,
+    username VARCHAR(255) NOT NULL UNIQUE,
     hash_password VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     phone VARCHAR(20) UNIQUE NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    session_version INTEGER NOT NULL DEFAULT 0,
     role VARCHAR(20) NOT NULL DEFAULT 'Customer'
         CHECK (role IN ('Admin', 'Employee', 'Customer'))
 );
@@ -27,6 +29,7 @@ CREATE TABLE devices (
     device_type VARCHAR(30),
     lifecycle_state VARCHAR(30) NOT NULL DEFAULT 'REGISTERED',
     firmware_version VARCHAR(80),
+    hardware_version VARCHAR(80),
     ip_address INET,
     mac_address MACADDR,
     last_seen TIMESTAMP,
@@ -160,6 +163,7 @@ CREATE TABLE ai_videos (
     storage_key VARCHAR(80) NOT NULL,
     sha256 VARCHAR(64) NOT NULL,
     size_bytes BIGINT NOT NULL CHECK (size_bytes > 0),
+    deleted_at TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (device_id, message_id)
 );

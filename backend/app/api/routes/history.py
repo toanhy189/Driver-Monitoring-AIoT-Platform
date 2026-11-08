@@ -16,7 +16,7 @@ from app.models.command import Command
 from app.models.telemetry import Telemetry
 from app.models.user import User
 from app.schemas.history import Page, TelemetryPoint, TimelineItem, MetricsResponse
-from app.services.access import assigned_device, require_vision_node
+from app.services.access import assigned_device, require_vision_node, is_admin
 from app.services.time_utils import as_utc
 
 
@@ -130,7 +130,7 @@ def timeline(device_id: int, window: Window = Depends(history_window),
                     "clip_message_id", "episode_start_event_id", "policy_version", "observed_at")}}} for event in events]
     items += [{"kind": "alert", "id": alert.id, "device_id": device_id,
         "timestamp": as_utc(alert.created_at), "event_id": alert.source_event_id, "alert_id": alert.id,
-        "data": alert_public(session, alert, current_user.id)} for alert in alerts]
+        "data": alert_public(session, alert, None if is_admin(current_user) else current_user.id)} for alert in alerts]
     items += [{"kind": "command", "id": command.id, "device_id": device_id,
         "timestamp": as_utc(command.created_at), "alert_id": command.alert_id,
         "request_id": command.request_id, "data": command_public(session, command)} for command in commands]

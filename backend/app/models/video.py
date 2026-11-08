@@ -17,3 +17,4 @@ class AiVideo(SQLModel, table=True):
     sha256: str = Field(max_length=64)
     size_bytes: int
     created_at: NaiveDatetime = Field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    deleted_at: NaiveDatetime | None = None

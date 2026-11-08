@@ -5,6 +5,7 @@ import logging
 import os
 from pathlib import Path
 import tempfile
+import shutil
 from uuid import uuid4
 
 from fastapi import HTTPException, UploadFile
@@ -16,6 +17,22 @@ from app.models.device import Device
 from app.models.video import AiVideo
 
 logger = logging.getLogger(__name__)
+
+
+def storage_usage():
+    root = settings.AI_VIDEO_DIR.resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    used = 0
+    for path in root.iterdir():
+        try:
+            if path.is_file() and path.suffix in {".mp4", ".part"}:
+                used += path.stat().st_size
+        except FileNotFoundError:
+            # An upload or a manual deletion can finish while collecting usage.
+            continue
+    maximum = settings.AI_VIDEO_TOTAL_MAX_BYTES
+    return {"used_bytes": used, "max_bytes": maximum, "free_disk_bytes": shutil.disk_usage(root).free,
+            "warning": used >= maximum * .8, "full": used >= maximum, "deletion_policy": "MANUAL_ONLY"}
 
 
 def video_path(video: AiVideo) -> Path:
@@ -66,10 +83,18 @@ def store_video(session: Session, device: Device, upload: UploadFile, state: str
         if existing:
             if existing.sha256 != digest.hexdigest() or existing.state != state:
                 raise HTTPException(status_code=409, detail="Message ID already has a different video")
-            if not video_path(existing).is_file():
+            if existing.deleted_at is None and not video_path(existing).is_file():
                 raise HTTPException(status_code=503, detail="Stored video file is missing; contact the administrator")
             session.rollback()
             return existing, False
+        # The temporary file is included in usage. Keep uploads on the Edge when
+        # capacity is exhausted; never erase pending clips to make room.
+        if session.bind.dialect.name == "postgresql":
+            from sqlalchemy import text
+            session.execute(text("SELECT pg_advisory_xact_lock(84623109)"))
+        usage = storage_usage()
+        if usage["used_bytes"] > usage["max_bytes"] or usage["free_disk_bytes"] < 1048576:
+            raise HTTPException(status_code=507, detail="Video storage is full; free space manually and retry")
         key = uuid4().hex + ".mp4"
         destination = root / key
         os.replace(temporary, destination)

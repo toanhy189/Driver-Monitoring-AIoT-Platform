@@ -10,3 +10,5 @@ class User(SQLModel, table=True):
     email: str
     phone: str
     role: str = "Customer"
+    status: str = "ACTIVE"
+    session_version: int = 0
