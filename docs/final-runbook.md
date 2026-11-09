@@ -91,13 +91,28 @@ Mở Camera là bắt đầu ghi clip theo chương trình. Nếu dùng gương 
 Build đã kiểm tra bằng:
 
 ```powershell
-pio run -d firmware/esp32-alert-node -e development
+$taskPio = "$env:USERPROFILE\.platformio\penv\Scripts\pio.exe"
+& $taskPio run -d firmware/esp32-alert-node -e development
 python deployment/time/check_ntp.py
 ```
 
-Đã thấy USB-SERIAL CH340 COM4; người dùng xác nhận là ESP32 nhưng **mạch chưa kiểm tra**, chỉ chuẩn bị firmware. Chưa flash hoặc phát lệnh tải. TV1 hoàn tất [xác nhận phần cứng](../hardware/README.md) trước bước nạp.
+Theo các lượt thử tới 09/11/2026, người dùng đã nạp firmware `0.3.0`, quan sát
+heartbeat và LED/còi hoạt động theo lệnh; LED thử GPIO33 nháy rồi tắt, người dùng
+báo motor có rung sau lượt chỉnh. Chưa nghiệm thu đầy đủ nguồn tải, pinout
+transistor và motor bật/tắt đúng thời lượng sau khi tháo bộ thử. Xem [sơ đồ và
+trạng thái xác nhận phần cứng](../hardware/README.md).
 
-File `include/network_config.h` riêng có Wi-Fi nhưng MQTT_USER/MQTT_PASSWORD còn trống ở lần kiểm tra. Dùng credential cấp cho đúng `alert-01`, MQTT_HOST là IP LAN của laptop, cổng **1884** với Compose hiện tại. Không dùng credential Backend/admin cho board. Nếu node đã provisioned thì phối hợp TV2 lấy đúng credential; không tự cấp lại làm mất kết nối của người đang dùng.
+COM4 và COM7 đều từng xuất hiện; luôn chọn cổng USB–Serial hiện có bằng
+`pio device list`, không chọn cổng Bluetooth. Đổi cáp/cổng USB không đổi firmware.
+Nếu `pio` chưa có trong PATH trên Windows, dùng executable trong hướng dẫn
+[chuẩn bị ESP32](../README.md#35-chuẩn-bị-esp32).
+
+File `include/network_config.h` là file riêng đã được người dùng cấu hình và
+nạp trong lượt thử; không commit credential. Khi đổi máy, dùng credential cấp
+cho đúng `alert-01`, MQTT_HOST là IP LAN của laptop, cổng **1884** với Compose
+hiện tại. Không dùng credential Backend/admin cho board. Nếu node đã provisioned
+thì phối hợp TV2 lấy đúng credential; không tự cấp lại làm mất kết nối của người
+đang dùng.
 
 Firmware hỏi NTP tại MQTT_HOST trước, rồi nguồn Internet dự phòng. chrony dùng giờ laptop làm tham chiếu; kiểm tra đúng ngày/giờ laptop. Probe localhost đạt chỉ chứng minh dịch vụ NTP trên máy, không chứng minh ESP32 đã đồng bộ qua Wi-Fi. Nếu LAN bị Windows Firewall chặn UDP 123, ghi rõ interface/profile/IP thiết bị và xin duyệt rule cụ thể trước khi sửa.
 

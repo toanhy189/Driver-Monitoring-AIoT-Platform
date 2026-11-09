@@ -151,13 +151,19 @@ Clip pending và queue ở `edge-ai/recordings/`, `edge-ai/data/` theo cấu hì
 4. Build trước; chỉ upload sau khi người phụ trách xác nhận mạch:
 
 ```powershell
-pio run -d firmware/esp32-alert-node -e development
-# Sau khi kiểm tra mạch, chọn đúng cổng COM thực tế:
-pio run -d firmware/esp32-alert-node -e development -t upload --upload-port COM4
-pio device monitor -d firmware/esp32-alert-node --port COM4 --baud 115200
+$taskPio = "$env:USERPROFILE\.platformio\penv\Scripts\pio.exe"
+& $taskPio device list
+& $taskPio run -d firmware/esp32-alert-node -e development
+# COM7 chỉ là ví dụ; chọn USB-SERIAL CH340/USB-Serial hiện có, không chọn Bluetooth.
+$taskPort = 'COM7'
+# Sau khi kiểm tra mạch, ngắt nguồn tải và đóng Monitor trước khi upload:
+& $taskPio run -d firmware/esp32-alert-node -e development -t upload --upload-port $taskPort
+& $taskPio device monitor -d firmware/esp32-alert-node --port $taskPort --baud 115200
 ```
 
-`COM4` là ví dụ cổng đã thấy trên laptop nhóm. Firmware lấy giờ LAN từ máy chạy broker trước khi dùng nguồn Internet dự phòng. Kiểm tra dịch vụ bằng `python deployment/time/check_ntp.py`; probe trên laptop chưa thay kiểm tra giờ trên ESP32. Không flash hoặc bật tải chỉ vì build thành công.
+Đoạn trên dùng PlatformIO cài qua VS Code trên Windows; nếu đã có `pio` trong PATH thì có thể dùng `pio` thay `& $taskPio`. Cổng COM có thể đổi khi đổi cáp/cổng USB; đổi cáp không đổi firmware. Mô tả [đấu motor và tháo LED thử](hardware/README.md) đã cập nhật GND tại A5, thông số motor 5 V do người dùng cung cấp và cách bỏ dây cầu chéo nguồn; chưa coi mạch đã nghiệm thu đầy đủ.
+
+Firmware lấy giờ LAN từ máy chạy broker trước khi dùng nguồn Internet dự phòng. Kiểm tra dịch vụ bằng `python deployment/time/check_ntp.py`; probe trên laptop chưa thay kiểm tra giờ trên ESP32. Không flash hoặc bật tải chỉ vì build thành công.
 
 ## 4. Demo theo mục 8.4 của đề bài
 
