@@ -69,6 +69,7 @@ def _device_event(device: Device) -> dict:
 
 
 def _save_telemetry(session: Session, code: str, payload: dict, *, commit: bool = True) -> list[dict]:
+    from app.schemas.ai_signals import AiSignals
     device = _device(session, code)
     if device is None or device.lifecycle_state == "DECOMMISSIONED":
         return []
@@ -86,6 +87,8 @@ def _save_telemetry(session: Session, code: str, payload: dict, *, commit: bool 
         head_pose=pose,
         confidence=payload.get("confidence"),
         model_version=payload.get("model_version"),
+        ai_signals=(AiSignals.model_validate(payload["ai_signals"]).model_dump(mode="json")
+                    if payload.get("ai_signals") is not None else None),
     )
     session.add(telemetry)
     if not historical:
@@ -110,6 +113,7 @@ def _save_telemetry(session: Session, code: str, payload: dict, *, commit: bool 
                 "head_pose": telemetry.head_pose,
                 "confidence": telemetry.confidence,
                 "model_version": telemetry.model_version,
+                "ai_signals": telemetry.ai_signals,
             },
         },
         _device_event(device),

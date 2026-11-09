@@ -26,6 +26,7 @@ class TelemetryPoint(BaseModel):
     head_pose: dict | None
     confidence: float | None
     model_version: str | None
+    ai_signals: dict | None = None
 
 
 class TimelineItem(BaseModel):

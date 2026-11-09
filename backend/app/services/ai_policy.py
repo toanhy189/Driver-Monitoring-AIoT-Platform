@@ -72,6 +72,9 @@ def process_versioned_event(session, source, event, data, payload, now):
     if current.get("ended"):
         return outcome("SESSION_ALREADY_ENDED")
     current["sequence"] = data.sequence_number
+    if data.observed_at is not None and 0 <= (now - naive(data.observed_at)).total_seconds() <= 2:
+        current["last_observed_at"] = naive(data.observed_at).isoformat()
+        current["monitoring_state"] = data.state
     if runtime is None:
         runtime = RuleRuntime(source_device_id=source.id, state=current)
 
@@ -168,6 +171,8 @@ def process_versioned_event(session, source, event, data, payload, now):
         return record_without_command("RULE_DISABLED")
     if binding.policy.get("policy_version") != VERSION:
         return record_without_command("POLICY_MISMATCH")
+    if event.occurred_at < binding.updated_at or naive(data.observed_at) < binding.updated_at:
+        return record_without_command("PRE_BINDING_EVENT")
     target = session.get(Device, binding.target_device_id)
     if (target is None or target.device_type != "ALERT_NODE" or target.lifecycle_state != "ACTIVE"
             or target.status != "ONLINE" or target.last_seen is None
@@ -208,6 +213,8 @@ def process_versioned_event(session, source, event, data, payload, now):
                if level > 1 or key != "motor"}
     command = create_command(session, target, "AUTO_ALERT", actions, alert_id=alert.id)
     guard = {"source_device_id": source.id, "session_id": data.session_id,
+             "target_device_id": target.id,
+             "binding_revision": binding.updated_at.isoformat(timespec="microseconds"),
              "episode_id": data.episode_id, "event_id": data.event_id,
              "expires_at": expires.isoformat()}
     command.dispatches = {key: {**child, "policy_guard": guard} for key, child in command.dispatches.items()}
@@ -224,13 +231,19 @@ def process_versioned_event(session, source, event, data, payload, now):
                 "alert_id": alert.id, "event_id": data.event_id}}]
 
 
-def guard_is_valid(session, guard, now):
+def guard_is_valid(session, guard, now, target_device_id=None):
+    source = session.exec(select(Device).where(Device.id == guard["source_device_id"])
+                          .execution_options(populate_existing=True)).first()
     runtime = session.exec(select(RuleRuntime).where(
         RuleRuntime.source_device_id == guard["source_device_id"]).execution_options(populate_existing=True)).first()
     binding = session.exec(select(RuleBinding).where(
         RuleBinding.source_device_id == guard["source_device_id"]).execution_options(populate_existing=True)).first()
     state = runtime.state if runtime else {}
     return (settings.RULE_ENGINE_ENABLED and binding and binding.enabled and binding.policy.get("policy_version") == VERSION
+            and source and source.lifecycle_state == "ACTIVE"
+            and binding.target_device_id == guard.get("target_device_id")
+            and (target_device_id is None or binding.target_device_id == target_device_id)
+            and binding.updated_at.isoformat(timespec="microseconds") == guard.get("binding_revision")
             and state.get("session_id") == guard.get("session_id") and not state.get("ended")
             and state.get("episode_id") == guard.get("episode_id") and state.get("supported")
             and now <= datetime.fromisoformat(guard["expires_at"]))

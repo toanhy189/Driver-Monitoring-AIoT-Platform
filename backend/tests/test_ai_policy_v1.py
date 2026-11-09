@@ -54,7 +54,7 @@ class PolicyIntegrationTests(unittest.TestCase):
         self.db.add_all([self.source, self.target, CommandType(code="AUTO_ALERT", name="Automatic alert")])
         self.db.flush()
         self.binding = RuleBinding(source_device_id=self.source.id, target_device_id=self.target.id,
-            enabled=True, policy={"policy_version": VERSION})
+            enabled=True, policy={"policy_version": VERSION}, updated_at=Clock.now())
         self.db.add(self.binding)
         self.db.commit()
         self.sequence = 0

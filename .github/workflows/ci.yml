@@ -28,6 +28,8 @@ jobs:
           docker pull eclipse-mosquitto:2
       - name: PostgreSQL MQTT HTTP permission and policy integration
         run: python backend/tests/run_week4_isolated.py --regression
+      - name: PostgreSQL concurrent rule binding and ACK preservation
+        run: python backend/tests/run_rule_binding_postgres.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:

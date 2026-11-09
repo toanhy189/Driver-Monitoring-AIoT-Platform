@@ -23,11 +23,46 @@ from app.services.background_tasks import run_once
 
 
 NAMES = ("test_versioned_escalation_repeat_and_ack", "test_backfill_recovery_session_and_video_link",
-         "test_actual_edge_outbox_reconnect_and_schema_quarantine")
+         "test_actual_edge_outbox_reconnect_and_schema_quarantine", "test_eye_mouth_telemetry_roundtrip")
 
 
 @unittest.skipUnless(os.getenv("W4_LIVE") == "1", "Use run_week4_isolated.py for disposable services")
 class Week4Live(previous.Week3Integration):
+    def test_eye_mouth_telemetry_roundtrip(self):
+        self.prepare_policy()
+        message_id=str(uuid.uuid4())
+        signals={"schema_version":"eye-mouth-v1","mar":.42,"mouth_state":"TALKING_LAUGHING",
+            "yawn_probability":.08,"eye_state":"NORMAL","eye_sleepy_probability":.1,
+            "eyes_available":True,"mouth_available":True,"experimental":True}
+        model_version="eye-mouth-integration-test"
+        driver_state="ATTENTIVE"
+        face_detected=True
+        if os.getenv("W4_AI_SIGNALS_SAMPLE"):
+            recordings=json.loads(Path(os.environ["W4_AI_SIGNALS_SAMPLE"]).read_text(encoding="utf-8"))["recordings"]
+            recording=next(row for row in recordings if row["last_signals"]["mouth_available"])
+            signals=recording["last_signals"]
+            model_version=recording["model_version"]
+            driver_state=recording["last_candidate"]
+            face_detected=recording["last_face_detected"]
+        body={"message_id":message_id,"device_code":self.source_code,"timestamp":datetime.now(timezone.utc).isoformat(),
+            "driver_state":driver_state,"face_detected":face_detected,"model_version":model_version,
+            "ai_signals":signals,"_delivery":{"mode":"live"}}
+        self.vision.publish(f"driver/{self.source_code}/telemetry",body)
+        while True:
+            _,raw,_=self.vision.messages.get(timeout=8)
+            ack=json.loads(raw)
+            if ack.get("message_id")==message_id:
+                self.assertEqual(ack["status"],"SAVED");break
+        snapshot=self.client.get(f"/api/{self.source_id}/telemetry",headers=self.auth)
+        self.assertEqual(snapshot.status_code,200,snapshot.text)
+        self.assertEqual(snapshot.json()["ai_signals"]["mouth_state"],signals["mouth_state"])
+        self.assertEqual(snapshot.json()["driver_state"],driver_state)
+        self.assertEqual(snapshot.json()["model_version"],model_version)
+        history=self.client.get(f"/api/{self.source_id}/telemetry/history",headers=self.auth)
+        self.assertEqual(history.status_code,200,history.text)
+        self.assertEqual(history.json()["items"][-1]["ai_signals"]["mar"],signals["mar"])
+        self.assertEqual(self.all_commands(),[])
+
     def prepare_policy(self):
         self.vision, self.vision_credentials = self.provision_source()
         self.esp, _ = self.provision()

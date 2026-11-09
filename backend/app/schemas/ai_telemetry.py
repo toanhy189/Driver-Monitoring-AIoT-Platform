@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, FiniteFloat, StrictBool, field_validator
+from app.schemas.ai_signals import AiSignals
 
 
 class QueuedTelemetry(BaseModel):
@@ -17,6 +18,7 @@ class QueuedTelemetry(BaseModel):
     angle_y: FiniteFloat | None = None
     angle_z: FiniteFloat | None = None
     model_version: str | None = Field(default=None, max_length=80)
+    ai_signals: AiSignals | None = None
 
     @field_validator("timestamp")
     @classmethod

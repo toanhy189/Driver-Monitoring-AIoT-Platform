@@ -12,6 +12,8 @@ Hệ thống nguyên mẫu giám sát trạng thái tài xế bằng camera tạ
 
 AI dùng mô hình học máy **nhị phân buồn ngủ**, kết hợp quy tắc hướng đầu và tùy chọn nhắm mắt liên tục. Bản kết hợp hiệu chuẩn riêng đã qua lượt chức năng không kính tại laptop nhóm; có kính chưa đạt. Firmware đã build, luồng tới tải vật lý còn chờ kiểm tra mạch và nghiệm thu. Xem [kết quả kiểm thử](docs/final-verification.md) và [model card](docs/final-ai-model.md).
 
+Có thêm [ứng viên AI mắt và miệng](docs/ai-eye-mouth-model.md): MobileNet nhận diện biểu hiện mắt và ngáp/nói/cười, kết hợp đặc trưng theo thời gian. Backend/web hỗ trợ MAR và các tín hiệu mới; giao thức ESP32 giữ nguyên. Ứng viên chạy riêng, chưa được nghiệm thu camera đeo kính. Xem [số đo và giới hạn](docs/ai-eye-mouth-results.md), gồm tình trạng thiếu test cuối và replay cảnh báo toàn video.
+
 ### Vai trò
 
 | Vai trò | Phạm vi |
@@ -137,6 +139,15 @@ $taskCalibration = 'edge-ai/ml-runs/eye-calibration/MA_PHIEN/report.json'
 
 Thay đường dẫn bằng file thực tế; với lượt đã phân tích lại v2, dùng `reanalysis-v2.json` đã được kiểm tra. Lệnh cuối mở camera, bật loa và ghi clip. Nhìn thẳng lúc khởi động để hiệu chuẩn đầu; bấm **Q** để thoát. Nếu chỉ kiểm tra baseline, chạy `./edge-ai/.venv/Scripts/python.exe -X utf8 edge-ai/main.py`; không trình bày baseline là RF.
 
+**Ứng viên mắt/miệng mới:** sau khi cài dependency tùy chọn và nhận bundle riêng theo [hướng dẫn AI](docs/ai-eye-mouth-model.md), dùng:
+
+```powershell
+./edge-ai/run-multisignal.ps1 -Check
+./edge-ai/run-multisignal.ps1
+```
+
+Lệnh cuối mở camera/loa và gửi dữ liệu theo `.env`; nhìn thẳng 5 giây lúc khởi động. Web có thêm MAR, kết quả ngáp/nói/cười và tình trạng tín hiệu mắt. Bản này chưa qua nghiệm thu webcam đeo kính; chỉ thử tại bàn.
+
 Clip pending và queue ở `edge-ai/recordings/`, `edge-ai/data/` theo cấu hình; clip đã upload nằm trong volume `deployment_video_data`. HTTP upload dùng credential Vision Node; đăng nhập MQTT không tự xác thực HTTP. Backend giữ video đến khi người có quyền xóa thủ công; Edge chỉ dọn bản sao sau phản hồi upload hợp lệ.
 
 **Xem clip:** mở **Cảnh báo → Xem video**, hoặc chọn sự kiện trong timeline thiết bị. Cảnh báo được liên kết bằng mã clip, kể cả clip upload đến sau. Backend chuẩn bị bản xem H.264 ở luồng nền để trình duyệt phát được; nút **Tải video gốc** giữ nguyên file upload. Clip đang ghi/chưa upload, đã xóa hoặc thiếu file được hiển thị riêng. Bản xem tính vào quota và được xóa cùng clip khi người có quyền xóa thủ công. Xem [hợp đồng video](docs/ai-ingest-video-contract.md).
@@ -190,17 +201,18 @@ Chỉ bật sau khi xác nhận mạch. Đặt `RULE_ENGINE_ENABLED=true` trong 
 docker compose --env-file .env -f deployment/docker-compose.yml up -d --force-recreate backend
 ```
 
-Trong Swagger, đăng nhập Admin bằng `POST /api/login`; nhập JWT tại **Authorize**. Lấy ID thực tế từ `GET /api/devices`. Gọi `PUT /api/devices/{VISION_ID}/rule`:
+Trên web, đăng nhập **Admin → Thiết bị → chi tiết Vision Node → Cảnh báo tự động**:
 
-```json
-{
-  "target_device_id": 2,
-  "enabled": true,
-  "policy": {"policy_version": "driver-bench-20261107-v1"}
-}
-```
+1. Chọn đúng Alert Node, bấm **Lưu thiết lập**. Liên kết mới được lưu ở trạng thái tắt.
+2. Bấm **Mở … để kiểm tra / xem lệnh** để đến đúng ESP32. Chủ động dùng **Kiểm tra cảnh báo** sau khi mạch sẵn sàng; quan sát tải và phản hồi lệnh.
+3. Quay lại Vision Node, bật **Bật cảnh báo tự động**, rồi **Lưu thiết lập**.
+4. Đọc trạng thái đã lưu và các lý do bị chặn. `effective_enabled=true` chỉ có nghĩa là hai công tắc đã bật; dữ liệu AI mới, ESP32 ACTIVE/ONLINE, đồng hồ board và điều kiện từng lệnh vẫn được kiểm tra riêng.
 
-`2` chỉ là ví dụ, phải thay bằng ID Alert Node thật. Kiểm tra `GET /api/devices/{VISION_ID}/rule` có `effective_enabled=true`, đúng target, ESP32 ACTIVE/ONLINE và giờ đã đồng bộ. Event v1 mới, còn hạn mới được phát lệnh; dữ liệu gửi bù chỉ lưu lịch sử. Nếu bị chặn, đọc `outcome` của event và log BE, không đổi ngưỡng để ép demo đạt.
+Form tự tải lại trạng thái mỗi 5 giây, giữ phần đang sửa. Nếu người khác đã sửa liên kết, yêu cầu tải lại trước khi lưu tiếp. Mỗi camera có một thiết bị nhận; một ESP32 chỉ nhận liên kết tự động đang bật từ một camera. Đổi thiết bị nhận sẽ lưu ở trạng thái tắt và hủy phần lệnh tự động cũ chưa gửi. Phần đã gửi có thể chạy hết thời lượng; kiểm tra ACK/lịch sử trước khi bật lại. Hết thời gian chờ ACK không chứng minh motor đã dừng.
+
+Policy `driver-bench-20261107-v1` hiển thị để xem, không chỉnh ngưỡng trên form. Event live mới, đúng phiên và còn hạn mới được phát lệnh; dữ liệu gửi bù chỉ lưu lịch sử. Rule Engine toàn hệ thống vẫn cấu hình tại `.env`, không được đổi bằng công tắc của từng camera.
+
+API Admin vẫn có `GET/PUT /api/devices/{VISION_ID}/rule`. Khi dùng trực tiếp, đọc GET trước và gửi `expected_updated_at` đúng giá trị `updated_at` nhận được (null nếu chưa có liên kết), cùng `target_device_id`, `enabled` và `policy: {"policy_version":"driver-bench-20261107-v1"}`. Client cũ chưa gửi trường này vẫn được hỗ trợ; form web luôn kiểm tra phiên bản trước khi lưu. Không đổi ngưỡng để ép demo đạt.
 
 Cho bước 9, dùng `POST /api/devices/{ALERT_ID}/commands` với JWT Customer:
 

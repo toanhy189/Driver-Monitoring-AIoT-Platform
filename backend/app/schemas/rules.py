@@ -101,3 +101,6 @@ class RuleBindingRequest(BaseModel):
     target_device_id: StrictInt = Field(gt=0)
     enabled: bool = False
     policy: RulePolicy = Field(default_factory=RulePolicy)
+    # Omitted by legacy clients; the web editor always sends null on create or
+    # the exact revision it loaded. No database migration is needed.
+    expected_updated_at: str | None = Field(default=None, max_length=40)

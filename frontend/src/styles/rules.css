@@ -1,0 +1,18 @@
+.rule-panel { margin-top: 20px; padding: 22px 24px; }
+.rule-panel > p, .rule-help, .rule-policy p { color: #52657b; font-size: 13px; line-height: 1.6; }
+.rule-form { display: grid; gap: 12px; max-width: 760px; }
+.rule-form > label { color: #20334f; font-size: 14px; font-weight: 600; }
+.rule-form select { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid #cbd7e5; border-radius: 6px; background: #fff; color: #172c4b; }
+.rule-toggle { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+.rule-toggle input { width: 18px; height: 18px; accent-color: #0788b1; }
+.rule-help { margin: 0; }
+.rule-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.rule-status { margin-top: 20px; padding: 16px; background: #f4f8fc; border: 1px solid #dce6f0; border-radius: 8px; font-size: 13px; line-height: 1.6; }
+.rule-status ul { margin: 8px 0; padding-left: 20px; }
+.rule-status .text-link { margin-left: 12px; }
+.rule-policy { margin-top: 20px; border-top: 1px solid #dce6f0; padding-top: 16px; }
+.rule-policy summary { cursor: pointer; color: #204360; font-size: 13px; overflow-wrap: anywhere; }
+.rule-table-wrap { overflow-x: auto; margin-top: 12px; }
+.rule-policy table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rule-policy th, .rule-policy td { padding: 10px; border-bottom: 1px solid #dce6f0; text-align: left; }
+@media (max-width: 500px) { .rule-panel { padding: 15px; } .rule-status .text-link { display: block; margin: 12px 0 0; } }

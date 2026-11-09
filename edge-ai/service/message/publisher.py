@@ -88,6 +88,8 @@ def publish_telemetry(
         "eyes_closed": eye_closed,
         "head_pose": head_pose_data,
     }
+    if state_data.get("ai_signals") is not None:
+        payload["ai_signals"] = state_data["ai_signals"]
 
     try:
         send_message(mqtt_client, TELEMETRY_TOPIC, payload)

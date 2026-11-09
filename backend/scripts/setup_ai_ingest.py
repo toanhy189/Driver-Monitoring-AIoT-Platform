@@ -44,7 +44,7 @@ def apply(username: str):
                          user=address.username, password=address.password, connect_timeout=5, autocommit=True) as connection:
         # The current create.sql already contains week-2 fields. That archived
         # migration references the removed events table and broadens role checks.
-        for name in ("old/migration_be_week3.sql", "old/migration_ai_videos.sql", "migration_ai_policy_v1.sql", "migration_final_core.sql"):
+        for name in ("old/migration_be_week3.sql", "old/migration_ai_videos.sql", "migration_ai_policy_v1.sql", "migration_final_core.sql", "migration_ai_signals.sql"):
             connection.execute((ROOT / "database" / name).read_text(encoding="utf-8"))
     setup()  # Updates the existing backend/edge-ai roles; does not reset account passwords.
     verify_mqtt_login(settings.AI_MQTT_USERNAME, settings.AI_MQTT_PASSWORD)

@@ -5,6 +5,7 @@ import { deviceActionBlockReason } from "../services/deviceModel.js";
 import TestAlertSection from "../components/TestAlertSection.jsx";
 import DeviceHistoryPanel from "../components/DeviceHistoryPanel.jsx";
 import HardwareVersionForm from "../components/HardwareVersionForm.jsx";
+import RuleBindingPanel from "../components/RuleBindingPanel.jsx";
 
 const ACTIONS = [
   { key: "provision", label: "Cấp thông tin kết nối", hint: "Thiết lập thông tin kết nối thiết bị", icon: "wifi" },
@@ -13,7 +14,7 @@ const ACTIONS = [
   { key: "decommission", label: "Ngừng sử dụng", hint: "Ngừng sử dụng thiết bị", icon: "stop" },
 ];
 
-function DeviceDetailView({ user, realtime, deviceId, device, detailSource, loading, detailError, actionError, actionNotice, busyAction, retry, performAction, onBack, onDashboard, onOpenHistory, onOpenConfig, onOpenCommands, onOpenAlerts, onUnauthorized, onLogout }) {
+function DeviceDetailView({ user, realtime, deviceId, device, detailSource, loading, detailError, actionError, actionNotice, busyAction, retry, performAction, onBack, onDashboard, onOpenHistory, onOpenConfig, onOpenCommands, onOpenAlerts, onOpenTarget, onUnauthorized, onLogout }) {
   const canManage = hasPermission(user?.role, "device:manage") ||
     (detailSource === "detail" && hasPermission(user?.role, "device:manage-assigned"));
   const canDecommission = hasPermission(user?.role, "device:decommission") ||
@@ -51,7 +52,9 @@ function DeviceDetailView({ user, realtime, deviceId, device, detailSource, load
       const reason = deviceActionBlockReason(device, item.key);
       return <button key={item.key} className={`action-tile action-tile--${item.key}`} disabled={busyAction !== null || Boolean(reason)} title={reason || undefined} onClick={() => performAction(item.key)}><Icon name={item.icon} size={28} /><span><strong>{busyAction === item.key ? "Đang gửi…" : item.label}</strong><small>{reason || item.hint}</small></span></button>;
     })}</div>{actionError && <p className="notice-error" role="alert">{actionError}</p>}{actionNotice && <p className="notice-success" role="status">{actionNotice}</p>}</section>}
-    {canManage && detailSource === "detail" && <HardwareVersionForm key={deviceId} deviceId={deviceId} initialValue={device?.hardware_version} onSaved={retry} onUnauthorized={onUnauthorized} />}
+    {type === "VISION_NODE" && detailSource === "detail" && !detailError && hasPermission(user?.role, "rule:manage") &&
+      <RuleBindingPanel key={`rule-${deviceId}`} deviceId={deviceId} device={device} onUnauthorized={onUnauthorized} onOpenTarget={onOpenTarget} onOpenAlerts={onOpenAlerts} />}
+    {canManage && detailSource === "detail" && <HardwareVersionForm key={`hardware-${deviceId}`} deviceId={deviceId} initialValue={device?.hardware_version} onSaved={retry} onUnauthorized={onUnauthorized} />}
     {detailSource === "detail" && !detailError && <DeviceHistoryPanel
       deviceId={deviceId}
       deviceType={type}

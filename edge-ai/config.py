@@ -27,8 +27,10 @@ AI_DEBUG_PREDICTIONS = os.getenv("AI_DEBUG_PREDICTIONS", "false").lower() in {"t
 AI_EYE_CLOSURE_GUARD_ENABLED = os.getenv("AI_EYE_CLOSURE_GUARD_ENABLED", "false").lower() in {"true", "1", "yes"}
 AI_EYE_CLOSURE_CALIBRATION = os.getenv("AI_EYE_CLOSURE_CALIBRATION") or None
 AI_MODEL_PATH = Path(os.getenv("AI_MODEL_PATH", str(BASE_DIR / "ml-runs" / "uta-optimized-v2" / "selected.joblib")))
-if AI_MODEL_MODE not in {"baseline", "ml"}:
-    raise ValueError("AI_MODEL_MODE must be baseline or ml")
+AI_MULTISIGNAL_BUNDLE = Path(os.getenv("AI_MULTISIGNAL_BUNDLE", str(BASE_DIR / "ml-runs" / "multisignal-20261110" / "candidate")))
+AI_MULTISIGNAL_DEVICE = os.getenv("AI_MULTISIGNAL_DEVICE", "cpu")
+if AI_MODEL_MODE not in {"baseline", "ml", "multisignal"}:
+    raise ValueError("AI_MODEL_MODE must be baseline, ml or multisignal")
 
 STATUS_TOPIC = f"driver/{DEVICE_CODE}/status"
 TELEMETRY_TOPIC = f"driver/{DEVICE_CODE}/telemetry"

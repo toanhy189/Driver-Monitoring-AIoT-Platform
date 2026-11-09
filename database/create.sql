@@ -61,6 +61,7 @@ CREATE TABLE telemetry (
     driver_state VARCHAR(30),
     face_detected BOOLEAN,
     head_pose JSONB,
+    ai_signals JSONB,
     model_version VARCHAR(80)
 );
 

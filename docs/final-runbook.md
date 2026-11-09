@@ -120,6 +120,10 @@ Firmware hỏi NTP tại MQTT_HOST trước, rồi nguồn Internet dự phòng.
 
 Giữ phiên bản `driver-bench-20261107-v1`. TV2 kiểm tra `RULE_ENGINE_ENABLED`, binding camera→đúng ESP32, ACTIVE/ONLINE và clock board. Không sửa ngưỡng để demo. Chạy [kịch bản nghiệm thu](../tests/final-acceptance.md), ghi event_id, request_id và kết quả tải quan sát được.
 
+Admin cấu hình liên kết ngay trên web: **Thiết bị → chi tiết Vision Node → Cảnh báo tự động**. Chọn ESP32 và lưu khi tắt; mở đúng ESP32 bằng nút trên form để kiểm tra tải; quay lại camera, bật tự động và lưu. Trạng thái cập nhật mỗi 5 giây và nêu riêng lý do chặn như Rule Engine toàn hệ thống đang tắt, ESP32 offline hoặc thiếu quan sát AI mới. Lưu cấu hình không gửi lệnh kiểm tra.
+
+Đổi ESP32 sẽ tắt liên kết và hủy phần lệnh cũ chưa gửi. Lệnh đã gửi có thể vẫn đang chạy; chờ phản hồi hoặc kiểm tra lịch sử trước khi bật lại. Backend kiểm tra đúng thiết bị nhận và phiên bản liên kết trước khi gửi từng phần lệnh. Không tự động phát lại dữ liệu lịch sử khi bật hoặc reconnect. Admin mới được sửa liên kết; quyền gửi lệnh và cấu hình hiện tại của Employee/Customer giữ nguyên.
+
 ## 7. Kiểm thử và CI
 
 ```powershell

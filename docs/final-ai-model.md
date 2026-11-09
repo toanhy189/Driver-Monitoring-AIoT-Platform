@@ -1,5 +1,7 @@
 # AI bản nộp: model nhị phân và quy tắc hướng đầu
 
+Ứng viên mắt/miệng ngày 10/11 có [thiết kế riêng](ai-eye-mouth-model.md) và [kết quả thực đo](ai-eye-mouth-results.md). Nó chưa thay RF trong tài liệu này, chưa được nghiệm thu camera đeo kính.
+
 Phạm vi nhị phân kết hợp quy tắc đã được TV3 chốt ngày 08/11/2026. **Model RF bên dưới chưa đạt nghiệm thu camera**: thử trên người dùng thật ghi nhận mở mắt, nhìn thẳng nhưng vẫn báo DROWSY. Artifact cũ được giữ làm mốc đối chiếu; các thử nghiệm sửa lỗi ở thư mục riêng, chưa thay bản chạy.
 
 Xem [kết quả chẩn đoán camera](final-verification.md). Không dùng kết quả CV để kết luận ca camera này đã đạt.

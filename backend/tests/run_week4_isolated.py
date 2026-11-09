@@ -83,7 +83,8 @@ def main():
                 raise RuntimeError("Disposable PostgreSQL did not become ready")
             scripts = ("create.sql", "old/migration_be_week3.sql",
                        "old/migration_ai_videos.sql", "migration_ai_policy_v1.sql", "migration_ai_policy_v1.sql",
-                       "migration_final_core.sql", "migration_final_core.sql")
+                       "migration_final_core.sql", "migration_final_core.sql",
+                       "migration_ai_signals.sql", "migration_ai_signals.sql")
             sql = "\n".join((ROOT/"database"/name).read_text(encoding="utf-8") for name in scripts)
             docker("exec", "-i", postgres, "psql", "-U", "w4_test", "-d", database, "-v", "ON_ERROR_STOP=1", input=sql)
             docker("run", "--rm", "--env-file", str(temp/"mqtt.env"),
@@ -121,7 +122,7 @@ def main():
             (OUTPUT/"live-integration.json").write_text(json.dumps({"exit_code":result.returncode,
                 "scope":"Disposable real PostgreSQL + authenticated MQTT + HTTP; virtual ESP32; synthetic MP4",
                 "production_database_modified":False, "physical_outputs_used":False,
-                "cases":3, "full_old_suite_rerun":args.regression},indent=2),encoding="utf-8")
+                "cases":4, "full_old_suite_rerun":args.regression},indent=2),encoding="utf-8")
             print((result.stdout+result.stderr)[-3500:])
             exit_code = result.returncode
             if args.regression:

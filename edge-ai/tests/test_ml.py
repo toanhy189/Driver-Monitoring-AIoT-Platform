@@ -404,6 +404,7 @@ class TrainingTests(unittest.TestCase):
         policy = app.AlertPolicy("vision-test", "rf-test")
         policy.update = Mock(wraps=policy.update)
         with patch.object(app, "load_optional_model", return_value=model), \
+                patch.object(app, "AI_MODEL_MODE", "ml"), \
                 patch.object(app, "AI_EYE_CLOSURE_GUARD_ENABLED", True), \
                 patch.object(app, "AI_EYE_CLOSURE_CALIBRATION", "local-approved-report.json"), \
                 patch.object(app, "load_threshold", return_value=.25) as calibration, \

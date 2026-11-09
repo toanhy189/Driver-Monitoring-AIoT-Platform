@@ -1,3 +1,4 @@
+import { normalizeAiSignals } from "./aiSignals.js";
 const DRIVER_STATES = ["ATTENTIVE", "DISTRACTED", "DROWSY"];
 const MAX_HISTORY_ITEMS = 100;
 
@@ -67,6 +68,7 @@ export function normalizeTelemetry(data) {
   if (Object.hasOwn(data, "model_version")) {
     result.model_version = typeof data.model_version === "string" && data.model_version.trim() ? data.model_version.trim() : null;
   }
+  if (Object.hasOwn(data, "ai_signals")) result.ai_signals = faceDetected === false ? null : normalizeAiSignals(data.ai_signals);
   if (Object.hasOwn(data, "recorded_at") || Object.hasOwn(data, "timestamp")) {
     result.recorded_at = validTimestamp(data.recorded_at ?? data.timestamp);
   }

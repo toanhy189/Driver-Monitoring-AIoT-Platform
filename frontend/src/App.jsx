@@ -203,6 +203,7 @@ function App() {
           realtime={realtime}
           deviceId={view.deviceId}
           summary={view.summary}
+          onOpenTarget={device => navigateTo({ page: "device-detail", deviceId: device.id, summary: device })}
           onBack={() => navigateBack({ page: "devices" })}
           onDashboard={() => navigateTo(DASHBOARD_VIEW)}
           onOpenHistory={device => navigateTo({ page: "commands", deviceId: view.deviceId, deviceCode: device?.device_code || view.summary?.device_code })}

@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { getTelemetryHistory } from "../services/telemetryApi.js";
 import { mergeTelemetryItems } from "../services/telemetry.js";
 import { Icon } from "./AppShell.jsx";
+import { normalizeAiSignals } from "../services/aiSignals.js";
+import { metricPath } from "../services/chartSeries.js";
 import "../styles/ai-metrics.css";
 
 const FILTER_OPTIONS = [
@@ -117,6 +119,7 @@ export default function AiMetricsSection({ deviceId, deviceCode, realtime, onUna
         confidence: data.confidence,
         face_detected: data.face_detected,
         model_version: data.model_version,
+        ai_signals: data.face_detected === false ? null : normalizeAiSignals(data.ai_signals),
       };
       realtimeItemsRef.current = mergeTelemetryItems(realtimeItemsRef.current, [newItem]);
       setHistory(current => {
@@ -142,37 +145,24 @@ export default function AiMetricsSection({ deviceId, deviceCode, realtime, onUna
   // Chart coordinate calculation for EAR & PERCLOS
   const chartWidth = 700;
   const chartHeight = 220;
-  const padding = { top: 20, right: 30, bottom: 35, left: 45 };
+  const padding = { top: 20, right: 45, bottom: 35, left: 60 };
   const innerW = chartWidth - padding.left - padding.right;
   const innerH = chartHeight - padding.top - padding.bottom;
 
-  const validItems = items.filter(it => Number.isFinite(it.ear) || Number.isFinite(it.perclos));
-  
-  let earPath = "";
-  let perclosPath = "";
-  if (validItems.length > 1) {
-    const xStep = innerW / (validItems.length - 1);
-    earPath = validItems.map((it, idx) => {
-      const x = padding.left + idx * xStep;
-      // EAR normal range 0.0 - 0.5
-      const y = padding.top + innerH - (Math.min(0.5, Math.max(0, it.ear ?? 0)) / 0.5) * innerH;
-      return `${idx === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
-    }).join(" ");
-
-    perclosPath = validItems.map((it, idx) => {
-      const x = padding.left + idx * xStep;
-      // PERCLOS normal range 0.0 - 1.0
-      const y = padding.top + innerH - (Math.min(1.0, Math.max(0, it.perclos ?? 0)) / 1.0) * innerH;
-      return `${idx === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
-    }).join(" ");
-  }
+  const validItems = items.filter(it => Number.isFinite(Date.parse(it.recorded_at)));
+  const chartOptions = { width: chartWidth, height: chartHeight, padding };
+  const earPath = metricPath(validItems, it => it.ear, { ...chartOptions, maxValue: .5 });
+  const perclosPath = metricPath(validItems, it => it.perclos, { ...chartOptions, maxValue: 1 });
+  const marOf = it => normalizeAiSignals(it.ai_signals)?.mar;
+  const hasMar = validItems.some(it => Number.isFinite(marOf(it)));
+  const marPath = metricPath(validItems, marOf, { ...chartOptions, maxValue: 2 });
 
   return (
     <section className="surface-card ai-metrics-section" aria-label="AI Metrics và Timeline">
       <div className="section-heading ai-metrics-header">
         <div>
           <h2>AI Metrics & Timeline số đo</h2>
-          <p>Lịch sử chuỗi thời gian EAR / PERCLOS và timeline trạng thái tài xế</p>
+          <p>Lịch sử EAR / PERCLOS{hasMar ? " / MAR" : ""} và timeline trạng thái tài xế</p>
         </div>
         <div className="ai-metrics-controls">
           <div className="filter-pill-group" role="group" aria-label="Bộ lọc khoảng thời gian">
@@ -253,6 +243,7 @@ export default function AiMetricsSection({ deviceId, deviceCode, realtime, onUna
           <div className="chart-legend">
             <span className="legend-item"><span className="legend-dot ear-dot" /> EAR (Mở mắt, max 0.5)</span>
             <span className="legend-item"><span className="legend-dot perclos-dot" /> PERCLOS (Nhắm mắt, max 100%)</span>
+            {hasMar && <span className="legend-item"><span className="legend-dot" style={{ backgroundColor: "#9333ea" }} /> MAR (Mở miệng, trục phải 0–2)</span>}
           </div>
 
           <div className="ai-chart-container">
@@ -270,6 +261,8 @@ export default function AiMetricsSection({ deviceId, deviceCode, realtime, onUna
               {/* Lines */}
               {earPath && <path d={earPath} fill="none" stroke="#0284c7" strokeWidth="2.5" strokeLinecap="round" />}
               {perclosPath && <path d={perclosPath} fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" />}
+              {marPath && <path d={marPath} fill="none" stroke="#9333ea" strokeWidth="2.5" strokeLinecap="round" />}
+              {hasMar && [2, 1, 0].map((value, index) => <text key={value} x={chartWidth - padding.right + 8} y={padding.top + innerH * index / 2 + 4} fontSize="10" fill="#9333ea">{value}</text>)}
 
               {/* X Axis Time Labels */}
               {validItems.length > 0 && (
@@ -311,7 +304,7 @@ export default function AiMetricsSection({ deviceId, deviceCode, realtime, onUna
           <strong>Đánh giá mô hình thực nghiệm (TV4-17):</strong>
         </div>
         <p className="evaluation-text">
-          Chưa có dữ liệu đánh giá trên tập test độc lập. Nhóm AI (TV3) đang thu thập dataset có nhãn và thực hiện baseline evaluation. Giao diện không tự tạo chỉ số Accuracy/F1 giả.
+          Các số đo trên là dữ liệu vận hành. Kết quả huấn luyện và đánh giá theo từng phiên bản được bàn giao trong model card; chưa phải nghiệm thu độc lập trên camera đeo kính. Giao diện không suy ra Accuracy/F1 từ telemetry.
         </p>
       </div>
     </section>

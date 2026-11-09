@@ -111,6 +111,7 @@ def get_current_telemetry(
         confidence=telemetry.confidence,
         face_detected=telemetry.face_detected,
         head_pose=telemetry.head_pose,
+        ai_signals=telemetry.ai_signals,
         model_version=telemetry.model_version,
     )
 
@@ -160,6 +161,7 @@ def get_telemetry_history(
                 confidence=t.confidence,
                 face_detected=t.face_detected,
                 model_version=t.model_version,
+                ai_signals=t.ai_signals,
             )
             for t in items_asc
         ],

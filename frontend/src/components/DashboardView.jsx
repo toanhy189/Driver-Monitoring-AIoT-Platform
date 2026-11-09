@@ -3,6 +3,7 @@ import DeviceStatusCard from "./DeviceStatusCard.jsx";
 import DriverStatusCard from "./DriverStatusCard.jsx";
 import MetricCard from "./MetricCard.jsx";
 import AiMetricsSection from "./AiMetricsSection.jsx";
+import AiSignalsPanel from "./AiSignalsPanel.jsx";
 import { useContext } from "react";
 import { AppNavigation } from "../services/AppNavigation.jsx";
 import { hasPermission } from "../services/permissions.js";
@@ -18,9 +19,11 @@ function DashboardView({ user, onLogout, onOpenDevices, onOpenCommands, onOpenAl
     `${(telemetry.confidence * 100).toFixed(0)}%` : "—";
   const angle = value => Number.isFinite(value) ? `${value.toFixed(1)}°` : "—";
   const pose = telemetry?.head_pose;
-  const poseTitle = pose ? "Góc đầu yaw / pitch / roll" : "Góc đầu X / Y / Z";
+  const ratios = telemetry?.ai_signals?.schema_version === "eye-mouth-v1";
+  const ratio = value => Number.isFinite(value) ? value.toFixed(3) : "—";
+  const poseTitle = pose ? (ratios ? "Yaw/pitch (tỷ lệ), roll (độ)" : "Góc đầu yaw / pitch / roll") : "Góc đầu X / Y / Z";
   const poseValue = pose ?
-    `${angle(pose.yaw)} / ${angle(pose.pitch)} / ${angle(pose.roll)}` :
+    `${ratios ? ratio(pose.yaw) : angle(pose.yaw)} / ${ratios ? ratio(pose.pitch) : angle(pose.pitch)} / ${angle(pose.roll)}` :
     `${angle(telemetry?.angle_x)} / ${angle(telemetry?.angle_y)} / ${angle(telemetry?.angle_z)}`;
 
   return <AppShell user={user} activePage={isAdmin ? "monitoring" : "dashboard"} serverConnected={wsConnected} onDashboard={isAdmin ? onDashboard : () => {}} onDevices={onOpenDevices} onCommands={onOpenCommands} onAlerts={onOpenAlerts} onLogout={onLogout}>
@@ -62,6 +65,7 @@ function DashboardView({ user, onLogout, onOpenDevices, onOpenCommands, onOpenAl
       <MetricCard title="Độ tin cậy" value={confidence} />
     </section>
 
+    <AiSignalsPanel signals={telemetry?.ai_signals} stale={telemetryStale} />
     {selectedDeviceId && (
       <AiMetricsSection
         key={`${user?.id ?? ""}:${selectedDeviceId}`}

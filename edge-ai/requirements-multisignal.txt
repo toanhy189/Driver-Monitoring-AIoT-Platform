@@ -1,0 +1,5 @@
+# Optional training/inference extras; baseline and the existing RF do not import torch.
+# CUDA 12.6 wheels: pip install -r requirements-multisignal.txt --index-url https://download.pytorch.org/whl/cu126
+# Install requirements-lock.txt separately first; keep those versions constrained.
+torch==2.9.1
+torchvision==0.24.1

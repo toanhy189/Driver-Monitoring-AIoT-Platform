@@ -17,7 +17,7 @@ const ACTION_LABELS = {
   decommission: "Ngừng sử dụng",
 };
 
-function DeviceDetailPage({ user, realtime = NO_REALTIME, deviceId, summary, onBack, onDashboard, onOpenHistory, onOpenConfig, onOpenCommands, onOpenAlerts, onLogout, onUnauthorized }) {
+function DeviceDetailPage({ user, realtime = NO_REALTIME, deviceId, summary, onBack, onDashboard, onOpenHistory, onOpenConfig, onOpenCommands, onOpenAlerts, onOpenTarget, onLogout, onUnauthorized }) {
   const [device, setDevice] = useState(summary || null);
   const [detailSource, setDetailSource] = useState(summary ? "list" : "none");
   const [loading, setLoading] = useState(true);
@@ -141,7 +141,7 @@ function DeviceDetailPage({ user, realtime = NO_REALTIME, deviceId, summary, onB
     user={user} realtime={realtime} deviceId={deviceId} device={device} detailSource={detailSource}
     loading={loading} detailError={detailError} actionError={actionError}
     actionNotice={actionNotice} busyAction={busyAction} retry={retry}
-    performAction={performAction} onBack={onBack} onDashboard={onDashboard}
+    performAction={performAction} onBack={onBack} onDashboard={onDashboard} onOpenTarget={onOpenTarget}
     onOpenHistory={onOpenHistory} onOpenConfig={onOpenConfig} onOpenCommands={onOpenCommands} onOpenAlerts={onOpenAlerts} onUnauthorized={onUnauthorized} onLogout={onLogout}
   /><FeedbackDialog feedback={feedback} onClose={() => setFeedback(null)} /></>;
 }

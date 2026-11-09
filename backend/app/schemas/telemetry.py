@@ -2,6 +2,7 @@ from datetime import datetime
 from pydantic import BaseModel, field_validator
 
 from app.services.time_utils import as_utc
+from app.schemas.ai_signals import AiSignals
 
 class TelemetryResponse(BaseModel):
     device_id: int
@@ -22,6 +23,7 @@ class TelemetryResponse(BaseModel):
     face_detected: bool | None = None
     head_pose: dict | None = None
     model_version: str | None = None
+    ai_signals: AiSignals | None = None
 
     @field_validator("recorded_at", mode="before")
     @classmethod
@@ -38,6 +40,7 @@ class TelemetryHistoryItem(BaseModel):
     confidence: float | None = None
     face_detected: bool | None = None
     model_version: str | None = None
+    ai_signals: AiSignals | None = None
 
     @field_validator("recorded_at", mode="before")
     @classmethod

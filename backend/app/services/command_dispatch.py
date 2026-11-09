@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 from app.models.command import Command
 from app.models.command_type import CommandType
 from app.models.device import Device
+from app.models.alert import Alert
 from app.services.command_service import publish_command
 from app.services.command_state import aggregate, update_dispatch
 
@@ -42,6 +43,15 @@ def dispatch_command(session: Session, command_id: int, publisher=None) -> Comma
     if command is None:
         return None
     for key in list(command.dispatches or {}):
+        # Acquire the source before the command, matching rule edits/ingestion.
+        # Commit at PUBLISHING is the boundary after which work is in flight.
+        guard = (command.dispatches or {}).get(key, {}).get("policy_guard")
+        source_id = guard.get("source_device_id") if guard else None
+        if source_id is None and command.action == "AUTO_ALERT" and command.alert_id:
+            alert = session.get(Alert, command.alert_id)
+            source_id = alert.device_id if alert else None
+        if source_id:
+            session.exec(select(Device).where(Device.id == source_id).with_for_update()).first()
         command = session.exec(select(Command).where(Command.id == command_id)
                                .with_for_update().execution_options(populate_existing=True)).one()
         child = (command.dispatches or {}).get(key, {})
@@ -50,7 +60,7 @@ def dispatch_command(session: Session, command_id: int, publisher=None) -> Comma
             continue
         if child.get("policy_guard"):
             from app.services.ai_policy import guard_is_valid
-            if not guard_is_valid(session, child["policy_guard"], now()):
+            if not guard_is_valid(session, child["policy_guard"], now(), command.device_id):
                 command.dispatches = update_dispatch(command.dispatches, key, "FAILED", "Policy expired or episode ended")
                 command.dispatches = {**command.dispatches, key: {
                     **command.dispatches[key], "dispatch_state": "CANCELLED"}}
