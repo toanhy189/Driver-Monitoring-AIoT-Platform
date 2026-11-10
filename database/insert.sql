@@ -20,14 +20,14 @@ VALUES
 
 INSERT INTO devices (device_code, model, name, status, device_type, lifecycle_state, ip_address, last_seen, mqtt_username, mqtt_password)
 VALUES
-    ('vision-01', 'AI Vision Node', 'Camera AI - Nguyễn Văn An', 'ONLINE', 'VISION_NODE', 'ACTIVE', '192.168.1.10', '2026-09-21 08:12:00', 'vision-01-user', 'vision-01-pass'),
-    ('alert-01', 'ESP32 Alert Node', 'Thiết bị cảnh báo - Nguyễn Văn An', 'ONLINE', 'ALERT_NODE', 'ACTIVE', '192.168.1.11', '2026-09-21 08:12:05', 'alert-01-user', 'alert-01-pass'),
-    ('vision-02', 'AI Vision Node', 'Camera AI - Phạm Dinh', 'ONLINE', 'VISION_NODE', 'ACTIVE', '192.168.1.12', '2026-09-21 08:11:50', 'vision-02-user', 'vision-02-pass'),
-    ('alert-02', 'ESP32 Alert Node', 'Thiết bị cảnh báo - Phạm Dinh', 'OFFLINE', 'ALERT_NODE', 'REGISTERED', '192.168.1.13', '2026-09-21 08:00:00', 'alert-02-user', 'alert-02-pass'),
-    ('vision-03', 'AI Vision Node', 'Camera AI - Lê Thị Hoa', 'ONLINE', 'VISION_NODE', 'ACTIVE', '192.168.1.14', '2026-09-21 08:11:20', 'vision-03-user', 'vision-03-pass'),
-    ('alert-03', 'ESP32 Alert Node', 'Thiết bị cảnh báo - Lê Thị Hoa', 'OFFLINE', 'ALERT_NODE', 'REGISTERED', '192.168.1.15', '2026-09-21 08:00:00', 'alert-03-user', 'alert-03-pass'),
-    ('vision-04', 'AI Vision Node', 'Camera AI - Trần Văn Dũng', 'OFFLINE', 'VISION_NODE', 'REGISTERED', '192.168.1.16', '2026-09-21 08:00:00', 'vision-04-user', 'vision-04-pass'),
-    ('alert-04', 'ESP32 Alert Node', 'Thiết bị cảnh báo - Trần Văn Dũng', 'OFFLINE', 'ALERT_NODE', 'REGISTERED', '192.168.1.17', '2026-09-21 08:00:00', 'alert-04-user', 'alert-04-pass');
+    ('vision-01', 'AI Vision Node', 'Camera AI - Nguyễn Văn An', 'ONLINE', 'VISION_NODE', 'ACTIVE', '192.168.1.10', '2026-09-21 08:12:00', 'vision-01', 'vision-01-pass'),
+    ('alert-01', 'ESP32 Alert Node', 'Thiết bị cảnh báo - Nguyễn Văn An', 'ONLINE', 'ALERT_NODE', 'ACTIVE', '192.168.1.11', '2026-09-21 08:12:05', 'alert-01', 'alert-01-pass'),
+    ('vision-02', 'AI Vision Node', 'Camera AI - Phạm Dinh', 'ONLINE', 'VISION_NODE', 'ACTIVE', '192.168.1.12', '2026-09-21 08:11:50', 'vision-02', 'vision-02-pass'),
+    ('alert-02', 'ESP32 Alert Node', 'Thiết bị cảnh báo - Phạm Dinh', 'OFFLINE', 'ALERT_NODE', 'REGISTERED', '192.168.1.13', '2026-09-21 08:00:00', 'alert-02', 'alert-02-pass'),
+    ('vision-03', 'AI Vision Node', 'Camera AI - Lê Thị Hoa', 'ONLINE', 'VISION_NODE', 'ACTIVE', '192.168.1.14', '2026-09-21 08:11:20', 'vision-03', 'vision-03-pass'),
+    ('alert-03', 'ESP32 Alert Node', 'Thiết bị cảnh báo - Lê Thị Hoa', 'OFFLINE', 'ALERT_NODE', 'REGISTERED', '192.168.1.15', '2026-09-21 08:00:00', 'alert-03', 'alert-03-pass'),
+    ('vision-04', 'AI Vision Node', 'Camera AI - Trần Văn Dũng', 'OFFLINE', 'VISION_NODE', 'REGISTERED', '192.168.1.16', '2026-09-21 08:00:00', 'vision-04', 'vision-04-pass'),
+    ('alert-04', 'ESP32 Alert Node', 'Thiết bị cảnh báo - Trần Văn Dũng', 'OFFLINE', 'ALERT_NODE', 'REGISTERED', '192.168.1.17', '2026-09-21 08:00:00', 'alert-04', 'alert-04-pass');
 
 -- =========================================
 -- 3. USER_DEVICES
