@@ -30,7 +30,7 @@ from config import (DEVICE_CODE, EAR_THRESHOLD, PERCLOS_THRESHOLD,
                     FACE_LOSS_RESET_SECONDS, MAX_OBSERVATION_GAP_SECONDS,
                     AI_MODEL_MODE, AI_MODEL_PATH, AI_DEBUG_PREDICTIONS, AI_EYE_CLOSURE_GUARD_ENABLED,
                     AI_EYE_CLOSURE_CALIBRATION,
-                    AI_MULTISIGNAL_BUNDLE, AI_MULTISIGNAL_DEVICE,
+                    AI_MULTISIGNAL_BUNDLE, AI_MULTISIGNAL_DEVICE, AI_CAMERA_INDEX,
                     MODEL_VERSION, METRICS_PATH,
                     VIDEO_MAX_CLIP_SECONDS, VIDEO_MAX_CLIP_BYTES, VIDEO_STORAGE_MAX_BYTES, RECORDING_DIR)
 from ml.runtime import load_optional_model, fuse_state
@@ -53,7 +53,7 @@ from service.utils import current_timestamp, draw_text
 # CONFIGURATION
 # =========================
 
-CAMERA_INDEX = 0
+CAMERA_INDEX = AI_CAMERA_INDEX
 MAX_CAMERA_FAILURES = 5
 
 MQTT_INTERVAL = 1.0
@@ -307,13 +307,19 @@ def main():
 
     try:
         if AI_MODEL_MODE == "multisignal":
-            from ml.multisignal_runtime import MultisignalModel
-            drowsiness_model = MultisignalModel(AI_MULTISIGNAL_BUNDLE, AI_MULTISIGNAL_DEVICE)
+            from ml.multisignal_runtime import load_multisignal_model
+            from config import AI_PROFILE_ID, AI_CAPTURE_CONDITION, AI_CAMERA_INDEX, AI_HEAD_DOWN_RISK_ENABLED
+            drowsiness_model = load_multisignal_model(AI_MULTISIGNAL_BUNDLE, AI_MULTISIGNAL_DEVICE,
+                calibration=AI_EYE_CLOSURE_CALIBRATION if AI_EYE_CLOSURE_GUARD_ENABLED else None,
+                profile_id=AI_PROFILE_ID, condition=AI_CAPTURE_CONDITION, camera=AI_CAMERA_INDEX,
+                device_code=DEVICE_CODE, head_down_risk=AI_HEAD_DOWN_RISK_ENABLED)
         else:
             drowsiness_model = load_optional_model(AI_MODEL_MODE, AI_MODEL_PATH)
         state_data["model_version"] = (drowsiness_model.model_version
                                        if drowsiness_model is not None else MODEL_VERSION)
         logger.info("AI classifier: %s", state_data["model_version"])
+        if getattr(drowsiness_model, "kind", None) == "multisignal-v2":
+            logger.info("V2 eye guard: %s", json.dumps(drowsiness_model.guard_metadata, sort_keys=True))
         if AI_MODEL_MODE == "ml" and drowsiness_model is not None and AI_EYE_CLOSURE_GUARD_ENABLED:
             guard_threshold = (load_threshold(AI_EYE_CLOSURE_CALIBRATION, DEVICE_CODE)
                                if AI_EYE_CLOSURE_CALIBRATION else EAR_THRESHOLD)
@@ -337,14 +343,19 @@ def main():
             raise RuntimeError("Không thể mở camera.")
 
         # Khởi tạo các thành phần xử lý hình ảnh.
-        detector = FaceLandmarkDetector()
+        detector = (FaceLandmarkDetector(head_motion=True)
+                    if getattr(drowsiness_model, "kind", None) == "multisignal-v2" else FaceLandmarkDetector())
 
+        measurement_threshold = (drowsiness_model.guard.ear_threshold
+            if getattr(drowsiness_model, "kind", None) == "multisignal-v2" and drowsiness_model.guard is not None
+            else EAR_THRESHOLD)
         perclos_calculator = PerclosCalculator(
+            ear_threshold=measurement_threshold,
             window_seconds=10.0,
             warmup_seconds=10.0,
         )
 
-        eye_tracker = EyeClosureTracker()
+        eye_tracker = EyeClosureTracker(ear_threshold=measurement_threshold)
 
         head_pose = HeadPoseEstimator()
 
@@ -354,6 +365,11 @@ def main():
             calibration_seconds=CALIBRATION_SECONDS,
             distracted_duration=DISTRACTED_DURATION_SECONDS,
         )
+        if getattr(drowsiness_model, "kind", None) == "multisignal-v2" and drowsiness_model.profile:
+            from service.multisignal_calibration import head_tracker_for_profile
+            head_pose_tracker = head_tracker_for_profile(drowsiness_model.profile,
+                yaw_threshold=YAW_THRESHOLD, pitch_threshold=PITCH_THRESHOLD,
+                distracted_duration=DISTRACTED_DURATION_SECONDS)
         continuity = ObservationContinuity(
             eye_tracker, perclos_calculator, head_pose_tracker, state_data,
             reset_seconds=FACE_LOSS_RESET_SECONDS,
@@ -384,7 +400,10 @@ def main():
                 if eye_guard is not None:
                     eye_guard.reset()
                 if drowsiness_model is not None:
-                    drowsiness_model.update(time.monotonic())
+                    if AI_MODEL_MODE == "multisignal":
+                        drowsiness_model.observe(None, None, time.monotonic())
+                    else:
+                        drowsiness_model.update(time.monotonic())
                 eyes_open_since = None
                 camera_failures += 1
                 print(
@@ -515,9 +534,11 @@ def main():
 
             decision_started = time.perf_counter()
             if AI_MODEL_MODE == "multisignal":
-                driver_state = drowsiness_model.observe(frame, face, frame_time, ear, pose, pose_status)
+                motion_args = ({"head_angles": detector.head_angles}
+                               if getattr(drowsiness_model, "kind", None) == "multisignal-v2" else {})
+                driver_state = drowsiness_model.observe(frame, face, frame_time, ear, pose, pose_status, **motion_args)
                 state_data["ai_signals"] = drowsiness_model.telemetry_signals()
-                if not state_data["ai_signals"]["eyes_available"]:
+                if not state_data["ai_signals"].get("ear_available", state_data["ai_signals"]["eyes_available"]):
                     eye_tracker.reset()
                     perclos_calculator.interrupt()
                     ear = perclos = eye_closed = None
@@ -626,6 +647,10 @@ def main():
             if eye_guard is not None:
                 y = draw_text(frame, f"Eye guard (<{eye_guard.ear_threshold:.3f}): " +
                               ("CLOSED RISK" if eye_guard.active else "observing"), y)
+            elif getattr(drowsiness_model, "kind", None) == "multisignal-v2":
+                info = drowsiness_model.guard_metadata
+                guard_state = drowsiness_model.telemetry_signals()["eye_closure_state"]
+                y = draw_text(frame, f"V2 eye guard: {guard_state} | {info['source']}", y)
 
             if face_detected:
                 y = draw_text(frame, f"EAR: {ear:.3f}" if ear is not None else "EAR: unavailable", y)
@@ -634,6 +659,12 @@ def main():
                     mar_value = signal.get("mar")
                     y = draw_text(frame, f"MAR: {mar_value:.3f}" if mar_value is not None else "MAR: unavailable", y)
                     y = draw_text(frame, f"Mouth: {signal['mouth_state']} | Eyes: {signal['eye_state']}", y)
+                    motion = signal.get("head_motion")
+                    if motion:
+                        y = draw_text(frame, f"Head OBSERVE ONLY: {motion['state']} | nods/20s: {motion['nod_count']}", y)
+                    posture=signal.get("head_down_policy")
+                    if posture:
+                        y=draw_text(frame,f"Head DOWN rule: {posture['state']} | {posture['observed_down_seconds']:.1f}/3s",y)
                 y = draw_text(frame, perclos_text, y)
                 y = draw_text(frame, f"Candidate: {driver_state}", y)
                 eye_label = f"EAR feature (<{EAR_THRESHOLD:.2f})" if eye_guard or AI_MODEL_MODE == "multisignal" else "Eye closed"
@@ -773,17 +804,25 @@ def check_runtime():
     finally:
         detector.close()
     if AI_MODEL_MODE == "multisignal":
-        from ml.multisignal_runtime import MultisignalModel
-        model = MultisignalModel(AI_MULTISIGNAL_BUNDLE, AI_MULTISIGNAL_DEVICE)
+        from ml.multisignal_runtime import load_multisignal_model
+        from config import AI_PROFILE_ID, AI_CAPTURE_CONDITION, AI_CAMERA_INDEX, AI_HEAD_DOWN_RISK_ENABLED
+        model = load_multisignal_model(AI_MULTISIGNAL_BUNDLE, AI_MULTISIGNAL_DEVICE,
+            calibration=AI_EYE_CLOSURE_CALIBRATION if AI_EYE_CLOSURE_GUARD_ENABLED else None,
+            profile_id=AI_PROFILE_ID, condition=AI_CAPTURE_CONDITION, camera=AI_CAMERA_INDEX,
+            device_code=DEVICE_CODE, head_down_risk=AI_HEAD_DOWN_RISK_ENABLED)
     else:
         model = DrowsinessModel(AI_MODEL_PATH) if AI_MODEL_MODE == "ml" else None
     guard_threshold = None
+    if model is not None and getattr(model, "kind", None) == "multisignal-v2" and model.guard is not None:
+        guard_threshold = model.guard.ear_threshold
     if AI_MODEL_MODE == "ml" and model is not None and AI_EYE_CLOSURE_GUARD_ENABLED:
         guard_threshold = (load_threshold(AI_EYE_CLOSURE_CALIBRATION, DEVICE_CODE)
                            if AI_EYE_CLOSURE_CALIBRATION else EAR_THRESHOLD)
     print(json.dumps({"status": "OK", "camera_opened": False, "network_started": False,
         "model_version": model.model_version if model else MODEL_VERSION,
         "eye_guard_enabled": guard_threshold is not None, "eye_guard_threshold": guard_threshold,
+        "eye_guard": getattr(model, "guard_metadata", None),
+        "head_down_policy_enabled": bool(getattr(model,"head_down",None)),
         "policy_version": POLICY_VERSION}))
 
 

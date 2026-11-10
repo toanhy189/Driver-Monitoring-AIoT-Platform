@@ -2,27 +2,27 @@
 
 ## Chạy camera
 
-Xem [hướng dẫn cài đặt và chạy](../README.md#34-chạy-edge-ai) và [model card](../docs/final-ai-model.md). Môi trường đã khóa: Python 3.13, requirements-lock.txt.
+Đường chạy chính của demo:
 
 ```powershell
-./edge-ai/.venv/Scripts/python.exe -X utf8 edge-ai/main.py --check
-./edge-ai/.venv/Scripts/python.exe -X utf8 edge-ai/main.py
+./edge-ai/run-multisignal-v2.ps1 -Demo
 ```
 
---check không mở camera/loa hoặc kết nối MQTT/HTTP. Lệnh thứ hai mở camera, ghi clip, cảnh báo local và gửi dữ liệu theo .env. Bấm Q để thoát. Mặc định AI_MODEL_MODE=baseline; ML phải nạp artifact riêng.
+Thêm `-Check` để kiểm tra artifact/profile mà không mở camera/mạng. Nhìn thẳng 5 giây đầu để lấy mốc; Q thoát. Launcher chọn RF/CNN v2, profile kính v5 đã kiểm tra trên laptop hiện tại và quy tắc cúi đầu kéo dài. Hai chế độ `-EyeTrial` / `-HeadTrial` dùng để kiểm tra riêng, không gửi dữ liệu hay lệnh tới ESP32.
 
-Bản RF kết hợp eye guard hiệu chuẩn đã đạt lượt chức năng không kính tại laptop nhóm: nhắm mắt có DROWSY/âm thanh, mở lại hồi phục ATTENTIVE, quay đầu vừa phải có DISTRACTED. Có kính chưa đạt; không dùng ca cá nhân thay metrics trên người mới. Artifact đối chiếu cũ giữ để so sánh, không dùng nhầm launcher khi demo.
+Xem [cài đặt và bàn giao artifact](../README.md#34-chạy-edge-ai), [luồng AI v2](../docs/luong-xu-ly-ai-v2.md) và [hiệu chuẩn nhìn thẳng khi đổi setup](../docs/eye-guard-calibration.md). Không cần hiệu chuẩn cúi. Dataset, trọng số và profile cá nhân được bàn giao riêng, không nằm trên Git.
 
-Để chạy ứng viên, copy bundle đúng hash và dùng run-camera-trial.ps1 với file hiệu chuẩn đúng thiết bị/người. [Hiệu chuẩn](../docs/eye-guard-calibration.md) chỉ áp dụng cho guard, không đổi đặc trưng RF hoặc policy. Ngưỡng EAR cho feature là 0,20; guard mặc định 0,20 hoặc lấy từ file hiệu chuẩn được chấp nhận.
+Profile kính v5 đã thử mắt/ngáp/quay đầu/mất mặt trên cùng setup. Quy tắc cúi mới còn cần xác nhận phiên camera/tải thật; không dùng kết quả phiên mắt cũ thay cho bước này. Baseline và RF đời trước vẫn được giữ để đọc artifact và đối chiếu.
 
 ## Luồng xử lý
 
-Camera → MediaPipe landmark → hình học mắt/hướng đầu → đặc trưng theo thời gian → RF nhị phân + quy tắc → xác nhận trạng thái → policy → local audio + MQTT.
+Camera → MediaPipe → EAR/MAR/hướng đầu + CNN vùng mắt/miệng → RF v2 theo thời gian + guard mắt + quy tắc cúi → xác nhận trạng thái → policy → local audio + MQTT.
 
 - MediaPipe là mô hình thị giác có sẵn; RF do nhóm train trên đặc trưng. DISTRACTED dùng quy tắc hướng đầu.
 - UNKNOWN thể hiện thiếu quan sát; gap/mất mặt ngắt bộ đếm liên tục. Không nối thời gian trước và sau khoảng mất mặt.
 - Head rule hiện tại hợp lệ có thể báo DISTRACTED khi RF chưa đủ cửa sổ.
 - Guard tùy chọn: nhắm liên tục ≥1 giây tạo nguy cơ; mở liên tục ≥1 giây xóa nguy cơ guard. RF/hướng đầu vẫn tham gia quyết định cuối.
+- Cúi ≥12° liên tục 3 giây tạo `DROWSY/HEAD_DOWN_RISK`; nhánh này đo tư thế, có thể kích hoạt khi chủ động nhìn xuống. Mất quan sát ngắt thời gian.
 - main.py nạp cấu hình, camera và worker; service/alert_policy.py điều phối episode/mức/nhắc; ml/runtime.py suy luận và ghép trạng thái.
 
 ## MQTT, video và dữ liệu riêng
@@ -55,7 +55,9 @@ Code ml/ được giữ để chuẩn bị dữ liệu, trích xuất, train và
 | ml/nthu_train.py | Chọn ứng viên trên development rồi đánh giá với plan đã khóa |
 | ml/train.py, ml/optimize.py | Baseline/RF/SVM và các thử nghiệm tối ưu |
 | ml/nthu_diagnostics.py, ml/evaluate_events.py | Chẩn đoán và đánh giá phù hợp nhãn |
-| ml/runtime.py | Kiểm tra artifact/schema/version, suy luận và ghép trạng thái |
+| ml/runtime.py | Kiểm tra artifact/schema/version, suy luận và ghép trạng thái RF cũ |
+| ml/multisignal_v2_train.py, ml/multisignal_v2_select.py | Fit RF và chọn ngưỡng v2 trên development/validation |
+| ml/multisignal_v2_runtime.py | Runtime CNN + RF v2, guard và tư thế |
 
 Xem tham số trước khi chạy; các bước trích xuất/train có thể tốn hàng giờ:
 

@@ -178,8 +178,11 @@ def process_versioned_event(session, source, event, data, payload, now):
             or target.status != "ONLINE" or target.last_seen is None
             or not 0 <= (now-target.last_seen).total_seconds() <= 90):
         return record_without_command("TARGET_UNAVAILABLE")
-    if level == prior_level == 3 and current.get("last_command_at") and (
-            now-datetime.fromisoformat(current["last_command_at"])).total_seconds() < 5:
+    expires = min(event.occurred_at + timedelta(seconds=5), naive(data.observed_at) + timedelta(seconds=2))
+    not_before = now
+    if level == prior_level == 3 and current.get("last_command_at"):
+        not_before = max(not_before, datetime.fromisoformat(current["last_command_at"]) + timedelta(seconds=5))
+    if not_before > now and (not_before-now > timedelta(seconds=1) or not_before >= expires):
         return persist("REPEAT_TOO_EARLY")
     alert = session.get(Alert, current["alert_id"]) if current.get("alert_id") else None
     created = alert is None
@@ -188,7 +191,13 @@ def process_versioned_event(session, source, event, data, payload, now):
         starts = [datetime.fromisoformat(child["publish_started_at"].removesuffix("Z"))
                   for command in commands for child in (command.dispatches or {}).values()
                   if child.get("publish_started_at")]
-        if level == prior_level == 3 and starts and (now-max(starts)).total_seconds() < 5:
+        if level == prior_level == 3 and starts:
+            not_before = max(not_before, max(starts) + timedelta(seconds=5))
+        # AI repeats are timed from observation, MQTT publication happens later.
+        # Preserve a fresh repeat during a small scheduling difference instead
+        # of dropping it and waiting for the next five-second AI event.
+        # The dispatcher still enforces the full spacing and immutable expiry.
+        if not_before > now and (not_before-now > timedelta(seconds=1) or not_before >= expires):
             return persist("REPEAT_TOO_EARLY")
         if any(child.get("dispatch_state") in {"QUEUED", "PUBLISHING", "PUBLISHED"}
                and child.get("status") not in {"COMPLETED", "FAILED"}
@@ -206,7 +215,6 @@ def process_versioned_event(session, source, event, data, payload, now):
     session.add(alert)
     duration = {1: 1000, 2: 2000, 3: 3000}[level]
     intensity = {1: "WEAK", 2: "MEDIUM", 3: "STRONG"}[level]
-    expires = min(event.occurred_at + timedelta(seconds=5), naive(data.observed_at) + timedelta(seconds=2))
     actions = {key: {"command": name, "duration": duration, "intensity": intensity,
                      "expires_at_ms": int(expires.replace(tzinfo=timezone.utc).timestamp()*1000)}
                for key, name in (("led", "LED_ON"), ("buzzer", "BUZZER_ON"), ("motor", "MOTOR_ON"))
@@ -217,6 +225,8 @@ def process_versioned_event(session, source, event, data, payload, now):
              "binding_revision": binding.updated_at.isoformat(timespec="microseconds"),
              "episode_id": data.episode_id, "event_id": data.event_id,
              "expires_at": expires.isoformat()}
+    if not_before > now:
+        guard["not_before"] = not_before.isoformat()
     command.dispatches = {key: {**child, "policy_guard": guard} for key, child in command.dispatches.items()}
     session.add(command)
     current.update(level=level, last_command_at=now.isoformat())

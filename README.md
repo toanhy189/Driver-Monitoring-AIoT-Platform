@@ -2,6 +2,20 @@
 
 Hệ thống nguyên mẫu giám sát trạng thái tài xế bằng camera tại Edge, quản lý thiết bị trên web và cảnh báo qua ESP32. Dự án kết hợp **Python/MediaPipe/scikit-learn, FastAPI, React, PostgreSQL và MQTT/Mosquitto**.
 
+## Lệnh demo trên laptop đã chuẩn bị
+
+```powershell
+./edge-ai/run-multisignal-v2.ps1 -Demo
+```
+
+Launcher dùng bundle v2 và profile kính v5 đã thử trên laptop này; cần các artifact cục bộ tương ứng. **Nhìn thẳng, giữ đầu tương đối yên 5 giây đầu** để lấy mốc, rồi mới thử thao tác. Bấm Q để thoát. Camera, MQTT, upload video và tải ESP32 theo binding đang bật được sử dụng trong chế độ này.
+
+Theo yêu cầu demo, cúi đầu từ 12° liên tục 3 giây được ánh xạ thành `DROWSY` với lý do **Cúi đầu kéo dài**. Đây là quy tắc tư thế và cũng có thể kích hoạt khi chủ động nhìn xuống; không phải kết quả model xác nhận ngủ. Quay ngang vẫn dùng `DISTRACTED`, mất mặt vẫn `UNKNOWN`. Không cần profile mắt cúi hoặc chạy hiệu chuẩn mới để dùng quy tắc này. [Logic và phạm vi](docs/head-motion-v1.md).
+
+Lệnh demo ở trên là đường chạy chính. Profile kính áp dụng cho cùng người/camera/setup đã thử; máy khác cần nhận bundle và profile phù hợp. Công cụ kiểm tra riêng và hiệu chuẩn nhìn thẳng được giữ cho việc kiểm chứng, không cần chạy lại trước mỗi buổi demo.
+
+[Bản hợp nhất với thay đổi của nhóm và kết quả kiểm tra ngày 10/11](docs/integration-cleanup-20261110.md).
+
 ## 1. Tổng quan
 
 - **Vision Node:** laptop + webcam, đo EAR/PERCLOS và hướng đầu; nhận biết `ATTENTIVE`, `DROWSY`, `DISTRACTED`, `UNKNOWN`.
@@ -10,9 +24,9 @@ Hệ thống nguyên mẫu giám sát trạng thái tài xế bằng camera tạ
 - **Web React:** dữ liệu thời gian thực, danh sách thiết bị, lịch sử, cảnh báo, điều khiển và video có kiểm tra quyền.
 - **Phục hồi:** SQLite tại Edge, gửi bù MQTT và upload video nền; bản tin chỉ được dọn sau xác nhận hợp lệ.
 
-AI dùng mô hình học máy **nhị phân buồn ngủ**, kết hợp quy tắc hướng đầu và tùy chọn nhắm mắt liên tục. Bản kết hợp hiệu chuẩn riêng đã qua lượt chức năng không kính tại laptop nhóm; có kính chưa đạt. Firmware đã build, luồng tới tải vật lý còn chờ kiểm tra mạch và nghiệm thu. Xem [kết quả kiểm thử](docs/final-verification.md) và [model card](docs/final-ai-model.md).
+AI v2 dùng CNN MobileNet phân tích mắt/miệng, RF kết hợp đặc trưng theo thời gian, nhánh EAR cho nhắm mắt kéo dài và quy tắc hướng đầu. Profile kính v5 đã qua một phiên camera đủ chín tình huống trên laptop nhóm. Quy tắc cúi đầu kéo dài đã nối vào Backend/web và được kiểm thử bằng MQTT/DB/ESP32 mô phỏng; còn xác nhận trên lượt camera và tải thật mới.
 
-Có thêm [ứng viên AI mắt và miệng](docs/ai-eye-mouth-model.md): MobileNet nhận diện biểu hiện mắt và ngáp/nói/cười, kết hợp đặc trưng theo thời gian. Backend/web hỗ trợ MAR và các tín hiệu mới; giao thức ESP32 giữ nguyên. Ứng viên chạy riêng, chưa được nghiệm thu camera đeo kính. Xem [số đo và giới hạn](docs/ai-eye-mouth-results.md), gồm tình trạng thiếu test cuối và replay cảnh báo toàn video.
+[Luồng AI hiện tại](docs/luong-xu-ly-ai-v2.md) ghi dataset, đặc trưng và quyết định. [Kết quả và giới hạn v2](docs/ai-v2-quality-calibration.md) giữ số đo đã thu. [Quy tắc cúi đầu](docs/head-motion-v1.md) mô tả ngưỡng và giao thức tích hợp. Baseline/RF cũ vẫn được giữ để đối chiếu và đọc artifact cũ.
 
 ### Vai trò
 
@@ -78,7 +92,7 @@ if (!(Test-Path .env)) { Copy-Item .env.example .env }
 python deployment/mqtt/prepare_env.py
 ```
 
-Mở `.env`, đặt `POSTGRES_PASSWORD`, `DATABASE_URL` và `SECRET_KEY` riêng. `DATABASE_URL` cho Backend chạy trực tiếp phải khớp `POSTGRES_*`, host `localhost:5432`; Compose tự đặt host nội bộ là `postgres`. Script tạo credential MQTT còn thiếu, giữ giá trị đã có.
+Mở `.env`, đặt `POSTGRES_PASSWORD`, `DATABASE_URL` và `SECRET_KEY` riêng. `DATABASE_URL` cho Backend chạy trực tiếp phải khớp `POSTGRES_*`, host `localhost:5433` theo `POSTGRES_PORT`; Compose tự đặt host nội bộ là `postgres`. Script tạo credential MQTT còn thiếu, giữ giá trị đã có.
 
 Giữ `RULE_ENGINE_ENABLED=false` trong lúc chuẩn bị mạch. `AI_DEVICE_CODE`, `AI_MQTT_USERNAME` và `AI_MQTT_PASSWORD` phải khớp Vision Node đã đăng ký/cấp kết nối. Tài khoản web và tài khoản MQTT thiết bị là hai loại khác nhau.
 
@@ -98,7 +112,7 @@ Compose chạy PostgreSQL, Mosquitto, migration, cấp quyền broker, Backend, 
 | Swagger API | <http://localhost:8000/docs> |
 | Health API | <http://localhost:8000/api/health> |
 | MQTT cho AI/ESP32 | IP laptop, cổng **1884**; trong Docker là `mosquitto:1883` |
-| PostgreSQL | `localhost:5432` |
+| PostgreSQL | `localhost:5433` mặc định; đổi bằng `POSTGRES_PORT` |
 | NTP LAN | IP laptop, UDP **123** |
 
 Những lần sau, nếu code không đổi, dùng `up -d` thay cho `up -d --build`. Kiểm tra lỗi bằng `docker compose --env-file .env -f deployment/docker-compose.yml logs --tail 80 backend`.
@@ -115,44 +129,37 @@ Với DB mới, nên tạo mã riêng như `vision-demo` và `alert-demo`, trán
 
 ### 3.4. Chạy Edge AI
 
+Trên laptop đã chuẩn bị, dùng đúng một lệnh:
+
+```powershell
+./edge-ai/run-multisignal-v2.ps1 -Demo
+```
+
+Nhìn thẳng 5 giây đầu để lấy mốc góc, sau đó thử nhắm mắt, ngáp, quay đầu và cúi vừa phải; bấm Q để thoát. `-Demo` mở camera/loa, ghi clip, upload và gửi MQTT, có thể điều khiển ESP32 theo binding đang bật.
+
+Kiểm tra bundle/profile mà không mở camera hoặc kết nối mạng:
+
+```powershell
+./edge-ai/run-multisignal-v2.ps1 -Demo -Check
+```
+
+**Khi cài trên máy khác:** Git không chứa trọng số, dataset, video hoặc profile cá nhân. Nhận bundle v2 tin cậy và profile đúng người/camera riêng; không copy profile người khác làm hiệu chuẩn của mình. Cài môi trường:
+
 ```powershell
 if (!(Test-Path edge-ai/.venv/Scripts/python.exe)) { python -m venv edge-ai/.venv }
 ./edge-ai/.venv/Scripts/python.exe -m pip install -r edge-ai/requirements-lock.txt
-./edge-ai/.venv/Scripts/python.exe -X utf8 edge-ai/main.py --check
+./edge-ai/.venv/Scripts/python.exe -m pip install -r edge-ai/requirements-multisignal.txt --index-url https://download.pytorch.org/whl/cpu
 ```
 
-`--check` kiểm tra môi trường và MediaPipe, không mở camera/loa hay gửi dữ liệu. Cấu hình mặc định là baseline quy tắc; **clone GitHub không kèm RF đã huấn luyện**.
+`-BundlePath`, `-CalibrationPath`, `-ProfileId`, `-Condition` và `-Camera` chọn artifact/setup khác. Thiếu artifact/profile thì launcher dừng với lỗi rõ ràng, không tự đổi model hoặc tắt nhánh mắt. [Hiệu chuẩn nhìn thẳng](docs/eye-guard-calibration.md) chỉ cần khi đổi người/kính/camera/setup; không còn bước hiệu chuẩn mắt lúc cúi.
 
-Để chạy bản RF kết hợp đã thử: nhận bundle riêng đúng hash theo [model card](docs/final-ai-model.md), dùng hiệu chuẩn đúng người/thiết bị. Hiệu chuẩn chỉ lưu chỉ số, không ghi video:
+**Kiểm tra riêng trên máy:** `./edge-ai/run-multisignal-v2.ps1 -EyeTrial` thử mắt; `-HeadTrial` thử tư thế. Hai chế độ này lưu clip/log riêng, không gửi MQTT/HTTP hay điều khiển ESP32. Cùng condition kính mặc định, cả thử riêng và demo dùng cùng profile kính đã kiểm tra cùng quy tắc cúi đầu. Baseline chỉ dùng khi cần đối chiếu qua `main.py`; không dùng lẫn với lệnh demo v2.
 
-```powershell
-./edge-ai/.venv/Scripts/python.exe -X utf8 edge-ai/calibrate_eye_guard.py --condition no-glasses
-```
+Clip pending và queue ở `edge-ai/recordings/`, `edge-ai/data/`; clip đã upload nằm trong volume video của Backend. Upload dùng credential MQTT của chính Vision Node qua HTTP Basic, khác tài khoản đăng nhập web. Edge chỉ dọn clip sau phản hồi upload hợp lệ.
 
-Làm các lượt 1 → 2 → 3 → 4 theo [hướng dẫn hiệu chuẩn](docs/eye-guard-calibration.md). Chỉ dùng file có `status=READY_FOR_TRIAL`; bản bị từ chối không được ép áp dụng. Trên laptop vừa nghiệm thu, dùng file hiệu chuẩn riêng đã có, không cần đo lại nếu điều kiện giữ nguyên.
+**Xem clip:** mở **Cảnh báo → Xem video**, hoặc chọn sự kiện có clip liên kết trong tab **Diễn biến** của Vision Node. Một sự kiện có thể không có clip khi chưa ghi xong/chưa upload; giao diện hiển thị tình trạng thực tế. Backend tạo bản xem H.264 và giữ nút tải gốc. Xem [hợp đồng video](docs/ai-ingest-video-contract.md).
 
-```powershell
-$taskCalibration = 'edge-ai/ml-runs/eye-calibration/MA_PHIEN/report.json'
-./edge-ai/run-camera-trial.ps1 -CalibrationPath $taskCalibration -Check
-./edge-ai/run-camera-trial.ps1 -CalibrationPath $taskCalibration
-```
-
-Thay đường dẫn bằng file thực tế; với lượt đã phân tích lại v2, dùng `reanalysis-v2.json` đã được kiểm tra. Lệnh cuối mở camera, bật loa và ghi clip. Nhìn thẳng lúc khởi động để hiệu chuẩn đầu; bấm **Q** để thoát. Nếu chỉ kiểm tra baseline, chạy `./edge-ai/.venv/Scripts/python.exe -X utf8 edge-ai/main.py`; không trình bày baseline là RF.
-
-**Ứng viên mắt/miệng mới:** sau khi cài dependency tùy chọn và nhận bundle riêng theo [hướng dẫn AI](docs/ai-eye-mouth-model.md), dùng:
-
-```powershell
-./edge-ai/run-multisignal.ps1 -Check
-./edge-ai/run-multisignal.ps1
-```
-
-Lệnh cuối mở camera/loa và gửi dữ liệu theo `.env`; nhìn thẳng 5 giây lúc khởi động. Web có thêm MAR, kết quả ngáp/nói/cười và tình trạng tín hiệu mắt. Bản này chưa qua nghiệm thu webcam đeo kính; chỉ thử tại bàn.
-
-Clip pending và queue ở `edge-ai/recordings/`, `edge-ai/data/` theo cấu hình; clip đã upload nằm trong volume `deployment_video_data`. HTTP upload dùng credential Vision Node; đăng nhập MQTT không tự xác thực HTTP. Backend giữ video đến khi người có quyền xóa thủ công; Edge chỉ dọn bản sao sau phản hồi upload hợp lệ.
-
-**Xem clip:** mở **Cảnh báo → Xem video**, hoặc chọn sự kiện trong timeline thiết bị. Cảnh báo được liên kết bằng mã clip, kể cả clip upload đến sau. Backend chuẩn bị bản xem H.264 ở luồng nền để trình duyệt phát được; nút **Tải video gốc** giữ nguyên file upload. Clip đang ghi/chưa upload, đã xóa hoặc thiếu file được hiển thị riêng. Bản xem tính vào quota và được xóa cùng clip khi người có quyền xóa thủ công. Xem [hợp đồng video](docs/ai-ingest-video-contract.md).
-
-**Admin:** mục **Quản trị** giữ màn quản lý tài khoản/thiết bị; mục **Giám sát AI** mở dashboard số đo, trạng thái tài xế và timeline. Employee/Customer dùng **Tổng quan** với phạm vi thiết bị được gán như trước.
+**Admin:** mục **Giám sát AI** mở số đo/trạng thái; tại chi tiết Vision Node, **Cảnh báo tự động** chọn Alert Node rồi lưu để bật liên kết. `RULE_ENGINE_ENABLED=true`, Vision/Alert Node hoạt động và event mới hợp lệ là điều kiện gửi tải. Employee/Customer xem trong phạm vi thiết bị được gán.
 
 ### 3.5. Chuẩn bị ESP32
 

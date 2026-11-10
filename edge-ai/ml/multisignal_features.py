@@ -17,14 +17,23 @@ def bundle_version(files):
 
 
 class MultisignalWindow:
+    channels = CHANNELS
+    feature_names = FEATURE_NAMES
+    coverage_channels = ("eye_sleepy", "mouth_yawn")
     def __init__(self, seconds=5., min_history=2., max_gap=.5):
         if not 0 < min_history <= seconds or not 0 < max_gap <= seconds:
             raise ValueError("Invalid temporal window")
         self.seconds, self.min_history, self.max_gap = seconds, min_history, max_gap
         self.samples = deque()
+        self.last_quality_reason = "WARMUP"
+        self.last_coverage = None
+        self.reset_count = 0
 
     def reset(self):
         self.samples.clear()
+        self.last_quality_reason = "WARMUP"
+        self.last_coverage = None
+        self.reset_count += 1
 
     def add(self, now, signals):
         if not math.isfinite(now) or (self.samples and now <= self.samples[-1][0]):
@@ -33,12 +42,14 @@ class MultisignalWindow:
         if self.samples and now - self.samples[-1][0] > self.max_gap:
             self.reset()
         cleaned = {key: float(value) if value is not None and math.isfinite(value) else None
-                   for key in CHANNELS for value in [signals.get(key)]}
+                   for key in self.channels for value in [signals.get(key)]}
         self.samples.append((now, cleaned))
         while len(self.samples) > 1 and self.samples[1][0] <= now - self.seconds:
             self.samples.popleft()
 
     def snapshot(self):
+        self.last_quality_reason = "WARMUP"
+        self.last_coverage = None
         if len(self.samples) < 2:
             return None
         now = self.samples[-1][0]
@@ -46,7 +57,7 @@ class MultisignalWindow:
         if elapsed + 1e-8 < self.min_history:
             return None
         features = {}
-        for key in CHANNELS:
+        for key in self.channels:
             values, weights = [], []
             for first, second in zip(self.samples, list(self.samples)[1:]):
                 duration = second[0] - max(first[0], now - self.seconds)
@@ -68,10 +79,13 @@ class MultisignalWindow:
                 # measured zero. Missing data never become open/normal eyes.
                 mean = std = p90 = 0.
             features.update({f"{key}_mean": mean, f"{key}_std": std, f"{key}_p90": p90})
-        if max(features["eye_sleepy_coverage"], features["mouth_yawn_coverage"]) < .6:
+        self.last_coverage = {key: features[f"{key}_coverage"] for key in self.channels}
+        if max(features[f"{key}_coverage"] for key in self.coverage_channels) < .6:
+            self.last_quality_reason = "LOW_COVERAGE"
             return None
+        self.last_quality_reason = "READY"
         return {"start_s": max(self.samples[0][0], now-self.seconds), "end_s": now,
-                "features": [features[key] for key in FEATURE_NAMES], "coverage": features}
+                "features": [features[key] for key in self.feature_names], "coverage": features}
 
 
 def window_label(samples, start, end):

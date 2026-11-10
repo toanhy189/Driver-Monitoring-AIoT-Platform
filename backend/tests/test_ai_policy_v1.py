@@ -109,6 +109,71 @@ class PolicyIntegrationTests(unittest.TestCase):
         _, outcome = self.send(self.event(kind="DISTRACTED_THRESHOLD_REACHED", state="DISTRACTED"))
         self.assertEqual(outcome, "QUEUED")
 
+    def published_level_three(self):
+        self.send(self.event(level=3, state_duration_ms=10000))
+        with patch("app.services.command_dispatch.now", return_value=Clock.now()+timedelta(seconds=.4)):
+            dispatch_command(self.db, self.commands()[-1].id, publisher=Mock(return_value=True))
+        self.finish_commands()
+
+    def test_five_second_repeats_wait_for_publication_spacing_instead_of_dropping_every_other_event(self):
+        start = Clock.value
+        self.published_level_three()
+        prior_publish = start.replace(tzinfo=None)+timedelta(seconds=.4)
+        for seconds in (5, 10, 15):
+            Clock.value = start+timedelta(seconds=seconds)
+            self.assertEqual(self.send(self.event(level=3, state_duration_ms=10000+seconds*1000, repeat=True))[1], "QUEUED")
+            command = self.commands()[-1]
+            publisher = Mock(return_value=True)
+            due = prior_publish+timedelta(seconds=5)
+            for child in command.dispatches.values():
+                self.assertEqual(datetime.fromisoformat(child["policy_guard"]["not_before"]), due)
+                self.assertEqual(datetime.fromisoformat(child["policy_guard"]["expires_at"]),
+                                 Clock.now()+timedelta(seconds=2))
+            with patch("app.services.command_dispatch.now", return_value=Clock.now()):
+                dispatch_command(self.db, command.id, publisher=publisher)
+            publisher.assert_not_called()
+            self.assertTrue(all(child["dispatch_state"]=="QUEUED" for child in self.db.get(Command,command.id).dispatches.values()))
+            with patch("app.services.command_dispatch.now", return_value=due):
+                dispatch_command(self.db, command.id, publisher=publisher)
+            self.assertEqual(publisher.call_count, 3)
+            self.assertTrue(all(datetime.fromisoformat(child["publish_started_at"].removesuffix("Z"))==due
+                                for child in self.db.get(Command,command.id).dispatches.values()))
+            prior_publish = due
+            self.finish_commands()
+        self.assertEqual(len(self.commands()), 4)
+
+    def test_deferred_repeat_is_cancelled_on_recovery_and_never_actuates(self):
+        self.published_level_three()
+        Clock.value += timedelta(seconds=5)
+        self.assertEqual(self.send(self.event(level=3,state_duration_ms=15000,repeat=True))[1], "QUEUED")
+        command = self.commands()[-1]
+        Clock.value += timedelta(seconds=.1)
+        self.send(self.event(kind="RISK_SUSPENDED"))
+        publisher = Mock(return_value=True)
+        with patch("app.services.command_dispatch.now", return_value=Clock.now()+timedelta(seconds=.4)):
+            dispatch_command(self.db, command.id, publisher=publisher)
+        publisher.assert_not_called()
+        self.assertTrue(all(child["dispatch_state"]=="CANCELLED" for child in self.db.get(Command,command.id).dispatches.values()))
+
+    def test_deferred_repeat_does_not_extend_expiry_or_allow_early_repeat_floods(self):
+        self.published_level_three()
+        Clock.value += timedelta(seconds=1)
+        self.assertEqual(self.send(self.event(level=3,state_duration_ms=11000,repeat=True))[1], "REPEAT_TOO_EARLY")
+        self.assertEqual(len(self.commands()),1)
+        Clock.value += timedelta(seconds=4)
+        self.assertEqual(self.send(self.event(level=3,state_duration_ms=15000,repeat=True))[1], "QUEUED")
+        command = self.commands()[-1]
+        original_payloads = {key:dict(child["payload"]) for key,child in command.dispatches.items()}
+        publisher = Mock(return_value=True)
+        with patch("app.services.command_dispatch.now", return_value=Clock.now()+timedelta(seconds=2.1)):
+            dispatch_command(self.db, command.id, publisher=publisher)
+        publisher.assert_not_called()
+        expired = self.db.get(Command,command.id)
+        self.assertEqual(expired.status, "FAILED")
+        self.assertTrue(all(child["dispatch_state"] in {"QUEUED", "CANCELLED"}
+                            and not child.get("publish_started_at") for child in expired.dispatches.values()))
+        self.assertEqual(original_payloads,{key:child["payload"] for key,child in expired.dispatches.items()})
+
     def test_duplicate_transport_metadata_never_creates_another_command(self):
         event = self.event()
         self.send(event)

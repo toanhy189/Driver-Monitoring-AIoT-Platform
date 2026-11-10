@@ -127,6 +127,47 @@ class Week4Integration(unittest.TestCase):
         token = create_access_token(self.users[role], timedelta(minutes=5))
         return {"Authorization": "Bearer " + token}
 
+    def test_v2_quality_survives_postgres_ingest_snapshot_history_and_metrics(self):
+        """Real disposable PostgreSQL, existing MQTT ingest path and HTTP routes."""
+        timestamp = datetime.now(timezone.utc).isoformat()
+        signals = {"schema_version": "eye-mouth-v2", "quality_version": "region-technical-quality-v1",
+            "eyes_available": True, "mouth_available": True, "ear_available": True,
+            "eye_state": "UNKNOWN", "mouth_state": "NORMAL", "eye_sleepy_probability": .51,
+            "yawn_probability": .1, "mar": .08, "eye_confidence": .51, "mouth_confidence": .8,
+            "eye_quality": "VALID", "mouth_quality": "VALID", "decision_reason": "RF_NEGATIVE",
+            "eye_closure_state": "OPEN", "sample_age_ms": 30., "experimental": True,
+            "calibration_id": "a"*64, "eye_crop_reason": "VALID", "mouth_crop_reason": "OUTSIDE_FRAME"}
+        signals.update(mouth_available=False, mouth_state="UNKNOWN", yawn_probability=None,
+                       mar=None, mouth_confidence=None, mouth_quality="NO_CROP")
+        payload = {"message_id": "v2-quality-"+self.suffix, "device_code": self.device_code,
+            "timestamp": timestamp, "driver_state": "ATTENTIVE", "face_detected": True,
+            "ear": .31, "perclos": .05, "model_version": "eye-mouth-v2-isolated", "ai_signals": signals}
+        topic = f"driver/{self.device_code}/telemetry"
+        events = process_message(topic, payload)
+        self.assertTrue(any(e["type"] == "ingest.saved" for e in events))
+        update = next(e["data"] for e in events if e["type"] == "telemetry.updated")
+        self.assertEqual(update["ai_signals"]["decision_reason"], "RF_NEGATIVE")
+        process_message(topic, payload)  # SAVED/idempotent, no duplicate row.
+        for path in (f"/api/{self.device_id}/telemetry", f"/api/devices/{self.device_id}/telemetry/history"):
+            response = self.client.get(path, headers=self.auth("Admin"))
+            self.assertEqual(response.status_code, 200, response.text)
+            data = response.json()
+            if "items" in data:
+                self.assertEqual(len(data["items"]), 1)
+                data = data["items"][0]
+            self.assertEqual(data["ear"], .31)
+            self.assertEqual(data["ai_signals"]["eye_sleepy_probability"], .51)
+            self.assertEqual(data["ai_signals"]["calibration_id"], "a"*64)
+            self.assertEqual(data["ai_signals"]["mouth_crop_reason"], "OUTSIDE_FRAME")
+            self.assertIsNone(data["ai_signals"]["yawn_probability"])
+        metric = self.client.get(f"/api/devices/{self.device_id}/metrics", headers=self.auth("Admin"))
+        self.assertEqual(metric.status_code, 200, metric.text)
+        self.assertEqual(metric.json()["telemetry"]["count"], 1)
+        self.assertEqual(metric.json()["commands"]["count"], 0)
+        invalid = {**payload, "message_id": "bad-v2-"+self.suffix,
+                   "ai_signals": {**signals, "sample_age_ms": 501.}}
+        self.assertTrue(any(e["type"] == "ingest.rejected" for e in process_message(topic, invalid)))
+
     def test_jwt_invalid_expired_and_missing_are_rejected(self):
         """Kiem tra token sai, het han va vang mat deu bi tu choi, khong lo username."""
         # Suite W3 truoc day dung token hop le; bo sung ba truong hop JWT HTTP khong hop le.

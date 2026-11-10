@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, FiniteFloat, StrictBool, field_validator
-from app.schemas.ai_signals import AiSignals
+from app.schemas.ai_signals import AiSignalsPayload as AiSignals
 
 
 class QueuedTelemetry(BaseModel):

@@ -23,11 +23,56 @@ from app.services.background_tasks import run_once
 
 
 NAMES = ("test_versioned_escalation_repeat_and_ack", "test_backfill_recovery_session_and_video_link",
-         "test_actual_edge_outbox_reconnect_and_schema_quarantine", "test_eye_mouth_telemetry_roundtrip")
+         "test_actual_edge_outbox_reconnect_and_schema_quarantine", "test_eye_mouth_telemetry_roundtrip",
+         "test_head_motion_storage_and_existing_actuator_protocol")
 
 
 @unittest.skipUnless(os.getenv("W4_LIVE") == "1", "Use run_week4_isolated.py for disposable services")
 class Week4Live(previous.Week3Integration):
+    def test_head_motion_storage_and_existing_actuator_protocol(self):
+        self.prepare_policy()
+        motion = dict(version="head-motion-v1", mode="OBSERVE_ONLY", available=True, calibrated=True,
+            state="LOWERED", pitch_deg=15., yaw_deg=0., roll_deg=0., nod_count=0,
+            repeated_nods=False, eye_closure_supported=False)
+        signals = dict(schema_version="eye-mouth-v2", quality_version="region-technical-quality-v1",
+            eyes_available=False, mouth_available=False, ear_available=True, calibration_id="a"*64,
+            eye_quality="VALID", mouth_quality="NO_CROP", decision_reason="HEAD_DOWN_RISK",
+            eye_closure_state="UNAVAILABLE", head_motion=motion,
+            head_down_policy=dict(version="sustained-head-down-v1",state="DOWN_RISK",risk_candidate=True,
+                observed_down_seconds=3.5,enter_pitch_deg=12.,min_seconds=3.),
+            head_eye_fusion=dict(version="pose-calibrated-head-eye-v1",mode="ENABLED",state="CLOSED_RISK",
+                ear_threshold=.28,risk_candidate=True,profile_sha256="b"*64))
+        message_id = str(uuid.uuid4())
+        self.vision.publish(f"driver/{self.source_code}/telemetry", dict(message_id=message_id,
+            device_code=self.source_code, timestamp=datetime.now(timezone.utc).isoformat(),
+            driver_state="UNKNOWN", face_detected=True, model_version="eye-mouth-head-observation-test",
+            ai_signals=signals, _delivery={"mode": "live"}))
+        deadline = time.monotonic()+8
+        while time.monotonic() < deadline:
+            _, raw, _ = self.vision.messages.get(timeout=8)
+            ack = json.loads(raw)
+            if ack.get("message_id") == message_id:
+                self.assertEqual(ack["status"], "SAVED")
+                break
+        else:
+            self.fail("No head-motion storage acknowledgement")
+        from app.models.telemetry import Telemetry
+        with Session(engine) as session:
+            saved = session.exec(select(Telemetry).where(Telemetry.device_id == self.source_id)).one()
+            self.assertEqual(saved.ai_signals["head_motion"], motion)
+        snapshot = self.client.get(f"/api/{self.source_id}/telemetry", headers=self.auth)
+        self.assertEqual(snapshot.status_code, 200, snapshot.text)
+        self.assertEqual(snapshot.json()["ai_signals"]["head_motion"], motion)
+        self.assertEqual(snapshot.json()["ai_signals"]["head_eye_fusion"], signals["head_eye_fusion"])
+        self.assertEqual(snapshot.json()["ai_signals"]["head_down_policy"], signals["head_down_policy"])
+        history = self.client.get(f"/api/{self.source_id}/telemetry/history", headers=self.auth)
+        self.assertEqual(history.status_code, 200, history.text)
+        self.assertEqual(history.json()["items"][-1]["ai_signals"]["head_motion"], motion)
+        self.assertEqual(self.all_commands(), [])
+        with self.assertRaises(queue.Empty): self.esp.messages.get(timeout=.2)
+        self.assertEqual(self.send(self.message(level=2, state_duration_ms=6000)), "QUEUED")
+        self.dispatch_and_complete(["LED_ON", "BUZZER_ON", "MOTOR_ON"])
+
     def test_eye_mouth_telemetry_roundtrip(self):
         self.prepare_policy()
         message_id=str(uuid.uuid4())

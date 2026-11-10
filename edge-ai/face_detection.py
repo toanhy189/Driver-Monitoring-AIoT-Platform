@@ -5,7 +5,7 @@ from config import TASK_PATH
 
 
 class FaceLandmarkDetector:
-    def __init__(self, model_path=TASK_PATH):
+    def __init__(self, model_path=TASK_PATH, *, head_motion=False):
         base_options = mp.tasks.BaseOptions(
             model_asset_path=str(model_path)
         )
@@ -16,7 +16,8 @@ class FaceLandmarkDetector:
             num_faces=1,
             min_face_detection_confidence=0.5,
             min_face_presence_confidence=0.5,
-            min_tracking_confidence=0.5
+            min_tracking_confidence=0.5,
+            output_facial_transformation_matrixes=head_motion
         )
 
         self.landmarker = (
@@ -26,6 +27,8 @@ class FaceLandmarkDetector:
 
         self.started_at = time.monotonic()
         self.timestamp_ms = -1
+        self.head_motion = head_motion
+        self.head_angles = None
 
     def process(self, frame, timestamp_ms=None):
         # OpenCV dùng BGR → chuyển sang RGB
@@ -57,6 +60,10 @@ class FaceLandmarkDetector:
             self.timestamp_ms
         )
 
+        self.head_angles = None
+        if self.head_motion and result.face_landmarks and result.facial_transformation_matrixes:
+            from service.head_motion import rotation_angles
+            self.head_angles = rotation_angles(result.facial_transformation_matrixes[0])
         return result.face_landmarks
 
     def close(self):

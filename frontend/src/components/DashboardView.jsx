@@ -19,7 +19,7 @@ function DashboardView({ user, onLogout, onOpenDevices, onOpenCommands, onOpenAl
     `${(telemetry.confidence * 100).toFixed(0)}%` : "—";
   const angle = value => Number.isFinite(value) ? `${value.toFixed(1)}°` : "—";
   const pose = telemetry?.head_pose;
-  const ratios = telemetry?.ai_signals?.schema_version === "eye-mouth-v1";
+  const ratios = ["eye-mouth-v1", "eye-mouth-v2"].includes(telemetry?.ai_signals?.schema_version);
   const ratio = value => Number.isFinite(value) ? value.toFixed(3) : "—";
   const poseTitle = pose ? (ratios ? "Yaw/pitch (tỷ lệ), roll (độ)" : "Góc đầu yaw / pitch / roll") : "Góc đầu X / Y / Z";
   const poseValue = pose ?

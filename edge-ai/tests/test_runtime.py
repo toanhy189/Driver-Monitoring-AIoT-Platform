@@ -313,6 +313,7 @@ class StorageTests(unittest.TestCase):
 class ObservationTests(unittest.TestCase):
     def test_mediapipe_timestamp_uses_elapsed_time_and_is_strictly_increasing(self):
         detector = FaceLandmarkDetector.__new__(FaceLandmarkDetector)
+        detector.head_motion = False
         detector.started_at = 100
         detector.timestamp_ms = -1
         detector.landmarker = Mock()

@@ -24,6 +24,7 @@ def dataset():
 
 
 class EyeCalibrationTests(unittest.TestCase):
+
     def test_cancelled_capture_saves_only_numeric_files_and_releases_camera(self):
         import calibrate_eye_guard as capture
         camera = Mock()

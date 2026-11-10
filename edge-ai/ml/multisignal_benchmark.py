@@ -18,7 +18,7 @@ from eye import calculate_average_ear
 from face_detection import FaceLandmarkDetector
 from head_pose import HeadPoseEstimator, HeadPoseTracker
 from ml.multisignal_data import write_json
-from ml.multisignal_runtime import MultisignalModel
+from ml.multisignal_runtime import load_multisignal_model as MultisignalModel
 from service.alert_policy import AlertPolicy
 
 
@@ -95,6 +95,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-dir",type=Path,required=True)
     parser.add_argument("--device",choices=("cpu","cuda"),default="cpu")
+    parser.add_argument("--bundle", type=Path, help="Override candidate while keeping the recorded source jobs")
     parser.add_argument("--seconds",type=float,default=20)
     args=parser.parse_args()
     if not 5 <= args.seconds <= 120:raise ValueError("Expected 5-120 seconds")
@@ -102,13 +103,14 @@ def main():
     jobs=json.loads((args.data_dir/"jobs.json").read_text(encoding="utf-8"))
     selected=[next(job for job in jobs if job["group"]=="validation" and job["condition"]==condition)
               for condition in ("noglasses","glasses")]
-    results=[measure(job,args.data_dir/"candidate",args.device,args.seconds) for job in selected]
+    bundle=args.bundle or args.data_dir/"candidate"
+    results=[measure(job,bundle,args.device,args.seconds) for job in selected]
     output={"recordings":results,"limits":["Recorded NTHU videos, no new webcam/glasses acceptance.",
         "5 Hz source sampling; throughput measured without real-time waiting, network, rendering, encoding or audio.",
         "Pipeline includes landmarks, eye/mouth inference, geometry, temporal fusion and policy; decode is included only in wall throughput.",
         "Head calibration assumes a forward-facing start, which the source may not provide; state counts are not accuracy.",
         "Measurements include cold inference and may be affected by other programs."]}
-    write_json(args.data_dir/"candidate"/f"benchmark-{args.device}.json",output)
+    write_json(bundle/f"benchmark-{args.device}.json",output)
     print(json.dumps(output),flush=True)
 
 

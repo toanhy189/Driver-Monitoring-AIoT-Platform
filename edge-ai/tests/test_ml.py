@@ -98,6 +98,7 @@ class FeatureTests(unittest.TestCase):
 
     def test_detector_accepts_source_time_without_wall_clock(self):
         detector = FaceLandmarkDetector.__new__(FaceLandmarkDetector)
+        detector.head_motion = False
         detector.timestamp_ms = -1
         detector.landmarker = Mock()
         detector.landmarker.detect_for_video.return_value = SimpleNamespace(face_landmarks=[])

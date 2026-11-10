@@ -46,6 +46,8 @@ jobs:
           cache: pip
           cache-dependency-path: edge-ai/requirements-lock.txt
       - run: python -m pip install -r edge-ai/requirements-lock.txt
+      - name: Install CPU inference dependencies for AI v2 tests
+        run: python -m pip install -r edge-ai/requirements-multisignal.txt --index-url https://download.pytorch.org/whl/cpu
       - run: python edge-ai/main.py --check
       - run: python -m unittest discover -s edge-ai/tests -v
   frontend-build:

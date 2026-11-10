@@ -26,11 +26,11 @@ def geometry_hashes():
             for name in ("eye.py", "geometry.py")}
 
 
-def phase_statistics(rows):
+def phase_statistics(rows, duration=DURATION):
     if len(rows) < 2:
         raise ValueError("Not enough observations")
     times = [float(r["elapsed_s"]) for r in rows]
-    if (not all(math.isfinite(t) and 0 <= t <= DURATION for t in times)
+    if (not all(math.isfinite(t) and 0 <= t <= duration for t in times)
             or any(b <= a for a, b in zip(times, times[1:]))):
         raise ValueError("Invalid phase timestamps")
     values, weights = [], []
@@ -40,7 +40,7 @@ def phase_statistics(rows):
                for r in (first, second)) and dt <= MAX_GAP:
             values.append(float(first["ear"]))
             weights.append(float(dt))
-    coverage = sum(weights) / DURATION
+    coverage = sum(weights) / duration
     if coverage < MIN_COVERAGE:
         raise ValueError("Insufficient observed coverage")
     order = np.argsort(values)
@@ -52,8 +52,8 @@ def phase_statistics(rows):
             "p10": quantile(.1), "median": quantile(.5), "p90": quantile(.9)}
 
 
-def validation_statistics(rows, threshold):
-    summary = phase_statistics(rows)
+def validation_statistics(rows, threshold, duration=DURATION):
+    summary = phase_statistics(rows, duration)
     guard = EyeClosureGuard(ear_threshold=threshold)
     active = False
     wrong_time = total = 0.0

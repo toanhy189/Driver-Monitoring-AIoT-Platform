@@ -18,9 +18,11 @@ Trước khi chạy, cấu hình DB/SECRET_KEY riêng trong .env như [README](.
 |---|---|---|
 | React | localhost:5173 | frontend:80 |
 | API | localhost:8000 | backend:8000 |
-| PostgreSQL | localhost:5432 | postgres:5432 |
+| PostgreSQL | localhost:5433 mặc định (`POSTGRES_PORT`) | postgres:5432 |
 | MQTT | localhost:1884 | mosquitto:1883 |
 | NTP | IP laptop:123/UDP | time-server:123/UDP |
+
+Máy đang dùng cổng DB 5432 có thể giữ `POSTGRES_PORT=5432` trong `.env`. Backend chạy trực tiếp dùng `DATABASE_URL` khớp cổng host; Backend trong Compose luôn dùng `postgres:5432`. Không cần nạp lại seed hoặc xóa volume để đổi cổng.
 
 Nginx phục vụ SPA và proxy /api, /ws tới Backend. Các cổng này dành cho môi trường demo LAN.
 

@@ -87,6 +87,35 @@ def main():
                        "migration_ai_signals.sql", "migration_ai_signals.sql")
             sql = "\n".join((ROOT/"database"/name).read_text(encoding="utf-8") for name in scripts)
             docker("exec", "-i", postgres, "psql", "-U", "w4_test", "-d", database, "-v", "ON_ERROR_STOP=1", input=sql)
+            # A teammate changed seed users, assignments and MQTT usernames.
+            # Validate actual fresh-install order in a second disposable DB.
+            seed_database = "codex_w3_seed_"+suffix
+            docker("exec", postgres, "createdb", "-U", "w4_test", seed_database)
+            seed_sql = "\n".join((ROOT/"database"/name).read_text(encoding="utf-8")
+                                  for name in ("create.sql", "insert.sql", *scripts[1:]))
+            seed_sql += """
+DO $$ BEGIN
+  IF (SELECT count(*) FROM users) <> 6 OR (SELECT count(*) FROM devices) <> 8 THEN
+    RAISE EXCEPTION 'Seed users/devices missing';
+  END IF;
+  IF EXISTS (SELECT 1 FROM devices WHERE mqtt_username IS DISTINCT FROM device_code) THEN
+    RAISE EXCEPTION 'Seed MQTT username differs from device code';
+  END IF;
+  IF (SELECT count(*) FROM user_devices ud JOIN users u ON u.id=ud.user_id
+      JOIN devices d ON d.id=ud.device_id
+      WHERE u.username='nguyenan' AND d.device_code IN ('vision-01','alert-01')) <> 2 THEN
+    RAISE EXCEPTION 'Customer camera/alert assignment missing';
+  END IF;
+  IF (SELECT count(*) FROM command_types WHERE code IN ('TEST_ALERT','AUTO_ALERT')) <> 2 THEN
+    RAISE EXCEPTION 'Alert command types missing';
+  END IF;
+END $$;
+"""
+            docker("exec", "-i", postgres, "psql", "-U", "w4_test", "-d", seed_database,
+                   "-v", "ON_ERROR_STOP=1", input=seed_sql)
+            (OUTPUT/"fresh-seed.json").write_text(json.dumps({"pass":True,
+                "scope":"Fresh create + teammate seed + migrations in disposable PostgreSQL",
+                "production_database_modified":False},indent=2),encoding="utf-8")
             docker("run", "--rm", "--env-file", str(temp/"mqtt.env"),
                 "--mount", f"type=volume,source={volume},target=/mosquitto/data",
                 "--mount", f"type=bind,source={ROOT/'deployment/mqtt/init.sh'},target=/mosquitto/config/init.sh,readonly",
@@ -122,7 +151,7 @@ def main():
             (OUTPUT/"live-integration.json").write_text(json.dumps({"exit_code":result.returncode,
                 "scope":"Disposable real PostgreSQL + authenticated MQTT + HTTP; virtual ESP32; synthetic MP4",
                 "production_database_modified":False, "physical_outputs_used":False,
-                "cases":4, "full_old_suite_rerun":args.regression},indent=2),encoding="utf-8")
+                "cases":5, "full_old_suite_rerun":args.regression},indent=2),encoding="utf-8")
             print((result.stdout+result.stderr)[-3500:])
             exit_code = result.returncode
             if args.regression:

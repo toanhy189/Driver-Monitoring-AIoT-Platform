@@ -29,6 +29,10 @@ AI_EYE_CLOSURE_CALIBRATION = os.getenv("AI_EYE_CLOSURE_CALIBRATION") or None
 AI_MODEL_PATH = Path(os.getenv("AI_MODEL_PATH", str(BASE_DIR / "ml-runs" / "uta-optimized-v2" / "selected.joblib")))
 AI_MULTISIGNAL_BUNDLE = Path(os.getenv("AI_MULTISIGNAL_BUNDLE", str(BASE_DIR / "ml-runs" / "multisignal-20261110" / "candidate")))
 AI_MULTISIGNAL_DEVICE = os.getenv("AI_MULTISIGNAL_DEVICE", "cpu")
+AI_PROFILE_ID = os.getenv("AI_PROFILE_ID") or None
+AI_CAPTURE_CONDITION = os.getenv("AI_CAPTURE_CONDITION") or None
+AI_CAMERA_INDEX = int(os.getenv("AI_CAMERA_INDEX", "0"))
+AI_HEAD_DOWN_RISK_ENABLED = os.getenv("AI_HEAD_DOWN_RISK_ENABLED", "false").lower() in {"true","1","yes"}
 if AI_MODEL_MODE not in {"baseline", "ml", "multisignal"}:
     raise ValueError("AI_MODEL_MODE must be baseline, ml or multisignal")
 

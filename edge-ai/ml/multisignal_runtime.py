@@ -16,6 +16,18 @@ from ml.regions import REGION_VERSION, IMAGE_SIZE, extract_regions
 from service.alert_policy import POLICY_VERSION
 
 
+def load_multisignal_model(bundle, device="cpu", **profile):
+    manifest = json.loads((Path(bundle)/"manifest.json").read_text(encoding="utf-8"))
+    if manifest.get("format") == "driver-multisignal-v2":
+        from ml.multisignal_v2_runtime import MultisignalModelV2
+        return MultisignalModelV2(bundle, device, **profile)
+    if manifest.get("format") != "driver-multisignal-v1":
+        raise ValueError("Unsupported multisignal format")
+    if profile.get("calibration") or profile.get("head_down_risk"):
+        raise ValueError("Eye calibration and head-down policy require a v2 bundle")
+    return MultisignalModel(bundle, device)
+
+
 def fused_state(prediction, pose_status, *, eyes_available=False, mouth_yawn=None, yawn_threshold=.6):
     if prediction == 1:
         if eyes_available or (mouth_yawn is not None and mouth_yawn >= yawn_threshold):
@@ -73,6 +85,7 @@ class MultisignalModel:
         self.last_score = self.last_inference_ms = self.last_diagnostics = None
         self.signals = None
         self.failed = False
+        self.region_diagnostics = {}
 
     def observe(self, frame, face, now, ear=None, pose=None, pose_status=None):
         self.last_inference_ms = None
@@ -111,6 +124,17 @@ class MultisignalModel:
                     scores[name] = eyes[index] if name == "eyes" else mouth[index]
             eyes_available = "eyes" in scores and float(scores["eyes"].max()) >= self.manifest["eye_confidence_threshold"]
             mouth_available = "mouth" in scores and float(scores["mouth"].max()) >= self.manifest["mouth_confidence_threshold"]
+            # Private diagnostics only; the telemetry contract and decisions stay unchanged.
+            self.region_diagnostics = {
+                "eyes_crop_available": "eyes" in scores,
+                "mouth_crop_available": "mouth" in scores,
+                "eye_probabilities": scores["eyes"].tolist() if "eyes" in scores else None,
+                "mouth_probabilities": scores["mouth"].tolist() if "mouth" in scores else None,
+                "eye_confidence": float(scores["eyes"].max()) if "eyes" in scores else None,
+                "mouth_confidence": float(scores["mouth"].max()) if "mouth" in scores else None,
+                "eye_sharpness": regions["eye_sharpness"],
+                "mouth_sharpness": regions["mouth_sharpness"],
+            }
             values = {"eye_sleepy":float(scores["eyes"][1]) if eyes_available else None,
                 "mouth_yawn":float(scores["mouth"][1]) if mouth_available else None,
                 "mouth_talk":float(scores["mouth"][2]) if mouth_available else None,

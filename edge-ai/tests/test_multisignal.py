@@ -101,7 +101,7 @@ class MultisignalTests(unittest.TestCase):
                  "mouth_available":True,"eyes_available":False,"yawn_probability":.8,"experimental":True}
         model=SimpleNamespace(model_version="eye-mouth-test",observe=Mock(return_value="UNKNOWN"),
             telemetry_signals=Mock(return_value=signals),last_inference_ms=1.,last_score=None)
-        with patch("ml.multisignal_runtime.MultisignalModel",return_value=model), \
+        with patch("ml.multisignal_runtime.load_multisignal_model",return_value=model), \
                 patch.object(app,"AI_MODEL_MODE","multisignal"),patch.object(app,"init_db",return_value=True), \
                 patch.object(app,"VideoUploadWorker"),patch.object(app,"LocalAlertWorker"), \
                 patch.object(app.cv2,"VideoCapture",return_value=camera),patch.object(app.cv2,"imshow"), \

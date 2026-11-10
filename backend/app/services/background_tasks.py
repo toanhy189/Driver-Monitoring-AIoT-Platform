@@ -15,6 +15,7 @@ from app.services.websocket_manager import manager
 logger = logging.getLogger(__name__)
 COMMAND_TIMEOUT_SECONDS = settings.COMMAND_TIMEOUT_SECONDS
 HEARTBEAT_TIMEOUT_SECONDS = 60
+COMMAND_POLL_SECONDS = .2  # Automatic commands have only a two-second freshness window.
 
 
 def expire_commands(session, now):
@@ -75,4 +76,4 @@ def run_background_tasks(stop_event=None):
             run_once()
         except Exception:
             logger.exception("Background task failed")
-        stop_event.wait(1)
+        stop_event.wait(COMMAND_POLL_SECONDS)

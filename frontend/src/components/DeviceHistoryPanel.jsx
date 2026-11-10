@@ -16,13 +16,15 @@ export default function DeviceHistoryPanel({ deviceId, deviceType, onUnauthorize
   const [filters, setFilters] = useState({ from: "", to: "", modelVersion: "" });
   const [query, setQuery] = useState(filters);
   const [offset, setOffset] = useState(0);
-  const [result, setResult] = useState(null);
+  const [response, setResponse] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [selectedVideoEvent, setSelectedVideoEvent] = useState(null);
   const isVisionNode = deviceType === "VISION_NODE";
   const tabs = isVisionNode ? TABS : { timeline: TABS.timeline, commands: TABS.commands };
   const activeKind = tabs[kind] ? kind : "timeline";
+  const result = response?.deviceId === deviceId && response?.kind === activeKind
+    && response?.offset === offset && response?.query === query ? response.value : null;
   const telemetryMetrics = result?.telemetry ?? {};
   const alertMetrics = result?.alerts ?? {};
   const commandMetrics = result?.commands ?? {};
@@ -33,10 +35,10 @@ export default function DeviceHistoryPanel({ deviceId, deviceType, onUnauthorize
   useEffect(() => {
     if (!open) return;
     const controller = new AbortController();
-    setLoading(true); setError(""); setResult(null);
+    setLoading(true); setError(""); setResponse(null);
 
     getDeviceHistory(deviceId, activeKind, { ...query, offset, limit: 50, signal: controller.signal })
-      .then(value => { if (!controller.signal.aborted) setResult(value); })
+      .then(value => { if (!controller.signal.aborted) setResponse({ deviceId, kind: activeKind, offset, query, value }); })
       .catch(cause => {
         if (cause.name === "AbortError") return;
         if (cause.status === 401) onUnauthorized?.(); else setError(cause.message);

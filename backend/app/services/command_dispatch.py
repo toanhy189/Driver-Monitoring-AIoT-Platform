@@ -60,13 +60,18 @@ def dispatch_command(session: Session, command_id: int, publisher=None) -> Comma
             continue
         if child.get("policy_guard"):
             from app.services.ai_policy import guard_is_valid
-            if not guard_is_valid(session, child["policy_guard"], now(), command.device_id):
+            checked_at = now()
+            if not guard_is_valid(session, child["policy_guard"], checked_at, command.device_id):
                 command.dispatches = update_dispatch(command.dispatches, key, "FAILED", "Policy expired or episode ended")
                 command.dispatches = {**command.dispatches, key: {
                     **command.dispatches[key], "dispatch_state": "CANCELLED"}}
                 aggregate(command)
                 session.add(command)
                 session.commit()
+                continue
+            not_before = child["policy_guard"].get("not_before")
+            if not_before and checked_at < datetime.fromisoformat(not_before):
+                session.commit()  # Release locks; recovery/rule edits can cancel this queued intent.
                 continue
         device = session.exec(select(Device).where(Device.id == command.device_id).with_for_update()).one()
         fresh = device.last_seen and -5 <= (now() - device.last_seen).total_seconds() <= 90
