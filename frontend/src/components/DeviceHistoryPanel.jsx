@@ -146,12 +146,15 @@ export default function DeviceHistoryPanel({ deviceId, deviceType, onUnauthorize
                       </td>
                       {activeKind === "timeline" && isVisionNode && (
                         <td className="video-column-cell">
-                          {item.kind === "event" && item.data?.event_type === "STATE_CHANGED" && item.event_id && (
+                          {item.kind === "event" && item.event_id &&
+                            (item.data?.clip_message_id || item.data?.event_type === "STATE_CHANGED") && (
                             <button
                               type="button"
                               className="video-open-button"
-                              aria-label={`Xem video sự kiện ${states[item.data.state] || item.data.state || ""}`}
-                              title="Xem video"
+                              aria-label={`Xem clip liên kết với sự kiện ${states[item.data.state] || item.data.state || ""}`}
+                              title={item.data?.clip_message_id
+                                ? `Xem clip ${item.data.clip_message_id}`
+                                : "Xem video sự kiện"}
                               onClick={() => setSelectedVideoEvent({
                                 event_id: item.event_id,
                                 state: item.data.state,
