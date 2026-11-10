@@ -6,7 +6,7 @@ import { Icon } from "@iconify/react";
 
 const TABS = { telemetry: "Số đo", timeline: "Diễn biến", commands: "Lệnh", metrics: "Thống kê" };
 const time = value => value ? new Date(value).toLocaleString("vi-VN") : "Chưa có";
-const number = value => typeof value === "number" ? value.toFixed(2) : "Chưa có";
+const number = value => typeof value === "number" && Number.isFinite(value) ? value.toFixed(2) : "Chưa có";
 const percentage = value => typeof value === "number" ? `${(value * 100).toFixed(0)}%` : "Chưa có";
 const states = { ATTENTIVE: "Tỉnh táo", DISTRACTED: "Mất tập trung", DROWSY: "Buồn ngủ" };
 
@@ -23,6 +23,12 @@ export default function DeviceHistoryPanel({ deviceId, deviceType, onUnauthorize
   const isVisionNode = deviceType === "VISION_NODE";
   const tabs = isVisionNode ? TABS : { timeline: TABS.timeline, commands: TABS.commands };
   const activeKind = tabs[kind] ? kind : "timeline";
+  const telemetryMetrics = result?.telemetry ?? {};
+  const alertMetrics = result?.alerts ?? {};
+  const commandMetrics = result?.commands ?? {};
+  const latencyMetrics = result?.latency ?? {};
+  const hasMetrics = [telemetryMetrics.count, alertMetrics.count, commandMetrics.count]
+    .some(count => typeof count === "number" && count > 0);
 
   useEffect(() => {
     if (!open) return;
@@ -63,14 +69,19 @@ export default function DeviceHistoryPanel({ deviceId, deviceType, onUnauthorize
           canDelete={canDeleteVideo}
         />
       )}
-      {activeKind === "metrics" && result && <dl className="device-details">
-        <div><dt>Số bản ghi đo</dt><dd>{result.telemetry.count}</dd></div>
-        <div><dt>EAR trung bình</dt><dd>{number(result.telemetry.avg_ear)}</dd></div>
-        <div><dt>PERCLOS trung bình</dt><dd>{number(result.telemetry.avg_perclos)}</dd></div>
-        <div><dt>Cảnh báo / lệnh</dt><dd>{result.alerts.count} / {result.commands.count}</dd></div>
-        <div><dt>Thời gian HTTP trung bình</dt><dd>{number(result.latency.http_avg_ms)} ms</dd></div>
-        <div><dt>Thời gian hoàn tất trung bình</dt><dd>{number(result.latency.completed_avg_ms)} ms</dd></div>
-      </dl>}
+      {activeKind === "metrics" && result && <>
+        {!hasMetrics && !loading && (
+          <p role="status">Chưa có dữ liệu thống kê trong khoảng thời gian đã chọn.</p>
+        )}
+        <dl className="device-details">
+          <div><dt>Số bản ghi đo</dt><dd>{telemetryMetrics.count ?? 0}</dd></div>
+          <div><dt>EAR trung bình</dt><dd>{number(telemetryMetrics.avg_ear)}</dd></div>
+          <div><dt>PERCLOS trung bình</dt><dd>{number(telemetryMetrics.avg_perclos)}</dd></div>
+          <div><dt>Cảnh báo / lệnh</dt><dd>{alertMetrics.count ?? 0} / {commandMetrics.count ?? 0}</dd></div>
+          <div><dt>Thời gian HTTP trung bình</dt><dd>{number(latencyMetrics.http_avg_ms)} ms</dd></div>
+          <div><dt>Thời gian hoàn tất trung bình</dt><dd>{number(latencyMetrics.completed_avg_ms)} ms</dd></div>
+        </dl>
+      </>}
       {activeKind !== "metrics" && result?.items && <>
         {result.items.length === 0 ? <p>Chưa có dữ liệu trong khoảng đã chọn.</p> : <div className="table-scroll">
           <table className="device-table">
