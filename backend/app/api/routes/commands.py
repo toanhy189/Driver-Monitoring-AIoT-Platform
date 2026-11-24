@@ -9,6 +9,7 @@ from sqlmodel import Session, select
 from app.api.deps import require_operator, require_viewer
 from app.core.db import get_session
 from app.models.command import Command
+from app.models.alert import Alert
 from app.models.command_type import CommandType
 from app.models.device import Device
 from app.models.user import User
@@ -21,6 +22,7 @@ from app.services.command_state import aggregate, update_dispatch
 from app.services.time_utils import as_utc
 from app.services.command_dispatch import create_command, dispatch_command
 from app.services.latency import command_latency
+from app.services.command_result import cancellation_status
 
 
 router = APIRouter(tags=["commands"])
@@ -60,8 +62,10 @@ def _public(session: Session, command: Command, device: Device | None = None) ->
         "status": status,
         "ack_status": ack_status,
         "error_message": command.error_message,
+        "cancellation_status": cancellation_status(command),
         "executed_at": as_utc(command.executed_at),
         "alert_id": command.alert_id,
+        "source": "AI" if command.alert_id is not None else "WEB",
         "latency": command_latency(command),
         "latency_ms": command_latency(command)["total_to_completed_ms"],
     }
@@ -151,6 +155,7 @@ def send_test_alert(
 @router.get("/commands")
 def list_commands(
     device_id: int | None = None,
+    alert_id: Annotated[int | None, Query(gt=0)] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 100,
     offset: Annotated[int, Query(ge=0, le=10000)] = 0,
     current_user: User = Depends(require_viewer),
@@ -159,9 +164,16 @@ def list_commands(
     if device_id is not None:
         assigned_device(session, current_user, device_id)
     query = select(Command)
+    if alert_id is not None:
+        alert = session.get(Alert, alert_id)
+        if alert is None:
+            raise HTTPException(status_code=404, detail="Alert not found")
+        assigned_device(session, current_user, alert.device_id)
+        query = query.where(Command.alert_id == alert_id)
     if not is_admin(current_user):
-        query = query.join(UserDevice, UserDevice.device_id == Command.device_id).where(
-            UserDevice.user_id == current_user.id, UserDevice.unassigned_at.is_(None)).distinct()
+        visible_devices = select(UserDevice.device_id).where(UserDevice.user_id == current_user.id,
+            UserDevice.unassigned_at.is_(None))
+        query = query.where(Command.device_id.in_(visible_devices))
     if device_id is not None:
         query = query.where(Command.device_id == device_id)
     commands = session.exec(query.order_by(Command.created_at.desc(), Command.id.desc()).offset(offset).limit(limit)).all()

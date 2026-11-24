@@ -1,0 +1,15 @@
+.ota-tabs,.ota-actions { display:flex; flex-wrap:wrap; gap:10px; margin:14px 0; }
+.ota-panel { margin:18px 0; padding:24px; min-width:0; }
+.ota-panel h2 { margin:0 0 14px; }.ota-panel p { line-height:1.6; }
+.ota-upload { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.ota-upload label,.ota-artifact-select { display:grid; gap:8px; min-width:0; }
+.ota-upload input,.ota-upload textarea,.ota-artifact-select select { width:100%; box-sizing:border-box; padding:10px; border:1px solid #c8d9ec; border-radius:7px; }
+.ota-upload textarea { min-height:70px; }.ota-upload button { align-self:end; }
+.ota-table-wrap { overflow-x:auto; margin:18px 0; }.ota-table { width:100%; border-collapse:collapse; font-size:14px; }
+.ota-table th,.ota-table td { text-align:left; vertical-align:top; padding:14px 10px; border-bottom:1px solid #dde7f0; }
+.ota-table th { background:#f3f7fb; }.ota-table small { display:block; margin-top:8px; color:#62738a; }
+.ota-table code { overflow-wrap:anywhere; font-size:12px; }.ota-table details { max-width:250px; }
+.ota-preview,.ota-job { padding:16px; border:1px solid #d8e5f0; border-radius:8px; margin-top:16px; }
+.ota-batch { margin-top:26px; }.ota-job-heading { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.ota-job progress { width:100%; }.ota-job details { margin-top:14px; }.ota-job li { margin-bottom:8px; overflow-wrap:anywhere; }
+@media(max-width:600px) { .ota-panel { padding:16px; }.ota-upload { grid-template-columns:1fr; }.ota-table { min-width:640px; } }

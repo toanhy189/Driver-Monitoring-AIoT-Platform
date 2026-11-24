@@ -30,6 +30,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     const signals = { schema_version: 'eye-mouth-v1', mar: .42, yawn_probability: .8, mouth_state: 'YAWN', eye_state: 'UNKNOWN', eyes_available: false, mouth_available: true, experimental: true };
     let telemetry = { id: 1, device_id: 5, device_code: 'vision-01', recorded_at: new Date(now).toISOString(), face_detected: true, driver_state: 'UNKNOWN', ear: null, perclos: null, model_version: 'eye-mouth-browser-test', ai_signals: signals };
     let emptyMetrics = false;
+    let aggregateChart = false;
     await page.route('**/api/**', async route => {
       const request = route.request(), pathname = new URL(request.url()).pathname;
       const reply = body => route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) });
@@ -49,12 +50,25 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
           latency:{http_avg_ms:12,completed_avg_ms:100}});
       }
       if (pathname === '/api/5/telemetry') return reply(telemetry);
-      if (pathname === '/api/5/telemetry/history') return reply({ items: [telemetry], total_samples: 1, model_version: telemetry.model_version, last_updated: telemetry.recorded_at });
+      if (pathname === '/api/5/telemetry/history') return reply({ items: [telemetry], total_samples: aggregateChart ? 2000 : 1,
+        model_version: telemetry.model_version, last_updated: telemetry.recorded_at,
+        ...(aggregateChart ? { chart_mode:'BUCKETED', bucket_seconds:3600, snapshot_at:new Date(now).toISOString(),
+          chart_points:[{id:'b1',recorded_at:new Date(now-3600000).toISOString(),ear:.3,ear_min:.05,ear_max:.4,
+            perclos:.2,perclos_min:0,perclos_max:.9,mar:.05,mar_min:0,mar_max:.7},
+            {id:'b2',recorded_at:new Date(now-1000).toISOString(),ear:.3,ear_min:.1,ear_max:.4,
+              perclos:.3,perclos_min:0,perclos_max:.8,mar:.1,mar_min:.02,mar_max:.6}],
+          timeline_segments:[{driver_state:'ATTENTIVE',start:new Date(now-2000).toISOString(),end:new Date(now-1000).toISOString(),samples:2}]
+        } : {}) });
       return reply([]);
     });
     await page.addInitScript(() => localStorage.setItem('access_token', 'disposable-test-token'));
     await page.goto(`http://127.0.0.1:${server.address().port}/#/dashboard`);
     const panel = page.getByRole('region', { name: 'Tín hiệu mắt và miệng', exact: true });
+    await panel.waitFor();
+    const details = panel.locator('.signals-technical');
+    assert.equal(await details.count(), 1);
+    assert.equal(await panel.getByText('0.420', { exact: true }).isVisible(), false);
+    await panel.getByText('Chi tiết AI', { exact: true }).click();
     await panel.getByText('0.420', { exact: true }).waitFor();
     assert.equal(await panel.getByText('Ngáp', { exact: true }).count(), 1);
     assert.equal(await panel.getByText('Chưa dùng được', { exact: true }).count(), 1);
@@ -99,17 +113,34 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     const fusionPanel=page.getByRole('region',{name:'Kết hợp đầu và mắt',exact:true});
     await fusionPanel.getByText('Có nguy cơ từ đầu và mắt',{exact:true}).waitFor();
     await fusionPanel.getByText('0.280',{exact:true}).waitFor();
+    await panel.getByText('Chi tiết AI', { exact: true }).click();
+    const posture = page.getByRole('region',{name:'Cảnh báo cúi đầu kéo dài',exact:true});
+    const posturePolicy = {version:'sustained-head-down-v1',state:'NORMAL',risk_candidate:false,
+      observed_down_seconds:0,enter_pitch_deg:12,min_seconds:3};
+    socket.send(JSON.stringify({type:'telemetry.updated',data:{...telemetry,id:80,
+      recorded_at:new Date(now+2876).toISOString(),ai_signals:{...v2,head_motion:motion,head_down_policy:posturePolicy}}}));
+    await panel.getByText('Model kết hợp chưa phát hiện nguy cơ',{exact:true}).waitFor();
+    assert.equal(await posture.count(), 0);
+    assert.equal(await details.getAttribute('open'), null);
+    assert.equal(await panel.getByText('0.420',{exact:true}).isVisible(), false);
+    socket.send(JSON.stringify({type:'telemetry.updated',data:{...telemetry,id:81,
+      recorded_at:new Date(now+2877).toISOString(),ai_signals:{...v2,head_motion:{...motion,state:'LOWERED',pitch_deg:15},
+        head_down_policy:{...posturePolicy,state:'LOWERED',observed_down_seconds:1.2}}}}));
+    await posture.getByText('1.2 / 3 giây',{exact:true}).waitFor();
     socket.send(JSON.stringify({type:'telemetry.updated',data:{...telemetry,id:8,
-      recorded_at:new Date(now+2880).toISOString(),driver_state:'DROWSY',ai_signals:{...v2,head_motion:{...motion,state:'LOWERED'},
+      recorded_at:new Date(now+2880).toISOString(),driver_state:'DROWSY',ai_signals:{...v2,head_motion:{...motion,state:'LOWERED',pitch_deg:15},
         decision_reason:'HEAD_DOWN_RISK',head_down_policy:{version:'sustained-head-down-v1',state:'DOWN_RISK',
           risk_candidate:true,observed_down_seconds:3.5,enter_pitch_deg:12,min_seconds:3}}}}));
     await page.getByRole('region',{name:'Cảnh báo cúi đầu kéo dài',exact:true}).getByText('3.5 / 3 giây',{exact:true}).waitFor();
     await panel.getByText('Cúi đầu kéo dài theo quy tắc cảnh báo',{exact:true}).waitFor();
+    assert.equal(await details.getAttribute('open'), null);
+    await panel.getByText('Chi tiết AI', { exact: true }).click();
     socket.send(JSON.stringify({ type: 'telemetry.updated', data: { ...telemetry, id: 6,
       recorded_at: new Date(now + 2900).toISOString(), ai_signals: { ...v2,
         head_motion: { ...motion, state: 'UNAVAILABLE', available: false, pitch_deg: null, yaw_deg: null,
           roll_deg: null, nod_count: 0, repeated_nods: false } } } }));
     await headPanel.getByText('Chưa đo được chuyển động đầu', { exact: true }).waitFor();
+    assert.equal(await posture.count(), 0);
     assert.equal(await headPanel.getByText('2.0°', { exact: true }).count(), 0);
     socket.send(JSON.stringify({ type: 'telemetry.updated', data: { ...telemetry, id: 7, face_detected: false, recorded_at: new Date(now + 3000).toISOString() } }));
     await panel.waitFor({ state: 'hidden' });
@@ -129,9 +160,22 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     await history.getByText('Chưa có dữ liệu trong khoảng đã chọn.',{exact:true}).waitFor();
     await history.getByRole('button',{name:'Thống kê',exact:true}).click();
     await history.getByText('Số bản ghi đo',{exact:true}).waitFor();
+    aggregateChart = true;
+    await page.goto(`http://127.0.0.1:${server.address().port}/#/dashboard`);
+    const metrics = page.getByRole('region', { name:'AI Metrics và Timeline', exact:true });
+    await metrics.getByText('2000 mẫu', { exact:true }).waitFor();
+    await metrics.getByText('Đường biểu diễn trung bình theo khoảng 3600 giây;', {exact:false}).waitFor();
+    assert.equal(await metrics.locator('path[fill-opacity="0.12"]').count(), 3);
+    const fresh = { ...telemetry, id:999, recorded_at:new Date(now+1000).toISOString(),driver_state:'ATTENTIVE' };
+    socket.send(JSON.stringify({type:'telemetry.updated',data:fresh}));
+    await metrics.getByText('2001 mẫu', {exact:true}).waitFor();
+    socket.send(JSON.stringify({type:'telemetry.updated',data:fresh}));
+    await page.waitForTimeout(100);
+    assert.equal(await metrics.getByText('2001 mẫu', {exact:true}).count(), 1);
+    assert.equal(await metrics.getByRole('listitem').count(), 1);
     assert.deepEqual(errors, []);
     assert.deepEqual(forbidden, []);
-    console.log('PASS: v1 snapshot -> realtime MAR/yawn -> v2 independent geometry/uncertainty/reasons -> face loss clears measurements; no commands.');
+    console.log('PASS: legacy/v2 AI signals, posture, linked history, full-window mean/min-max chart, grouped timeline and realtime deduplication; no commands.');
   } finally {
     if (browser) await browser.close();
     await new Promise(resolve => server.close(resolve));

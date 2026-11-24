@@ -104,7 +104,7 @@ class MqttSecurityIntegration(unittest.TestCase):
         self.assertTrue(ai.publish(f"driver/{code_ai}/storage_ack").is_failure)
 
         code = "tv2-security-" + secrets.token_hex(4)
-        credentials = provision_device(code)
+        credentials = provision_device(code, device_type="ALERT_NODE")
         device = Peer(credentials["username"], credentials["password"])
         revoked = False
         try:

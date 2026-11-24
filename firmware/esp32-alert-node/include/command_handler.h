@@ -37,6 +37,7 @@ static void updateDevice(
 
 // update state của các device, dùng trong loop() của main.cpp
 void deviceLoop();
+bool deviceOutputsBusy();
 
 // bật tắt device
 static void handleDeviceOn(

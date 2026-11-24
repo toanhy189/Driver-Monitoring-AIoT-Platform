@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from pydantic import NaiveDatetime
 from sqlmodel import Field, SQLModel
-from sqlalchemy import Column
+from sqlalchemy import Column, JSON
 from sqlalchemy.dialects.postgresql import INET, MACADDR
 
 
@@ -41,3 +41,4 @@ class Device(SQLModel, table=True):
     )
     mqtt_username: str | None = None
     mqtt_password: str | None = None
+    ota_capabilities: dict | None = Field(default=None, sa_column=Column(JSON, nullable=True))

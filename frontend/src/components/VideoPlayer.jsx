@@ -104,7 +104,7 @@ export default function VideoPlayer({ video: initialVideo, deviceId, messageId, 
           aria-label={`Video trạng thái ${video?.state || ""}`}
           onError={() => setError("Trình duyệt không phát được video này. Bạn có thể tải video gốc để xem.")} />}
         {video && <p><small>{video.state} · {(video.size_bytes / 1048576).toFixed(1)} MB (bản gốc)</small></p>}
-        <div className="config-actions">
+        <div className="inline-actions inline-actions--end video-actions">
           {video && <button className="outline-button" disabled={downloading} onClick={downloadOriginal}>{downloading ? "Đang tải…" : "Tải video gốc"}</button>}
           {error && !loading && <button className="outline-button" onClick={() => setAttempt(value => value + 1)}>Thử lại</button>}
           {video && canDelete && <button className="outline-button" onClick={async () => {

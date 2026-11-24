@@ -36,8 +36,11 @@ export async function sendTestAlert(deviceId, { parameters = TEST_ALERT_BODY, si
   return command;
 }
 
-export async function getCommands({ deviceId, signal } = {}) {
-  const query = deviceId == null ? "" : `?device_id=${validDeviceId(deviceId)}`;
+export async function getCommands({ deviceId, alertId, signal } = {}) {
+  const filters = [];
+  if (deviceId != null) filters.push(`device_id=${validDeviceId(deviceId)}`);
+  if (alertId != null) filters.push(`alert_id=${validDeviceId(alertId)}`);
+  const query = filters.length ? `?${filters.join("&")}` : "";
   const response = await authenticatedRequest(`/commands${query}`, {
     missingMessage: "Bạn cần đăng nhập để xem lệnh.", signal,
   });

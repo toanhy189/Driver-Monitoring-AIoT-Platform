@@ -10,12 +10,13 @@ export async function getLatestTelemetry(deviceId, { signal } = {}) {
   return telemetry;
 }
 
-export async function getTelemetryHistory(deviceId, { fromTime, toTime, limit = 100, signal } = {}) {
+export async function getTelemetryHistory(deviceId, { fromTime, toTime, limit = 100, chart = false, signal } = {}) {
   if (!Number.isSafeInteger(deviceId) || deviceId <= 0) throw new Error("ID thiết bị không hợp lệ.");
   const params = new URLSearchParams();
   if (fromTime) params.append("from_time", fromTime);
   if (toTime) params.append("to_time", toTime);
   if (limit) params.append("limit", String(limit));
+  if (chart) params.append("chart", "true");
   const queryString = params.toString() ? `?${params.toString()}` : "";
   const response = await authenticatedRequest(`/${deviceId}/telemetry/history${queryString}`, {
     missingMessage: "Bạn cần đăng nhập để xem lịch sử số đo.",

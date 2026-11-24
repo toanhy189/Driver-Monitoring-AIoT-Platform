@@ -23,6 +23,7 @@ CREATE TABLE users (
 CREATE TABLE devices (
     id SERIAL PRIMARY KEY,
     device_code VARCHAR(100) UNIQUE NOT NULL,
+    ota_capabilities JSONB,
     model VARCHAR(100) NOT NULL,
     name VARCHAR(255),
     status VARCHAR(30) DEFAULT 'OFFLINE',

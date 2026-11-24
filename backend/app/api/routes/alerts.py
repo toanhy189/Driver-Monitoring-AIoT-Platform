@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
-from app.api.deps import require_operator, require_viewer
+from app.api.deps import require_viewer
 from app.core.db import get_session
 from app.models.alert import Alert
+from app.models.alert_read import AlertRead
 from app.models.device import Device
 from app.models.user import User
 from app.models.user_device import UserDevice
@@ -17,7 +18,7 @@ from app.services.event_links import event_clip
 router = APIRouter(tags=["alerts"])
 
 
-def _public(session: Session, alert: Alert, user_id: int | None = None) -> dict:
+def _public(session: Session, alert: Alert, user_id: int | None = None, *, reader_id: int | None = None) -> dict:
     device = session.get(Device, alert.device_id)
     severity = alert.severity
     command_query = select(Command).where(Command.alert_id == alert.id)
@@ -26,6 +27,10 @@ def _public(session: Session, alert: Alert, user_id: int | None = None) -> dict:
             UserDevice.user_id == user_id, UserDevice.unassigned_at.is_(None))
     command = session.exec(command_query.order_by(Command.id).limit(1)).first()
     clip = event_clip(session, alert.device_id, alert.source_event_id)
+    read = session.get(AlertRead, (alert.id, reader_id if reader_id is not None else user_id)) if reader_id is not None or user_id is not None else None
+    status = alert.status
+    if status in {"NEW", "ACKNOWLEDGED"}:
+        status = "ACKNOWLEDGED" if read else "NEW"
     return {
         "alert_id": alert.id,
         "device_id": alert.device_id,
@@ -34,8 +39,12 @@ def _public(session: Session, alert: Alert, user_id: int | None = None) -> dict:
         "severity": int(severity) if severity is not None and str(severity).isdigit() else None,
         "description": alert.description,
         "created_at": as_utc(alert.created_at),
-        "status": alert.status,
+        "status": status,
+        "system_status": alert.status,
+        "acknowledged": read is not None,
+        "acknowledged_at": as_utc(read.acknowledged_at) if read else None,
         "request_id": command.request_id if command else None,
+        "command_device_id": command.device_id if command else None,
         "event_id": alert.source_event_id,
         "video_status": clip["status"],
         "clip_message_id": clip["clip_message_id"],
@@ -62,12 +71,16 @@ def list_alerts(
             UserDevice.user_id == current_user.id, UserDevice.unassigned_at.is_(None)).distinct()
     if device_id is not None:
         query = query.where(Alert.device_id == device_id)
-    if status is not None:
+    if status in {"NEW", "ACKNOWLEDGED"}:
+        seen = select(AlertRead.alert_id).where(AlertRead.user_id == current_user.id)
+        query = query.where(Alert.status.in_(["NEW", "ACKNOWLEDGED"]),
+                            Alert.id.in_(seen) if status == "ACKNOWLEDGED" else Alert.id.not_in(seen))
+    elif status is not None:
         query = query.where(Alert.status == status)
     alerts = session.exec(
         query.order_by(Alert.created_at.desc()).offset(offset).limit(limit)
     ).all()
-    return [_public(session, alert, None if is_admin(current_user) else current_user.id) for alert in alerts]
+    return [_public(session, alert, None if is_admin(current_user) else current_user.id, reader_id=current_user.id) for alert in alerts]
 
 
 @router.get("/alerts/{alert_id}/video")
@@ -83,24 +96,23 @@ def alert_video(alert_id: int, current_user: User = Depends(require_viewer),
 @router.post("/alerts/{alert_id}/acknowledge")
 def acknowledge_alert(
     alert_id: int,
-    current_user: User = Depends(require_operator),
+    current_user: User = Depends(require_viewer),
     session: Session = Depends(get_session),
 ):
-    alert = session.get(Alert, alert_id)
+    alert = session.exec(select(Alert).where(Alert.id == alert_id).with_for_update()).first()
     if alert is None:
         raise HTTPException(status_code=404, detail="Alert not found")
     assigned_device(session, current_user, alert.device_id)
-    if alert.status == "ACKNOWLEDGED":
-        return _public(session, alert, current_user.id)
-    if alert.status != "NEW":
+    scope = None if is_admin(current_user) else current_user.id
+    if session.get(AlertRead, (alert.id, current_user.id)):
+        return _public(session, alert, scope, reader_id=current_user.id)
+    if alert.status not in {"NEW", "ACKNOWLEDGED", "RESOLVED", "CLOSED"}:
         raise HTTPException(status_code=409, detail="Alert cannot be acknowledged")
-    alert.status = "ACKNOWLEDGED"
-    session.add(alert)
-    session.commit()
+    session.add(AlertRead(alert_id=alert.id, user_id=current_user.id))
     log_action(
         session=session, user_id=current_user.id,
         action="ACKNOWLEDGE_ALERT", entity_type="Alert",
         entity_id=str(alert.id), details={"alert_type": alert.alert_type},
     )
     session.commit()
-    return _public(session, alert, current_user.id)
+    return _public(session, alert, scope, reader_id=current_user.id)

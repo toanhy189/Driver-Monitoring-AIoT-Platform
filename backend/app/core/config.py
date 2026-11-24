@@ -52,5 +52,10 @@ class Settings(BaseSettings):
     AI_VIDEO_MAX_BYTES: int = Field(default=104857600, ge=1024, le=1073741824)
     AI_VIDEO_TOTAL_MAX_BYTES: int = Field(default=4294967296, ge=1048576)
     METRICS_TOKEN: str = ""
+    OTA_ENABLED: bool = False
+    OTA_STORAGE_DIR: Path = BASE_DIR / "storage" / "firmware"
+    OTA_PUBLIC_KEY_FILE: Path = BASE_DIR / "deployment" / "ota" / "public.pem"
+    OTA_PUBLIC_BASE_URL: str = ""
+    OTA_ALLOW_HTTP_FOR_LAN: bool = False
 
 settings = Settings()

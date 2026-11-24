@@ -1,9 +1,12 @@
 from datetime import datetime, timezone
+from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlmodel import Session, select
+from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import require_admin, require_viewer
 from app.core.db import get_session
+from app.core.config import settings
 from app.models.device import Device
 from app.models.telemetry import Telemetry
 from app.models.user import User
@@ -15,26 +18,15 @@ from app.services.audit_service import log_action
 from app.services.mqtt_provision_service import provision_device
 from app.services.mqtt_revoke_service import revoke_device
 from app.services.time_utils import as_utc
+from app.services.device_registration import deletion_block_reason
 
 
 router = APIRouter(tags=["devices"])
 
 
 def require_device_manager(
-    device_id: int,
-    current_user: User = Depends(require_viewer),
-    session: Session = Depends(get_session),
+    current_user: User = Depends(require_admin),
 ) -> User:
-    if is_admin(current_user):
-        return current_user
-    if current_user.role not in {"Employee", "OPERATOR"}:
-        raise HTTPException(status_code=403, detail="Not enough permissions")
-    try:
-        assigned_device(session, current_user, device_id)
-    except HTTPException as error:
-        if error.status_code != 404:
-            raise
-        raise HTTPException(status_code=403, detail="Not enough permissions") from error
     return current_user
 
 
@@ -58,15 +50,6 @@ def update_hardware_version(device_id: int, data: HardwareVersionUpdate,
     return _response(device)
 
 
-def _kind(code: str, model: str) -> str | None:
-    value = f"{code} {model}".lower()
-    if code.lower().startswith("alert-") or "alert" in value or "cảnh báo" in value:
-        return "ALERT_NODE"
-    if code.lower().startswith("vision-") or "cam" in value:
-        return "VISION_NODE"
-    return None
-
-
 @router.get("/devices", response_model=list[DeviceResponse])
 def get_all_device(
     session: Session = Depends(get_session),
@@ -81,7 +64,35 @@ def get_device_detail(
     session: Session = Depends(get_session),
     current_user: User = Depends(require_viewer),
 ):
-    return _response(assigned_device(session, current_user, device_id))
+    device = assigned_device(session, current_user, device_id)
+    result = _response(device)
+    if is_admin(current_user):
+        result.delete_block_reason = deletion_block_reason(session, device, current_user.id)
+        result.can_delete_registration = result.delete_block_reason is None
+    return result
+
+
+@router.delete("/devices/{device_id}", status_code=204)
+def delete_unused_registration(device_id: int, current_user: User = Depends(require_admin),
+                               session: Session = Depends(get_session)):
+    device = session.exec(select(Device).where(Device.id == device_id).with_for_update()).first()
+    if device is None:
+        raise HTTPException(status_code=404, detail="Device not found")
+    reason = deletion_block_reason(session, device, current_user.id)
+    if reason:
+        raise HTTPException(status_code=409, detail=reason)
+    for assignment in session.exec(select(UserDevice).where(UserDevice.device_id == device_id)).all():
+        session.delete(assignment)
+    session.flush()  # Remove the automatic Admin link before deleting its referenced device.
+    log_action(session, current_user.id, "DELETE_UNUSED_REGISTRATION", "Device", str(device_id),
+        {"device_code":device.device_code,"device_type":device.device_type})
+    session.delete(device)
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(status_code=409, detail="Thiết bị vừa phát sinh dữ liệu hoặc liên kết; không thể xóa đăng ký.") from None
+    return Response(status_code=204)
 
 
 @router.get("/{device_id}/telemetry", response_model=TelemetryResponse)
@@ -122,6 +133,7 @@ def get_telemetry_history(
     from_time: datetime | None = None,
     to_time: datetime | None = None,
     limit: int = Query(default=100, ge=1, le=200),
+    chart: bool = False,
     current_user: User = Depends(require_viewer),
     session: Session = Depends(get_session),
 ):
@@ -132,6 +144,8 @@ def get_telemetry_history(
             raise HTTPException(status_code=422, detail="from_time/to_time must include a UTC offset")
     if from_time is not None and to_time is not None and from_time >= to_time:
         raise HTTPException(status_code=422, detail="Expected from_time < to_time")
+    if chart and to_time is None:
+        to_time = datetime.now(timezone.utc)
     query = select(Telemetry).where(Telemetry.device_id == device_id)
     if from_time:
         query = query.where(Telemetry.recorded_at >= from_time.astimezone(timezone.utc).replace(tzinfo=None))
@@ -144,13 +158,19 @@ def get_telemetry_history(
     items_asc = list(reversed(items_desc))
     total_samples = len(items_asc)
     latest_item = items_desc[0] if items_desc else None
-
+    extra = {}
+    if chart:
+        from app.services.telemetry_chart import chart_summary
+        extra = chart_summary(session, query)
+        total_samples = extra.pop("total_samples")
+        extra["snapshot_at"] = as_utc(to_time)
     return TelemetryHistoryResponse(
         device_id=device.id,
         device_code=device.device_code,
         total_samples=total_samples,
         model_version=latest_item.model_version if latest_item else None,
         last_updated=as_utc(latest_item.recorded_at) if latest_item else None,
+        **extra,
         items=[
             TelemetryHistoryItem(
                 id=t.id,
@@ -175,21 +195,26 @@ def register_device(
     current_user: User = Depends(require_admin),
     session: Session = Depends(get_session),
 ):
-    if session.exec(select(Device).where(Device.device_code == data.device_code)).first():
+    code = data.device_code or f"{'vision' if data.device_type == 'VISION_NODE' else 'alert'}-{uuid4().hex[:12]}"
+    if session.exec(select(Device).where(Device.device_code == code)).first():
         raise HTTPException(status_code=409, detail="Device code already exists")
     device = Device(
-        device_code=data.device_code,
+        device_code=code,
         model=data.model,
         name=data.name,
         hardware_version=data.hardware_version,
-        device_type=_kind(data.device_code, data.model),
+        device_type=data.device_type,
         ip_address=data.ip_address,
         mac_address=data.mac_address,
         status="OFFLINE",
         lifecycle_state="REGISTERED",
     )
     session.add(device)
-    session.flush()
+    try:
+        session.flush()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(status_code=409, detail="Mã thiết bị vừa được sử dụng. Hãy đăng ký lại.") from None
     session.add(UserDevice(user_id=current_user.id, device_id=device.id))
     # Dang ky truoc day chi tao device va assignment; audit cung giao dich.
     log_action(
@@ -208,9 +233,15 @@ def provision_mqtt_credentials(
     current_user: User = Depends(require_device_manager),
     session: Session = Depends(get_session),
 ):
-    device = assigned_device(session, current_user, device_id)
+    assigned_device(session, current_user, device_id)
+    device = session.exec(select(Device).where(Device.id == device_id).with_for_update()
+                          .execution_options(populate_existing=True)).first()
+    if device is None:
+        raise HTTPException(status_code=404, detail="Device not found")
     if device.lifecycle_state != "REGISTERED":
         raise HTTPException(status_code=409, detail="Only registered devices can be provisioned")
+    if device.device_type not in {"VISION_NODE", "ALERT_NODE"}:
+        raise HTTPException(status_code=409, detail="Chưa xác định loại thiết bị. Hãy ngừng sử dụng hồ sơ cũ và đăng ký lại với loại rõ ràng.")
     try:
         credentials = provision_device(device.device_code, device_type=device.device_type)
     except ValueError as error:
@@ -243,6 +274,11 @@ def activate_device(
     session: Session = Depends(get_session),
 ):
     device = assigned_device(session, current_user, device_id)
+    if settings.OTA_ENABLED:
+        from app.services.ota_service import guard_lifecycle
+        device = guard_lifecycle(session,device)
+    if device.device_type not in {"VISION_NODE", "ALERT_NODE"}:
+        raise HTTPException(status_code=409, detail="Chưa xác định loại thiết bị; chưa thể kích hoạt.")
     if device.lifecycle_state not in {"PROVISIONED", "MAINTENANCE"}:
         raise HTTPException(status_code=409, detail="Device must be provisioned or in maintenance")
     previous_state = device.lifecycle_state
@@ -287,6 +323,9 @@ def decommission_device(
     session: Session = Depends(get_session),
 ):
     device = assigned_device(session, current_user, device_id)
+    if settings.OTA_ENABLED:
+        from app.services.ota_service import guard_lifecycle
+        device = guard_lifecycle(session,device)
     if device.lifecycle_state == "DECOMMISSIONED":
         raise HTTPException(status_code=409, detail="Device already decommissioned")
     if device.mqtt_username:

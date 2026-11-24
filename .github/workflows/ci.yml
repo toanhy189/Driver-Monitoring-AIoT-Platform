@@ -30,6 +30,8 @@ jobs:
         run: python backend/tests/run_week4_isolated.py --regression
       - name: PostgreSQL concurrent rule binding and ACK preservation
         run: python backend/tests/run_rule_binding_postgres.py
+      - name: PostgreSQL signed OTA lifecycle and permission checks
+        run: python backend/tests/run_rule_binding_postgres.py --suite test_ota_postgres.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -73,6 +75,7 @@ jobs:
           python-version: '3.13'
       - run: python -m pip install platformio
       - run: python -m platformio run -d firmware/esp32-alert-node -e development
+      - run: python -m platformio run -d firmware/esp32-alert-node -e ota-release
   docker-validation:
     needs: [frontend-build, firmware-build]
     runs-on: ubuntu-latest
@@ -81,6 +84,7 @@ jobs:
       - run: cp .env.example .env
       - run: python deployment/mqtt/prepare_env.py
       - run: docker compose --env-file .env -f deployment/docker-compose.yml config --quiet
+      - run: docker compose --env-file .env -f deployment/docker-compose.yml --profile ota config --quiet
       - run: docker compose --env-file .env -f deployment/docker-compose.yml -f deployment/docker-compose.monitoring.yml config --quiet
       - run: docker compose --env-file .env -f deployment/docker-compose.yml -f deployment/docker-compose.tls.yml config --quiet
   docker-build:

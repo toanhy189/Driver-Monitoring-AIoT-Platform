@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import DeviceDetailView from "./DeviceDetailView.jsx";
 import FeedbackDialog from "../components/FeedbackDialog.jsx";
+import DecommissionDialog from "../components/DecommissionDialog.jsx";
 
-import { getDeviceDetail, runDeviceAction } from "../services/devices.js";
+import { getDeviceDetail, runDeviceAction, deleteDeviceRegistration } from "../services/devices.js";
 import { applyDeviceUpdate, deviceActionBlockReason, markDevicesStale } from "../services/deviceModel.js";
 import { matchesDevice } from "../services/realtime.js";
 import { hasPermission } from "../services/permissions.js";
@@ -26,6 +27,7 @@ function DeviceDetailPage({ user, realtime = NO_REALTIME, deviceId, summary, onB
   const [actionNotice, setActionNotice] = useState("");
   const [busyAction, setBusyAction] = useState(null);
   const [feedback, setFeedback] = useState(null);
+  const [decommissionTarget, setDecommissionTarget] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const actionController = useRef(null);
   const pendingUpdates = useRef([]);
@@ -80,7 +82,7 @@ function DeviceDetailPage({ user, realtime = NO_REALTIME, deviceId, summary, onB
       if (event.sequence <= lastEventSequence.current) continue;
       lastEventSequence.current = event.sequence;
       if (event.type !== "device.updated" ||
-          !matchesDevice(event.data, deviceId, device?.device_code ?? summary?.device_code)) continue;
+        !matchesDevice(event.data, deviceId, device?.device_code ?? summary?.device_code)) continue;
       if (detailRequestInFlight.current) pendingUpdates.current.push(event.data);
       setDevice(current => current ? applyDeviceUpdate([current], event.data)[0] : current);
     }
@@ -92,15 +94,16 @@ function DeviceDetailPage({ user, realtime = NO_REALTIME, deviceId, summary, onB
     setReloadKey(value => value + 1);
   };
 
-  const performAction = async action => {
+  const performAction = async (action, { confirmed = false } = {}) => {
     const permission = action === "decommission" ? "device:decommission" : "device:manage";
-    const ownsLoadedDevice = detailSource === "detail" &&
-      hasPermission(user?.role, "device:manage-assigned");
-    if ((!hasPermission(user?.role, permission) && !ownsLoadedDevice) || busyAction) return;
+    if (!hasPermission(user?.role, permission) || busyAction) return;
+    if (action === "delete-registration" && (detailSource !== "detail" || !device?.can_delete_registration)) return;
     if (deviceActionBlockReason(device, action)) return;
-    if (action === "decommission" && !window.confirm(
-      `Ngừng sử dụng thiết bị ${device?.device_code || deviceId}? Hãy kiểm tra đúng thiết bị trước khi tiếp tục.`
-    )) return;
+    if (action === "decommission" && !confirmed) {
+      setDecommissionTarget({ id: deviceId, code: device.device_code, name: device.name });
+      return;
+    }
+    if (action === "delete-registration" && !window.confirm(`Xóa đăng ký  ${device?.device_code}? Thao tác chỉ áp dụng cho hồ sơ chưa cấp kết nối, chưa phân công và chưa có dữ liệu.`)) return;
 
     setBusyAction(action);
     setActionError("");
@@ -108,6 +111,11 @@ function DeviceDetailPage({ user, realtime = NO_REALTIME, deviceId, summary, onB
     const controller = new AbortController();
     actionController.current = controller;
     try {
+      if (action === "delete-registration") {
+        await deleteDeviceRegistration(deviceId, { signal: controller.signal });
+        if (!controller.signal.aborted) onBack();
+        return;
+      }
       const result = await runDeviceAction(deviceId, action, { signal: controller.signal });
       if (controller.signal.aborted) return;
       setActionNotice("BE đã xác nhận yêu cầu. Đang lấy lại trạng thái thiết bị.");
@@ -143,7 +151,12 @@ function DeviceDetailPage({ user, realtime = NO_REALTIME, deviceId, summary, onB
     actionNotice={actionNotice} busyAction={busyAction} retry={retry}
     performAction={performAction} onBack={onBack} onDashboard={onDashboard} onOpenTarget={onOpenTarget}
     onOpenHistory={onOpenHistory} onOpenConfig={onOpenConfig} onOpenCommands={onOpenCommands} onOpenAlerts={onOpenAlerts} onUnauthorized={onUnauthorized} onLogout={onLogout}
-  /><FeedbackDialog feedback={feedback} onClose={() => setFeedback(null)} /></>;
+  /><DecommissionDialog target={decommissionTarget?.id === deviceId ? decommissionTarget : null}
+    onCancel={() => setDecommissionTarget(null)} onConfirm={() => {
+      const target = decommissionTarget;
+      setDecommissionTarget(null);
+      if (target?.id === deviceId && target.code === device?.device_code) performAction("decommission", { confirmed: true });
+    }} /><FeedbackDialog feedback={feedback} onClose={() => setFeedback(null)} /></>;
 }
 
 export default DeviceDetailPage;

@@ -22,6 +22,7 @@ from app.schemas.ai_telemetry import QueuedTelemetry
 from app.schemas.rules import AiEventRequest
 from app.services.audit_service import log_action
 from app.services.command_state import aggregate, update_dispatch
+from app.services.command_result import cancellation_status
 from app.services.websocket_manager import manager
 
 
@@ -136,6 +137,10 @@ def _save_status(session: Session, code: str, payload: dict) -> list[dict]:
     hardware = payload.get("hardware_version")
     if isinstance(hardware, str) and hardware:
         device.hardware_version = hardware[:80]
+    if device.status == "ONLINE" and device.device_type == "ALERT_NODE":
+        from app.schemas.ota import OtaCapabilities
+        try: device.ota_capabilities = OtaCapabilities.model_validate(payload.get("ota")).model_dump()
+        except ValueError: device.ota_capabilities = None
     session.add(device)
     session.commit()
     return [_device_event(device)]
@@ -272,6 +277,7 @@ def _save_ack(session: Session, code: str, payload: dict) -> list[dict]:
         "status": command.status,
         "ack_status": command.ack_status,
         "error_message": command.error_message,
+        "cancellation_status": cancellation_status(command),
     }}]
 
 
@@ -330,6 +336,9 @@ def process_message(topic: str, payload: dict) -> list[dict]:
                 logger.warning("AI ingest rejected: reason=TOPIC_SOURCE_MISMATCH topic=%r", topic)
                 return []
     with Session(engine) as session:
+        if len(parts)==4 and parts[2:]==["ota","status"]:
+            from app.services.ota_service import accept_status
+            return accept_status(session,parts[1],payload)
         if topic == "driver/telemetry":
             return _save_telemetry(session, payload.get("device_id"), payload)
         if topic == "driver/events":
@@ -362,7 +371,7 @@ def on_connect(client, userdata, flags, reason_code, properties=None):
 
 def on_message(client, userdata, msg):
     # These are BE output topics; retained tombstones are valid and need no JSON parsing.
-    if msg.topic.endswith(("/command", "/config/update", "/storage_ack")):
+    if msg.topic.endswith(("/command", "/config/update", "/storage_ack", "/ota/request")):
         return
     try:
         payload = json.loads(msg.payload.decode("utf-8"))

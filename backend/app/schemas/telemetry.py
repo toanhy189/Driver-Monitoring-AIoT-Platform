@@ -55,3 +55,8 @@ class TelemetryHistoryResponse(BaseModel):
     model_version: str | None = None
     last_updated: datetime | None = None
     items: list[TelemetryHistoryItem]
+    chart_points: list[dict] | None = None
+    timeline_segments: list[dict] | None = None
+    bucket_seconds: int = 0
+    chart_mode: str | None = None
+    snapshot_at: datetime | None = None

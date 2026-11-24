@@ -124,11 +124,12 @@ class FinalCore(fixtures.Week4Integration):
         self.assertEqual(response.status_code, 201, response.text)
         self.assertEqual(response.json()['user']['role'], 'Customer')
 
-    def test_hardware_metadata_requires_assigned_manager(self):
+    def test_hardware_metadata_requires_admin(self):
         path=f'/api/devices/{self.device_id}/hardware'
         body={'hardware_version':'Laptop USB camera - verified label'}
         self.assertEqual(self.client.patch(path,headers=self.auth('Customer'),json=body).status_code,403)
-        result=self.client.patch(path,headers=self.auth('Employee'),json=body)
+        self.assertEqual(self.client.patch(path,headers=self.auth('Employee'),json=body).status_code,403)
+        result=self.client.patch(path,headers=self.auth('Admin'),json=body)
         self.assertEqual(result.status_code,200,result.text)
         self.assertEqual(result.json()['hardware_version'],body['hardware_version'])
 

@@ -49,11 +49,12 @@ export function normalizeCommand(value) {
 }
 
 export function commandBelongsToDevice(command, deviceId, deviceCode, { requireIdentity = false } = {}) {
-  if (requireIdentity && command.device_id == null && command.device_code == null) return false;
-  if (command.device_id != null && command.device_id !== deviceId &&
-      command.device_id !== deviceCode) return false;
-  if (command.device_code != null && command.device_code !== deviceCode) return false;
-  return true;
+  const idMatches = deviceId != null && command.device_id === deviceId;
+  const codeMatches = deviceCode != null && (command.device_code === deviceCode || command.device_id === deviceCode);
+  if (command.device_id != null && deviceId != null && !idMatches && command.device_id !== deviceCode) return false;
+  if (command.device_code != null && deviceCode != null && command.device_code !== deviceCode) return false;
+  if (idMatches || codeMatches) return true;
+  return !requireIdentity && command.device_id == null && command.device_code == null;
 }
 
 export function commandFinished(command) {
@@ -82,7 +83,12 @@ export function keepNewerCommand(current, incoming) {
   if (current.device_code != null && incoming.device_code != null &&
       current.device_code !== incoming.device_code) return current;
   if (commandFinished(current) && commandFinished(incoming) &&
-      current.status !== "TIMEOUT") return current;
+      current.status !== "TIMEOUT") {
+    // A published sibling may report a real failure after unsent siblings were cancelled.
+    if (current.cancellation_status && Object.hasOwn(incoming, "cancellation_status")
+        && incoming.cancellation_status !== current.cancellation_status) return { ...current, ...incoming };
+    return current;
+  }
   if (progressRank(current) > progressRank(incoming)) return current;
   if (current.status === "TIMEOUT" && incoming.status === "TIMEOUT") return current;
   return { ...current, ...incoming };

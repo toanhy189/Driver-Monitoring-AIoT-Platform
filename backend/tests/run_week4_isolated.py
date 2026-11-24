@@ -84,8 +84,13 @@ def main():
             scripts = ("create.sql", "old/migration_be_week3.sql",
                        "old/migration_ai_videos.sql", "migration_ai_policy_v1.sql", "migration_ai_policy_v1.sql",
                        "migration_final_core.sql", "migration_final_core.sql",
-                       "migration_ai_signals.sql", "migration_ai_signals.sql")
+                       "migration_ai_signals.sql", "migration_ai_signals.sql", "migration_ota.sql", "migration_ota.sql")
             sql = "\n".join((ROOT/"database"/name).read_text(encoding="utf-8") for name in scripts)
+            roles_sql = (ROOT/"database/migration_roles_metrics.sql").read_text(encoding="utf-8")
+            # Old fixtures create one Admin per test in a shared disposable DB.
+            # The single-Admin index is tested separately by test_access_metrics.
+            fixture_roles_sql = roles_sql.replace("CREATE UNIQUE INDEX IF NOT EXISTS users_single_admin_idx\n    ON users ((1)) WHERE role IN ('Admin', 'ADMIN');", "")
+            sql += "\n" + fixture_roles_sql
             docker("exec", "-i", postgres, "psql", "-U", "w4_test", "-d", database, "-v", "ON_ERROR_STOP=1", input=sql)
             # A teammate changed seed users, assignments and MQTT usernames.
             # Validate actual fresh-install order in a second disposable DB.
@@ -93,6 +98,7 @@ def main():
             docker("exec", postgres, "createdb", "-U", "w4_test", seed_database)
             seed_sql = "\n".join((ROOT/"database"/name).read_text(encoding="utf-8")
                                   for name in ("create.sql", "insert.sql", *scripts[1:]))
+            seed_sql += "\n" + roles_sql + "\n" + roles_sql
             seed_sql += """
 DO $$ BEGIN
   IF (SELECT count(*) FROM users) <> 6 OR (SELECT count(*) FROM devices) <> 8 THEN

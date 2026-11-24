@@ -8,6 +8,7 @@
 #include "mqtt_client.h"
 #include "command_handler.h"
 #include "request_log.h"
+#include "ota.h"
 
 #include <esp_system.h>
 
@@ -52,12 +53,17 @@ void button_test()
 void setup()
 {
   Serial.begin(SERIAL_BAUD);
+#ifdef APP_BOOT_DIAGNOSTICS
+  Serial.printf("[BOOT] firmware=%s hardware=%s heap=%u bytes\n",
+                FIRMWARE_VERSION, HARDWARE_VERSION, (unsigned int)ESP.getFreeHeap());
+#endif
   Serial.printf("[BOOT] reset_reason=%d\n", (int)esp_reset_reason()); //log nguyên nhân reset, để phát hiện reset ngầm
   setupPins();
   // [CONFIG - thêm] Khôi phục NVS; nếu chưa có config thì giữ timing mặc định.
   loadSavedConfig();
   // [TV1-13 - thêm] Nạp nhật ký; lệnh còn IN_PROGRESS từ lần chạy trước thành INTERRUPTED.
   reqLogBegin();
+  otaBegin();
 
   initMqtt();
   // Asynchronous UTC sync. Expiring commands fail closed until time is available.
@@ -68,6 +74,7 @@ void setup()
 void loop()
 {
   runMqtt();
+  otaLoop();
   heartbeat_loop();
   deviceLoop();
   button_test();

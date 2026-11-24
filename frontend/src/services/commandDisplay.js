@@ -1,5 +1,7 @@
 export function commandStatus(command) {
   if (!command) return { label: "Chưa có lệnh", tone: "unknown" };
+  if (command.cancellation_status === "CANCELLED") return { label: "Đã hủy trước khi gửi", tone: "unknown" };
+  if (command.cancellation_status === "PARTIALLY_CANCELLED") return { label: "Đã hủy phần chưa gửi", tone: "unknown" };
   if (command.status === "PENDING") return { label: "Đang chờ gửi", tone: "pending" };
   if (command.status === "SENT") return { label: "Đã gửi, chờ thiết bị phản hồi", tone: "pending" };
   if (command.status === "ACKNOWLEDGED") {
@@ -42,7 +44,9 @@ export function commandActionLabel(value) {
   return ACTION_LABELS[value.trim().toUpperCase()] ?? value;
 }
 
-export function commandAckLabel(value) {
+export function commandAckLabel(value, command) {
+  if (command?.cancellation_status === "CANCELLED") return "Chưa gửi tới thiết bị";
+  if (command?.cancellation_status === "PARTIALLY_CANCELLED") return "Một phần đã gửi; phần còn lại đã hủy";
   if (typeof value !== "string" || !value.trim()) return "Chưa có phản hồi";
   return {
     ACCEPTED: "Thiết bị đã nhận",
@@ -52,4 +56,14 @@ export function commandAckLabel(value) {
     FAILED: "Thiết bị báo lỗi",
     INTERRUPTED: "Đã bị gián đoạn",
   }[value.trim().toUpperCase()] ?? "Chưa xác định";
+}
+
+export function commandDetailLabel(command) {
+  const reason = command.error_message || command.error_code;
+  if (command.cancellation_status) return {
+    "Risk episode no longer actionable": "Đợt nguy cơ đã kết thúc hoặc bị gián đoạn; hệ thống hủy phần chưa gửi.",
+    "Policy expired or episode ended": "Lệnh không còn đủ điều kiện cảnh báo; hệ thống hủy phần chưa gửi.",
+    "Warning link changed or disabled": "Liên kết cảnh báo đã đổi hoặc đã tắt; hệ thống hủy phần chưa gửi.",
+  }[reason] || "Hệ thống đã hủy phần lệnh chưa gửi.";
+  return reason || "Không có";
 }

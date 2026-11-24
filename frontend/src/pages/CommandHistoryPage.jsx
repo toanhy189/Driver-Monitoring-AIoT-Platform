@@ -2,14 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import AppShell, { Icon } from "../components/AppShell.jsx";
 import { getCommands } from "../services/commands.js";
 import { collapseCommands, commandBelongsToDevice, keepNewerCommand, normalizeCommand } from "../services/commandModel.js";
-import { commandAckLabel, commandActionLabel, commandStatus, commandTime, commandValue } from "../services/commandDisplay.js";
+import { commandAckLabel, commandActionLabel, commandStatus, commandTime, commandValue, commandDetailLabel } from "../services/commandDisplay.js";
 import "../styles/commands.css";
 
 const REFRESH_MS = 10000;
 
 const NO_REALTIME = { connected: false, generation: 0, events: [] };
 
-function CommandHistoryPage({ user, realtime = NO_REALTIME, deviceId, deviceCode, onBack, onDashboard, onDevices, onAlerts, onLogout, onUnauthorized }) {
+function CommandHistoryPage({ user, realtime = NO_REALTIME, deviceId, deviceCode, alertId, onBack, onDashboard, onDevices, onAlerts, onLogout, onUnauthorized }) {
   const [commands, setCommands] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -24,7 +24,7 @@ function CommandHistoryPage({ user, realtime = NO_REALTIME, deviceId, deviceCode
     const controller = new AbortController();
     pendingUpdates.current = [];
     requestInFlight.current = true;
-    getCommands({ deviceId, signal: controller.signal })
+    getCommands({ deviceId, alertId, signal: controller.signal })
       .then(result => {
         if (!active) return;
         const matching = deviceId == null ? result : result.filter(command =>
@@ -49,7 +49,7 @@ function CommandHistoryPage({ user, realtime = NO_REALTIME, deviceId, deviceCode
         }
       });
     return () => { active = false; clearTimeout(timer); controller.abort(); requestInFlight.current = false; };
-  }, [deviceId, deviceCode, reloadKey, realtime.generation, onUnauthorized]);
+  }, [deviceId, deviceCode, alertId, reloadKey, realtime.generation, onUnauthorized]);
 
   useEffect(() => {
     for (const event of realtime.events) {
@@ -59,6 +59,10 @@ function CommandHistoryPage({ user, realtime = NO_REALTIME, deviceId, deviceCode
       let update;
       try { update = normalizeCommand(event.data); } catch { continue; }
       if (deviceId != null && !commandBelongsToDevice(update, deviceId, deviceCode, { requireIdentity: true })) continue;
+      if (alertId != null && update.alert_id !== alertId && !commands.some(command => command.request_id === update.request_id)) {
+        if (update.alert_id == null) setReloadKey(value => value + 1);
+        continue;
+      }
       if (requestInFlight.current) pendingUpdates.current.push(update);
       setCommands(current => current.map(command =>
         command.request_id === update.request_id ? keepNewerCommand(command, update) : command));
@@ -66,22 +70,22 @@ function CommandHistoryPage({ user, realtime = NO_REALTIME, deviceId, deviceCode
         setReloadKey(value => value + 1);
       }
     }
-  }, [realtime.events, deviceId, deviceCode, commands]);
+  }, [realtime.events, deviceId, deviceCode, alertId, commands]);
 
   const retry = () => { setError(""); setLoading(true); setReloadKey(value => value + 1); };
 
   return <AppShell user={user} activePage="commands" serverConnected={realtime.connected} onDashboard={onDashboard} onDevices={onDevices} onCommands={() => {}} onAlerts={onAlerts} onLogout={onLogout}>
-    <div className="page-title"><h1>Lịch sử lệnh</h1><p>{deviceId == null ? "Các lệnh trên thiết bị bạn được phép xem" : `Thiết bị ${deviceCode || `#${deviceId}`}`}</p></div>
+    <div className="page-title"><h1>{alertId ? `Lệnh của cảnh báo #${alertId}` : "Lịch sử lệnh"}</h1><p>{deviceId == null ? "Các lệnh trên thiết bị bạn được phép xem" : `Thiết bị ${deviceCode || commands.find(command => command.device_id === deviceId)?.device_code || `#${deviceId}`}`}</p></div>
     {deviceId != null && <button className="text-link back-link" onClick={onBack}><Icon name="back" size={18} /> Quay lại thiết bị</button>}
     <section className="surface-card history-panel" aria-label="Danh sách lệnh">
-      <div className="section-heading"><div><h2>Các lệnh đã gửi</h2><p>Kết quả hoàn tất chỉ dựa trên ACK do BE ghi nhận.</p></div><button className="outline-button" onClick={retry}><Icon name="refresh" size={17} /> Tải lại</button></div>
+      <div className="section-heading"><div><h2>Lịch sử điều khiển</h2><p>Lệnh có thể được hủy trước khi gửi khi đợt nguy cơ hết hiệu lực. Hoàn tất được xác nhận bằng ACK của thiết bị.</p></div><button className="outline-button" onClick={retry}><Icon name="refresh" size={17} /> Tải lại</button></div>
       {loading && <p role="status">Đang tải lịch sử lệnh…</p>}
       {error && <p className="notice-error" role="alert">{error}</p>}
-      {!loading && !error && commands.length === 0 && <p>Chưa có lệnh nào.</p>}
-      {commands.length > 0 && <div className="history-table-wrap"><table className="history-table"><thead><tr><th>Thiết bị</th><th>Thao tác</th><th>Người gửi</th><th>Thời gian</th><th>Kết quả</th><th>Phản hồi từ thiết bị</th><th>Lỗi</th><th>Độ trễ</th></tr></thead><tbody>{commands.map(command => {
+      {!loading && !error && commands.length === 0 && <p>{alertId ? "Chưa có lệnh của cảnh báo này trên thiết bị bạn được phép xem." : "Chưa có lệnh nào."}</p>}
+      {commands.length > 0 && <div className="history-table-wrap"><table className="history-table"><thead><tr><th>Thiết bị</th><th>Thao tác</th><th>Người gửi</th><th>Thời gian</th><th>Kết quả</th><th>Phản hồi từ thiết bị</th><th>Chi tiết</th><th>Độ trễ</th></tr></thead><tbody>{commands.map(command => {
         const state = commandStatus(command);
         const latency = Number.isFinite(command.latency_ms) && command.latency_ms >= 0 ? `${command.latency_ms} ms` : "—";
-        return <tr key={command.request_id}><td>{commandValue(command.device_code ?? command.device_id)}</td><td>{commandActionLabel(command.action)}</td><td>{commandValue(command.created_by_name ?? command.created_by)}</td><td>{commandTime(command.created_at)}</td><td><span className={`command-state command-state--${state.tone}`}>{state.label}</span></td><td>{commandAckLabel(command.ack_status)}</td><td>{command.error_message || command.error_code || "Không có"}</td><td>{latency}</td></tr>;
+        return <tr key={command.request_id}><td>{commandValue(command.device_code ?? command.device_id)}</td><td>{commandActionLabel(command.action)}</td><td>{commandValue(command.created_by_name ?? command.created_by ?? (command.source === "AI" ? "Hệ thống AI" : null))}</td><td>{commandTime(command.created_at)}</td><td><span className={`command-state command-state--${state.tone}`}>{state.label}</span></td><td>{commandAckLabel(command.ack_status, command)}</td><td title={command.error_message || undefined}>{commandDetailLabel(command)}</td><td>{latency}</td></tr>;
       })}</tbody></table></div>}
     </section>
   </AppShell>;

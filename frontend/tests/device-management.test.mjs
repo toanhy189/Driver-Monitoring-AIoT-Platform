@@ -38,7 +38,7 @@ test("API chi tiết và đăng ký dùng ID DB, Bearer token và JSON", async (
       calls.push({ url, options });
       return url.endsWith("/devices/2")
         ? response(200, { id: 2, device_code: "alert-01", status: "OFFLINE" })
-        : response(201, { message: "Device registered", device: { id: 3, device_code: "vision-01", lifecycle_state: "REGISTERED" } });
+        : response(201, { message: "Device registered", device: { id: 3, device_code: "vision-01", type:"VISION_NODE", lifecycle_state: "REGISTERED" } });
     },
   });
 
@@ -47,10 +47,11 @@ test("API chi tiết và đăng ký dùng ID DB, Bearer token và JSON", async (
   assert.equal(calls[0].url, "/api/devices/2");
   assert.equal(calls[0].options.headers.Authorization, "Bearer token");
 
-  await service.registerDevice({ device_code: " vision-01 ", name: "Camera", model: "Vision" });
+  await service.registerDevice({ device_code: " vision-01 ", name: "Camera", model: "Vision", device_type:"VISION_NODE" });
   assert.equal(calls[1].url, "/api/devices");
   assert.equal(calls[1].options.method, "POST");
   assert.equal(JSON.parse(calls[1].options.body).device_code, "vision-01");
+  assert.equal(JSON.parse(calls[1].options.body).device_type,"VISION_NODE");
 });
 
 test("bốn thao tác vòng đời gọi đúng URL; lỗi không tạo trạng thái thành công", async () => {
@@ -119,7 +120,7 @@ test("response 2xx phải chứa đúng thiết bị trước khi FE báo đăng
       response(200, { id: 3, device_code: "alert-03", lifecycle_state: "ACTIVE" }),
   });
   await assert.rejects(service.registerDevice({
-    device_code: "alert-02", name: "Alert", model: "Alert Node",
+    device_code: "alert-02", name: "Alert", model: "Alert Node", device_type:"ALERT_NODE",
   }), /đúng thiết bị vừa đăng ký/);
   await assert.rejects(service.runDeviceAction(2, "activate"), /trạng thái hợp lệ/);
 });
@@ -138,7 +139,7 @@ test("tin cập nhật thay record cùng ID, không thêm dòng mới", async ()
 
 test("nút vòng đời chỉ mở ở trạng thái BE cho phép", async () => {
   const { deviceActionBlockReason } = await loadModule("../src/services/deviceModel.js");
-  const reason = (state, action) => deviceActionBlockReason({ lifecycle_state: state }, action);
+  const reason = (state, action) => deviceActionBlockReason({ lifecycle_state: state, type:"ALERT_NODE" }, action);
   assert.equal(reason("REGISTERED", "provision"), "");
   assert.notEqual(reason("REGISTERED", "activate"), "");
   assert.equal(reason("PROVISIONED", "activate"), "");
@@ -147,6 +148,37 @@ test("nút vòng đời chỉ mở ở trạng thái BE cho phép", async () => 
   assert.notEqual(reason("PROVISIONED", "maintenance"), "");
   assert.equal(reason("REGISTERED", "decommission"), "");
   assert.notEqual(reason("DECOMMISSIONED", "decommission"), "");
+  assert.notEqual(deviceActionBlockReason({lifecycle_state:"REGISTERED",type:null},"provision"),"");
+  assert.notEqual(deviceActionBlockReason({lifecycle_state:"PROVISIONED",type:null},"activate"),"");
+});
+
+test("đăng ký tự sinh mã bỏ trường mã; thao tác khôi phục bị từ chối", async () => {
+  const calls=[];
+  const service=await loadModule("../src/services/devices.js",{
+    localStorage:{getItem:()=>"token"},fetch:async(url,options)=>{
+      calls.push({url,options});
+      const device={id:3,device_code:"vision-generated",type:"VISION_NODE",lifecycle_state:"REGISTERED"};
+      return response(201,{device});
+    },
+  });
+  const result=await service.registerDevice({name:"Auto",model:"USB",device_type:"VISION_NODE"});
+  assert.equal(result.device.device_code,"vision-generated");
+  assert.equal(Object.hasOwn(JSON.parse(calls[0].options.body),"device_code"),false);
+  await assert.rejects(service.runDeviceAction(3,"restore"),/Thao tác thiết bị/);
+  assert.equal(calls.length,1);
+});
+
+test("loại thiết bị phải được chọn rõ; xóa đăng ký dùng DELETE riêng", async () => {
+  const calls=[];
+  const service=await loadModule("../src/services/devices.js",{
+    localStorage:{getItem:()=>"token"},fetch:async(url,options)=>{calls.push({url,options});return response(204,null);},
+  });
+  await assert.rejects(service.registerDevice({device_code:"vision-02",name:"Camera",model:"USB"}),/chọn Camera/);
+  assert.equal(calls.length,0);
+  await service.deleteDeviceRegistration(3);
+  assert.equal(calls[0].url,"/api/devices/3");
+  assert.equal(calls[0].options.method,"DELETE");
+  await assert.rejects(service.deleteDeviceRegistration(0),/ID thiết bị/);
 });
 
 test("trang chi tiết chỉ hiện thao tác vòng đời sau khi BE xác nhận quyền trên thiết bị", async () => {
@@ -169,8 +201,9 @@ test("trang chi tiết chỉ hiện thao tác vòng đời sau khi BE xác nhậ
     detailSource: "detail",
     realtime: { connected: false, events: [] },
   }));
-  assert.match(owner, /Chuyển sang bảo trì/);
-  assert.match(owner, /Ngừng sử dụng/);
+  assert.doesNotMatch(owner, /Chuyển sang bảo trì/);
+  assert.doesNotMatch(owner, /Ngừng sử dụng/);
+  assert.doesNotMatch(owner, /Lưu phần cứng/);
 
   const customerOwner = renderToStaticMarkup(React.createElement(DetailView, {
     user: { role: "Customer" },

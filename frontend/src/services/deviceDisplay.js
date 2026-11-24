@@ -2,6 +2,10 @@ export function displayValue(value) {
   return typeof value === "string" && value.trim() ? value : "Chưa cung cấp";
 }
 
+export function deviceTypeLabel(type) {
+  return { VISION_NODE:"Camera AI", ALERT_NODE:"Bộ cảnh báo ESP32" }[type] || "Chưa xác định loại";
+}
+
 export function formatLastSeen(value) {
   if (!value) return "Chưa ghi nhận";
   const date = new Date(value);

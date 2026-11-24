@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlmodel import Session, select
 
 from app.api.deps import require_viewer
@@ -15,9 +15,11 @@ from app.models.alert import Alert
 from app.models.command import Command
 from app.models.telemetry import Telemetry
 from app.models.user import User
+from app.models.user_device import UserDevice
 from app.schemas.history import Page, TelemetryPoint, TimelineItem, MetricsResponse
 from app.services.access import assigned_device, require_vision_node, is_admin
 from app.services.time_utils import as_utc
+from app.services.command_result import cancellation_predicates
 
 
 router = APIRouter(tags=["history"])
@@ -64,9 +66,14 @@ def telemetry_query(device_id, window):
     return query
 
 
-def command_query(device_id, window):
-    query = select(Command).where(Command.device_id == device_id,
+def command_query(device_id, window, current_user=None):
+    source_alerts = select(Alert.id).where(Alert.device_id == device_id)
+    query = select(Command).where(or_(Command.device_id == device_id, Command.alert_id.in_(source_alerts)),
         Command.created_at >= window.start, Command.created_at < window.end)
+    if current_user is not None and not is_admin(current_user):
+        visible_targets = select(UserDevice.device_id).where(UserDevice.user_id == current_user.id,
+            UserDevice.unassigned_at.is_(None))
+        query = query.where(Command.device_id.in_(visible_targets))
     if window.model_version:
         query = query.join(Alert, Alert.id == Command.alert_id).join(AiEvent, AiEvent.event_id == Alert.source_event_id) \
                      .where(AiEvent.model_version == window.model_version)
@@ -101,7 +108,7 @@ def command_history(device_id: int, window: Window = Depends(history_window),
     assigned_device(session, current_user, device_id)
     ordering = (Command.created_at.asc(), Command.id.asc()) if window.order == "asc" else \
                (Command.created_at.desc(), Command.id.desc())
-    rows = session.exec(command_query(device_id, window).order_by(*ordering)
+    rows = session.exec(command_query(device_id, window, current_user).order_by(*ordering)
                         .offset(window.offset).limit(window.limit + 1)).all()
     return page([command_public(session, row) for row in rows], window)
 
@@ -120,7 +127,7 @@ def timeline(device_id: int, window: Window = Depends(history_window),
         AiEvent.id.asc() if ascending else AiEvent.id.desc()).limit(count)).all()
     alerts = session.exec(alert_query(device_id, window).order_by(Alert.created_at.asc() if ascending else Alert.created_at.desc(),
         Alert.id.asc() if ascending else Alert.id.desc()).limit(count)).all()
-    commands = session.exec(command_query(device_id, window).order_by(Command.created_at.asc() if ascending else Command.created_at.desc(),
+    commands = session.exec(command_query(device_id, window, current_user).order_by(Command.created_at.asc() if ascending else Command.created_at.desc(),
         Command.id.asc() if ascending else Command.id.desc()).limit(count)).all()
     items = [{"kind": "event", "id": event.id, "device_id": device_id,
         "timestamp": as_utc(event.occurred_at), "event_id": event.event_id,
@@ -130,8 +137,8 @@ def timeline(device_id: int, window: Window = Depends(history_window),
                     "clip_message_id", "episode_start_event_id", "policy_version", "observed_at")}}} for event in events]
     items += [{"kind": "alert", "id": alert.id, "device_id": device_id,
         "timestamp": as_utc(alert.created_at), "event_id": alert.source_event_id, "alert_id": alert.id,
-        "data": alert_public(session, alert, None if is_admin(current_user) else current_user.id)} for alert in alerts]
-    items += [{"kind": "command", "id": command.id, "device_id": device_id,
+        "data": alert_public(session, alert, None if is_admin(current_user) else current_user.id, reader_id=current_user.id)} for alert in alerts]
+    items += [{"kind": "command", "id": command.id, "device_id": command.device_id,
         "timestamp": as_utc(command.created_at), "alert_id": command.alert_id,
         "request_id": command.request_id, "data": command_public(session, command)} for command in commands]
     items.sort(key=lambda item: (item["timestamp"], item["kind"], item["id"]), reverse=not ascending)
@@ -144,7 +151,7 @@ def metrics(device_id: int, window: Window = Depends(history_window),
     device = assigned_device(session, current_user, device_id)
     require_vision_node(device)
     t = telemetry_query(device_id, window).subquery()
-    c = command_query(device_id, window).subquery()
+    c = command_query(device_id, window, current_user).subquery()
     a = alert_query(device_id, window).subquery()
     count, avg_ear, avg_perclos = session.exec(select(func.count(), func.avg(t.c.ear), func.avg(t.c.perclos)).select_from(t)).one()
     states = dict(session.exec(select(t.c.driver_state, func.count()).select_from(t).group_by(t.c.driver_state)).all())
@@ -155,11 +162,27 @@ def metrics(device_id: int, window: Window = Depends(history_window),
     completed_ms = func.extract("epoch", c.c.completed_ack_at - c.c.created_at) * 1000
     avg_completed, p95_completed = session.exec(select(func.avg(completed_ms),
         func.percentile_cont(0.95).within_group(completed_ms)).select_from(c)).one()
+    # PostgreSQL returns Decimal for AVG(EXTRACT(...)); JSON dicts otherwise encode it as text.
+    avg_completed = float(avg_completed) if avg_completed is not None else None
+    p95_completed = float(p95_completed) if p95_completed is not None else None
+    cancelled, partial = cancellation_predicates(c.c.dispatches, c.c.status)
+    completed_count, failed_count, http_count, completion_count, automatic_count, cancelled_count, partial_count = session.exec(select(
+        func.count().filter(or_(c.c.ack_status == "COMPLETED", c.c.status == "EXECUTED")),
+        func.count().filter(c.c.status.in_(["FAILED", "TIMEOUT", "EXPIRED", "CANCELLED"]) & ~cancelled & ~partial),
+        func.count(c.c.http_duration_ms), func.count(c.c.completed_ack_at),
+        func.count().filter(c.c.alert_id.is_not(None)), func.count().filter(cancelled),
+        func.count().filter(partial)).select_from(c)).one()
+    command_count = sum(command_states.values())
     return {"device_id": device_id, "start": as_utc(window.start), "end": as_utc(window.end),
         "model_version": window.model_version,
         "telemetry": {"count": count, "avg_ear": avg_ear, "avg_perclos": avg_perclos,
                       "by_state": {str(k): v for k, v in states.items()}},
         "alerts": {"count": sum(severities.values()), "by_severity": {str(k): v for k, v in severities.items()}},
-        "commands": {"count": sum(command_states.values()), "by_status": {str(k): v for k, v in command_states.items()}},
+        "commands": {"count": command_count, "by_status": {str(k): v for k, v in command_states.items()},
+                     "completed": completed_count, "failed": failed_count,
+                     "pending": command_count - completed_count - failed_count - cancelled_count - partial_count,
+                     "cancelled": cancelled_count, "partially_cancelled": partial_count,
+                     "automatic": automatic_count, "manual": command_count - automatic_count},
         "latency": {"clock": "backend_utc", "http_avg_ms": avg_http, "http_p95_ms": p95_http,
-                    "completed_avg_ms": avg_completed, "completed_p95_ms": p95_completed}}
+                    "completed_avg_ms": avg_completed, "completed_p95_ms": p95_completed,
+                    "http_samples": http_count, "completed_samples": completion_count}}

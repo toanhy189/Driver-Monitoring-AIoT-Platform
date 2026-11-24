@@ -212,26 +212,18 @@
   opacity: 0.85;
 }
 
-.ai-model-evaluation-card {
-  padding: 0.875rem 1rem;
-  background: #f0f9ff;
-  border-left: 4px solid #0284c7;
-  border-radius: 4px;
-  font-size: 0.875rem;
-  color: #0369a1;
+.metadata-item { min-width: 0; flex-wrap: wrap; }
+.metadata-version { display: inline-block; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.timeline-bar { scrollbar-width: thin; border-radius: 8px; }
+.ai-metrics-note { margin: 14px 0 0; line-height: 1.6; }
+@media (max-width: 760px) {
+  .ai-metrics-section { padding: 16px; }
+  .ai-metadata-bar { gap: 10px 20px; font-size: 13px; }
+  .ai-metrics-controls { flex-wrap: wrap; gap: 8px; }
+  .chart-legend { justify-content: flex-start; flex-wrap: wrap; gap: 8px 16px; }
 }
-
-.evaluation-heading {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.25rem;
-  color: #0369a1;
-}
-
-.evaluation-text {
-  margin: 0;
-  font-size: 0.8125rem;
-  color: #0c4a6e;
-  line-height: 1.4;
+@media (max-width: 500px) {
+  .filter-pill-group { flex-wrap: wrap; }
+  .filter-pill { padding: 6px 9px; }
+  .metadata-version { max-width: 100%; }
 }

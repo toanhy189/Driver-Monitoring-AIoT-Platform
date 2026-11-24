@@ -64,12 +64,23 @@ test("cảnh báo cùng alert_id được gộp, không tạo dòng trùng", asy
   assert.throws(() => alerts.normalizeAlert({ status: "OPEN" }), /alert_id/);
 });
 
-test("trang cảnh báo có trạng thái tải và Customer không có nút xác nhận", async () => {
+test("trang cảnh báo giải thích xác nhận riêng và không dừng tải", async () => {
   const { default: Page } = await loadModule("../src/pages/AlertHistoryPage.jsx", {}, true);
   const html = renderToStaticMarkup(React.createElement(Page, { user: { role: "Customer" } }));
   assert.match(html, /Đang tải cảnh báo/);
   assert.match(html, /Cảnh báo/);
-  assert.doesNotMatch(html, /<button[^>]*>Đã xem<\/button>/);
+  assert.match(html, /lưu riêng cho bạn/);
+  assert.match(html, /không tắt còi\/rung/);
+});
+
+test("xác nhận cá nhân do BE trả được ưu tiên hơn trạng thái chung cũ", async () => {
+  const alerts = await loadModule("../src/services/alerts.js");
+  assert.equal(alerts.isAlertAcknowledged({ status: "ACKNOWLEDGED", acknowledged: false }), false);
+  assert.equal(alerts.isAlertAcknowledged({ status: "NEW", acknowledged: true }), true);
+  for (const status of ["NEW", "RESOLVED", "CLOSED", "ACKNOWLEDGED"]) {
+    assert.equal(alerts.canAcknowledgeAlert({status,acknowledged:false}),true);
+    assert.equal(alerts.canAcknowledgeAlert({status,acknowledged:true}),false);
+  }
 });
 
 test("loại và trạng thái cảnh báo được diễn đạt bằng tiếng Việt", async () => {
@@ -81,6 +92,9 @@ test("loại và trạng thái cảnh báo được diễn đạt bằng tiếng
   assert.equal(display.alertStatusLabel({ status: "NEW" }), "Chưa xem");
   assert.equal(display.alertStatusLabel({ status: "ACKNOWLEDGED" }), "Đã xem");
   assert.equal(display.alertStatusLabel({ status: "RESOLVED", acknowledged_at: "2026-10-12T08:00:00Z" }), "Đã xử lý");
+  assert.equal(display.alertLifecycleLabel({system_status:"RESOLVED",acknowledged:false}),"Đã kết thúc");
+  assert.equal(display.alertLifecycleLabel({system_status:"RESOLVED",acknowledged:true}),"Đã kết thúc");
+  assert.equal(display.alertTypeLabel("MONITORING_FAULT"),"Gián đoạn giám sát AI");
 });
 
 test("video cảnh báo phân biệt chờ upload, đã xóa, thiếu file và khả dụng", async () => {

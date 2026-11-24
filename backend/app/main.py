@@ -25,6 +25,7 @@ from app.core.logging_config import (
 )
 from app.services.mqtt_service import start_mqtt_consumer
 from app.services.background_tasks import run_background_tasks
+from app.services.ota_service import run_ota_tasks
 
 # Log mac dinh truoc day la van ban thuong; chuyen backend va Uvicorn sang JSON.
 configure_logging()
@@ -48,7 +49,8 @@ async def lifespan(app):
     stop = Event()
     threads = []
     for enabled, task in ((settings.ENABLE_MQTT_CONSUMER, start_mqtt_consumer),
-                          (settings.ENABLE_BACKGROUND_TASKS, run_background_tasks)):
+                          (settings.ENABLE_BACKGROUND_TASKS, run_background_tasks),
+                          (settings.ENABLE_BACKGROUND_TASKS and settings.OTA_ENABLED, run_ota_tasks)):
         if enabled:
             worker = Thread(target=task, args=(stop,), daemon=True)
             worker.start()
@@ -111,6 +113,11 @@ async def record_http_duration(request, call_next):
                 response = JSONResponse(status_code=400, content={"detail": "Invalid Content-Length"})
             elif int(length) > settings.AI_VIDEO_MAX_BYTES + 1048576:
                 response = JSONResponse(status_code=413, content={"detail": "Video exceeds upload size limit"})
+        if response is None:
+            if request.url.path == f"{settings.API_STR}/ota/firmware" and request.method == "POST":
+                length=request.headers.get("content-length","")
+                if not length.isdigit() or int(length)>3*1024*1024:
+                    response=JSONResponse(status_code=413,content={"detail":"Firmware multipart tối đa 3 MiB; cần Content-Length hợp lệ."})
         if response is None:
             response = await call_next(request)
         duration = round((perf_counter() - started) * 1000, 3)

@@ -22,7 +22,10 @@ constexpr unsigned long WIFI_TIMEOUT_MS = 20000;
 constexpr unsigned long RETRY_INTERVAL_MS = 5000;
 
 constexpr char DEVICE_CODE[] = "alert-01";
-constexpr char FIRMWARE_VERSION[] = "0.3.0";
+#ifndef APP_FIRMWARE_VERSION
+#define APP_FIRMWARE_VERSION "0.4.0"
+#endif
+constexpr char FIRMWARE_VERSION[] = APP_FIRMWARE_VERSION;
 constexpr char HARDWARE_VERSION[] = "esp32doit-devkit-v1";
 constexpr char COMMAND_TOPIC[] = "driver/alert-01/command";
 // [CONFIG - thêm] Topic nhận cấu hình và topic báo APPLIED/REJECTED.

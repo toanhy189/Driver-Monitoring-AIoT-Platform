@@ -793,6 +793,7 @@ def check_runtime():
     """Load native vision/model code without a webcam, network or user queue writes."""
     import json
     import sqlite3
+    from config import AI_CAMERA_INDEX, DB_PATH, EVENT_AUDIT_PATH
     import numpy as np
     from ml.runtime import DrowsinessModel
     from service.alert_policy import POLICY_VERSION
@@ -819,6 +820,9 @@ def check_runtime():
         guard_threshold = (load_threshold(AI_EYE_CLOSURE_CALIBRATION, DEVICE_CODE)
                            if AI_EYE_CLOSURE_CALIBRATION else EAR_THRESHOLD)
     print(json.dumps({"status": "OK", "camera_opened": False, "network_started": False,
+        "device_code": DEVICE_CODE, "camera_index": AI_CAMERA_INDEX,
+        "local_storage": {"queue":str(DB_PATH),"recordings":str(RECORDING_DIR),
+                          "events":str(EVENT_AUDIT_PATH),"metrics":str(METRICS_PATH)},
         "model_version": model.model_version if model else MODEL_VERSION,
         "eye_guard_enabled": guard_threshold is not None, "eye_guard_threshold": guard_threshold,
         "eye_guard": getattr(model, "guard_metadata", None),

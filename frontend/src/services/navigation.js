@@ -3,25 +3,27 @@ const STATE_KEY = "driverMonitorView";
 export const DASHBOARD_VIEW = Object.freeze({ page: "dashboard" });
 
 export function viewHash(view) {
+  if (view.page === "firmware") return "#/firmware";
   if (view.page === "monitoring") return "#/monitoring";
   if (view.page === "alerts") return "#/alerts";
   if (view.page === "devices") return "#/devices";
   if (view.page === "device-detail") return `#/devices/${view.deviceId}`;
   if (view.page === "config") return `#/devices/${view.deviceId}/config`;
-  if (view.page === "commands" && view.deviceId != null) return `#/devices/${view.deviceId}/commands`;
+  if (view.page === "commands" && view.deviceId != null) return `#/devices/${view.deviceId}/commands${Number.isSafeInteger(view.alertId) && view.alertId > 0 ? `?alert_id=${view.alertId}` : ""}`;
   if (view.page === "commands") return "#/commands";
   return "#/dashboard";
 }
 
 export function viewFromHash(hash) {
+  if (hash === "#/firmware") return {page:"firmware"};
   if (hash === "#/monitoring") return { page: "monitoring" };
   const detail = /^#\/devices\/([1-9]\d*)$/.exec(hash);
   if (detail && Number.isSafeInteger(Number(detail[1]))) {
     return { page: "device-detail", deviceId: Number(detail[1]) };
   }
-  const history = /^#\/devices\/([1-9]\d*)\/commands$/.exec(hash);
-  if (history && Number.isSafeInteger(Number(history[1]))) {
-    return { page: "commands", deviceId: Number(history[1]) };
+  const history = /^#\/devices\/([1-9]\d*)\/commands(?:\?alert_id=([1-9]\d*))?$/.exec(hash);
+  if (history && Number.isSafeInteger(Number(history[1])) && (!history[2] || Number.isSafeInteger(Number(history[2])))) {
+    return { page: "commands", deviceId: Number(history[1]), ...(history[2] ? { alertId: Number(history[2]) } : {}) };
   }
   const config = /^#\/devices\/([1-9]\d*)\/config$/.exec(hash);
   if (config && Number.isSafeInteger(Number(config[1]))) {

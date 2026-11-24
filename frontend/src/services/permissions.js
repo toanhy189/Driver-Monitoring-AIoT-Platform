@@ -1,18 +1,20 @@
-// Quyền tạm thời theo đúng tên role mà GET /api/me hiện trả về.
-// Khi TV2 chốt bảng quyền, sửa tập trung tại đây.
+// Admin quản trị; Employee vận hành thiết bị được gán; Customer theo dõi và xác nhận đã xem.
 const ROLE_PERMISSIONS = Object.freeze({
   Admin: Object.freeze([
     "dashboard:view", "command:view", "command:send", "config:view", "config:edit",
-    "device:manage", "device:decommission", "user:view", "alert:view", "alert:acknowledge", "rule:manage",
+    "device:manage", "device:decommission", "user:view", "alert:view", "alert:acknowledge", "rule:manage", "firmware:manage",
   ]),
   Employee: Object.freeze([
     "dashboard:view", "command:view", "command:send", "config:view", "config:edit",
-    "device:manage-assigned", "alert:view", "alert:acknowledge",
+    "alert:view", "alert:acknowledge",
   ]),
-  Customer: Object.freeze(["dashboard:view", "command:view", "config:view", "alert:view"]),
+  Customer: Object.freeze(["dashboard:view", "command:view", "config:view", "alert:view", "alert:acknowledge"]),
 });
 
 const ROLE_ALIASES = Object.freeze({ ADMIN: "Admin", OPERATOR: "Employee", VIEWER: "Customer" });
+
+export const isAdmin = role => ["Admin", "ADMIN"].includes(role);
+export const roleLabel = role => ({ Admin: "Quản trị viên", Employee: "Nhân viên điều hành", Customer: "Người dùng cá nhân / tài xế" }[ROLE_ALIASES[role] || role] || "Chưa xác định");
 
 export function hasPermission(role, permission) {
   const normalized = ROLE_ALIASES[role] || role;

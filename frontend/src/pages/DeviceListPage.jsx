@@ -17,7 +17,7 @@ function DeviceListPage({ user, realtime = NO_REALTIME, onBack, onOpenDevice, on
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
-  const [fields, setFields] = useState({ device_code: "", name: "", model: "" });
+  const [fields, setFields] = useState({ device_code: "", name: "", model: "", device_type: "" });
   const [registerBusy, setRegisterBusy] = useState(false);
   const [registerError, setRegisterError] = useState("");
   const [registerNotice, setRegisterNotice] = useState("");
@@ -93,7 +93,7 @@ function DeviceListPage({ user, realtime = NO_REALTIME, onBack, onOpenDevice, on
   };
 
   const resetRegistration = () => {
-    setFields({ device_code: "", name: "", model: "" });
+    setFields({ device_code: "", name: "", model: "", device_type: "" });
     setRegisterError("");
     setRegisterNotice("");
   };
@@ -107,11 +107,11 @@ function DeviceListPage({ user, realtime = NO_REALTIME, onBack, onOpenDevice, on
     const controller = new AbortController();
     registerController.current = controller;
     try {
-      await registerDevice(fields, { signal: controller.signal });
+      const result = await registerDevice(fields, { signal: controller.signal });
       if (controller.signal.aborted) return;
       setRegisterNotice("Đăng ký thiết bị thành công.");
-      setFeedback({ tone: "success", title: "Đăng ký thiết bị thành công", message: `Thiết bị ${fields.name.trim()} đã được thêm. Danh sách đang được cập nhật.` });
-      setFields({ device_code: "", name: "", model: "" });
+      setFeedback({ tone: "success", title: "Đăng ký thiết bị thành công", message: `Đã đăng ký ${fields.name.trim()}. Mã thiết bị: ${result.device.device_code}. Hãy dùng đúng mã này khi cấu hình AI/ESP32.` });
+      setFields({ device_code: "", name: "", model: "", device_type: "" });
       setReloadKey(value => value + 1);
     } catch (requestError) {
       if (requestError.name === "AbortError") return;

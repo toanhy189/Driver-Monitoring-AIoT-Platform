@@ -9,14 +9,15 @@ export async function apiRequest(path, { method = "GET", body, token, signal, he
 
   const headers = { Accept: "application/json", ...extraHeaders };
   if (token) headers.Authorization = `Bearer ${token}`;
-  if (body !== undefined) headers["Content-Type"] = "application/json";
+  const multipart = typeof FormData !== "undefined" && body instanceof FormData;
+  if (body !== undefined && !multipart) headers["Content-Type"] = "application/json";
 
   let response;
   try {
     response = await fetch(`${prefix}${path}`, {
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : multipart ? body : JSON.stringify(body),
       signal,
     });
   } catch (error) {

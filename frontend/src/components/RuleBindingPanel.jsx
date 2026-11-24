@@ -106,10 +106,10 @@ export default function RuleBindingPanel({ deviceId, device, onUnauthorized, onO
 
   return <section className="surface-card rule-panel" aria-labelledby="rule-binding-heading">
     <div className="panel-heading"><Icon name="settings" /><h2 id="rule-binding-heading">Cảnh báo tự động</h2></div>
-    <p>Chọn ESP32 nhận cảnh báo từ camera {device?.device_code}. Lưu liên kết không gửi lệnh kiểm tra tải.</p>
+    <p>Liên kết camera {device?.device_code} với thiết bị cảnh báo ESP32.</p>
     {!saved && !readError && <p role="status">Đang tải liên kết…</p>}
     {readError && <p role="alert" className="notice-error">{readError} Trạng thái bên dưới có thể đã cũ.</p>}
-    {saved && <>
+    {saved && <div className="rule-layout">
       <form onSubmit={submit} className="rule-form">
         <label htmlFor="rule-target">Thiết bị nhận cảnh báo</label>
         <select id="rule-target" value={draft.target} disabled={busy} onChange={event => edit({ target: event.target.value, enabled: false })}>
@@ -126,12 +126,12 @@ export default function RuleBindingPanel({ deviceId, device, onUnauthorized, onO
           disabled={busy || Boolean(enableReason && !draft.enabled)} onChange={event => edit({ enabled: event.target.checked })} />
           Bật cảnh báo tự động</label>
         {enableReason && <p className="rule-help">{enableReason}</p>}
-        <p className="rule-help">Khi bật, sự kiện AI mới hợp lệ có thể điều khiển LED, còi và motor. Tắt sẽ chặn lệnh mới và hủy phần chưa gửi; tải đã chạy có thể tiếp tục hết thời lượng.</p>
+        <p className="rule-help">Tắt tự động ngừng lệnh mới; tải đang chạy có thể chạy hết thời lượng.</p>
         <div className="rule-actions">
           <button className="primary-button" type="submit" disabled={busy || !draft.target || conflict || Boolean(readError)}>{busy ? "Đang lưu…" : "Lưu thiết lập"}</button>
           <button className="outline-button" type="button" disabled={busy} onClick={() => refresh(true)}>Tải lại thiết lập</button>
         </div>
-        {dirty && <p className="rule-help">Có thay đổi chưa lưu. Trạng thái hoạt động bên dưới phản ánh thiết lập đã lưu.</p>}
+        {dirty && <p className="rule-help">Có thay đổi chưa lưu. Trạng thái hoạt động phản ánh thiết lập đã lưu.</p>}
         {error && <p role="alert" className="notice-error">{error}{conflict && " Bấm Tải lại thiết lập để kiểm tra trước khi lưu tiếp."}</p>}
         {notice && <p role="status" className="notice-success">{notice}</p>}
       </form>
@@ -145,15 +145,14 @@ export default function RuleBindingPanel({ deviceId, device, onUnauthorized, onO
         </button>}
         <button type="button" className="text-link" onClick={onOpenAlerts}>Xem lịch sử cảnh báo</button>
       </div>
-    </>}
+    </div>}
     {!saved && readError && <button type="button" className="outline-button" onClick={() => refresh(true)}>Thử tải lại</button>}
     <details className="rule-policy"><summary>Policy áp dụng: {RULE_POLICY_VERSION}</summary>
       <div className="rule-table-wrap"><table><thead><tr><th>Mức</th><th>Nguy cơ kéo dài</th><th>Thời lượng</th><th>Tải</th></tr></thead>
         <tbody><tr><td>1</td><td>3 giây</td><td>1 giây</td><td>LED + còi</td></tr>
           <tr><td>2</td><td>6 giây</td><td>2 giây</td><td>LED + còi + motor</td></tr>
           <tr><td>3</td><td>10 giây</td><td>3 giây</td><td>LED + còi + motor</td></tr></tbody></table></div>
-      <p>DROWSY và DISTRACTED dùng policy này. Mức 3 chỉ nhắc tiếp khi đủ khoảng tối thiểu 5 giây, có quan sát mới và không bị chặn bởi lệnh đang chờ. ATTENTIVE ổn định 2 giây kết thúc đợt nguy cơ. UNKNOWN ngắt tính liên tục, báo lỗi giám sát riêng sau 2 giây và giới hạn nhắc lỗi 30 giây. SESSION_ENDED đóng phiên, hủy phần chưa gửi. Dữ liệu gửi bù không kích tải.</p>
-      <p>Nhịp bật/tắt từng tải chỉnh tại Cấu hình cảnh báo của ESP32. Các ngưỡng trên là policy thử nghiệm đồ án.</p>
+      <p>DROWSY/DISTRACTED tăng mức theo thời gian; mức 3 nhắc tối thiểu 5 giây khi còn quan sát hợp lệ. Dữ liệu gửi bù không kích tải. Nhịp tải chỉnh tại Cấu hình cảnh báo; đây là policy thử nghiệm đồ án.</p>
     </details>
   </section>;
 }

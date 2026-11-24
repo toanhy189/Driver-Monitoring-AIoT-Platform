@@ -34,6 +34,8 @@ static DeviceState motor = {
     0, 0
 };
 
+bool deviceOutputsBusy() { return led.active || buzzer.active || motor.active; }
+
 bool DeviceState::compareIntensity(const char* newIntensity)
 {
     const char* map[] = {"WEAK", "MEDIUM", "STRONG", "CONSTANT"};

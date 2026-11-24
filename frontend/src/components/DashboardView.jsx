@@ -54,15 +54,15 @@ function DashboardView({ user, onLogout, onOpenDevices, onOpenCommands, onOpenAl
 
     <section className="telemetry-grid" aria-label="Số đo và trạng thái tài xế">
       <DriverStatusCard state={telemetry?.driver_state} faceDetected={telemetry?.face_detected} />
-      <div className="metric-stack">
+      <div className="telemetry-metrics"><div className="metric-stack">
         <MetricCard title="EAR" value={earText} description={hasEar ? "Chỉ số độ mở mắt" : "Chưa có dữ liệu"} />
         <MetricCard title="PERCLOS" value={perclosText} unit={hasPerclos ? "%" : ""} description={hasPerclos ? "Tỷ lệ nhắm mắt" : "Chưa đủ dữ liệu"} />
       </div>
-    </section>
-    <section className="ai-detail-grid" aria-label="Dữ liệu AI bổ sung">
+      <section className="ai-detail-grid" aria-label="Dữ liệu AI bổ sung">
       <MetricCard title="Khuôn mặt" value={telemetry?.face_detected === true ? "Có mặt" : telemetry?.face_detected === false ? "Không thấy mặt" : "—"} />
       <MetricCard title={poseTitle} value={poseValue} />
       <MetricCard title="Độ tin cậy" value={confidence} />
+      </section></div>
     </section>
 
     <AiSignalsPanel signals={telemetry?.ai_signals} stale={telemetryStale} />

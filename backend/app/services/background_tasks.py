@@ -9,6 +9,7 @@ from app.core.db import engine
 from app.models.command import Command
 from app.models.device import Device
 from app.services.command_dispatch import dispatch_command
+from app.services.command_result import cancellation_status
 from app.services.websocket_manager import manager
 
 
@@ -54,6 +55,7 @@ def run_once():
                     "request_id": result.request_id, "device_id": result.device_id,
                     "action": result.action, "status": result.status, "ack_status": result.ack_status,
                     "error_message": result.error_message,
+                    "cancellation_status": cancellation_status(result),
                 }})
         devices = session.exec(select(Device).where(Device.status == "ONLINE",
             Device.last_seen <= now - timedelta(seconds=HEARTBEAT_TIMEOUT_SECONDS))).all()

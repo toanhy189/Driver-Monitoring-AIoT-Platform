@@ -10,3 +10,5 @@
 .feedback-credentials div { margin-top: 10px; padding: 10px 12px; border: 1px solid #dae6f0; border-radius: 8px; }
 .feedback-credentials dt { color: #566980; font-size: 12px; }
 .feedback-credentials dd { margin: 4px 0 0; overflow-wrap: anywhere; font-family: monospace; font-size: 14px; }
+.decommission-dialog { max-height: calc(100dvh - 40px); overflow-y: auto; }
+.decommission-dialog .form-actions { flex-wrap: wrap; }

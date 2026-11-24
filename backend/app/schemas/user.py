@@ -44,9 +44,9 @@ class PasswordChange(BaseModel):
 
 class UserAdminUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    role: Literal["Admin", "Employee", "Customer"] | None = None
+    role: Literal["Employee", "Customer"] | None = None
     status: Literal["ACTIVE", "DISABLED"] | None = None
 
 
 class UserAdminCreate(RegisterRequest):
-    role: Literal["Admin", "Employee", "Customer"] = "Customer"
+    role: Literal["Employee", "Customer"] = "Customer"

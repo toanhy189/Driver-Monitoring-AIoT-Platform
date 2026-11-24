@@ -7,6 +7,13 @@ test("trang cảnh báo có URL riêng", () => {
   assert.deepEqual(viewFromHash("#/alerts"), { page: "alerts" });
 });
 
+test("liên kết lệnh của cảnh báo giữ bộ lọc sau khi tải lại URL", () => {
+  const view = {page:"commands",deviceId:1,alertId:12};
+  assert.equal(viewHash(view),"#/devices/1/commands?alert_id=12");
+  assert.deepEqual(viewFromHash(viewHash(view)),view);
+  assert.deepEqual(viewFromHash("#/devices/1/commands"),{page:"commands",deviceId:1});
+});
+
 test("Admin có URL giám sát riêng và lịch sử quay về trang quản trị", () => {
   const previousWindow = globalThis.window;
   globalThis.window = fakeWindow();

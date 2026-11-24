@@ -33,6 +33,9 @@ export function deviceActionBlockReason(device, action) {
   const state = device?.lifecycle_state;
   if (!state) return "Chưa có trạng thái quản lý của thiết bị.";
   if (state === "DECOMMISSIONED") return "Thiết bị đã ngừng sử dụng.";
+  if (["provision", "activate"].includes(action) && !["VISION_NODE", "ALERT_NODE"].includes(device?.type ?? device?.device_type)) {
+    return "Chưa xác định loại thiết bị; chưa thể cấp hoặc kích hoạt kết nối.";
+  }
   if (action === "provision" && state !== "REGISTERED") {
     return "Chỉ cấp thông tin kết nối cho thiết bị đã đăng ký.";
   }

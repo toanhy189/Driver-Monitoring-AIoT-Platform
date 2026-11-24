@@ -179,7 +179,7 @@ function RemoteConfigPage({ user, realtime = NO_REALTIME, deviceId, deviceCode, 
     <div className="config-layout">
       <form className="surface-card config-form" onSubmit={save} noValidate>
         <h2>Thiết lập cảnh báo</h2>
-        <p>Chọn mức để chỉnh nhịp bật/tắt cho từng đầu ra. Khi lưu, FE gửi cả ba mức.</p>
+        <p>Chỉnh nhịp bật/tắt cho từng đầu ra. Lưu sẽ cập nhật cả ba mức.</p>
         <div className="config-levels" role="group" aria-label="Mức cảnh báo đang chỉnh">{CONFIG_LEVELS.map(level => <button key={level} type="button" className={selectedLevel === level ? "selected" : ""} aria-pressed={selectedLevel === level} onClick={() => setSelectedLevel(level)}>Mức {level}</button>)}</div>
         <div className="config-level-note"><Icon name="info" size={17} /> Đang xem mức {selectedLevel}. Thay đổi ở các mức khác vẫn được giữ khi chuyển tab.</div>
         {!canEdit && <p className="config-readonly">Tài khoản của bạn chỉ được xem cấu hình.</p>}

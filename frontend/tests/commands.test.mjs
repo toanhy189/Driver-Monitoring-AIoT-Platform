@@ -119,6 +119,44 @@ test("chỉ ACK COMPLETED mới hiện hoàn tất; ACCEPTED và SENT vẫn đan
   assert.equal(commandStatus({ status: "EXECUTED" }).tone, "unknown");
 });
 
+test("URL chỉ có ID vẫn nhận đúng lệnh; mã hoặc ID mâu thuẫn bị loại", async () => {
+  const { commandBelongsToDevice: belongs } = await loadModule("../src/services/commandModel.js");
+  const identity = {requireIdentity:true};
+  const command = {device_id:1,device_code:"alert-01"};
+  assert.equal(belongs(command,1,undefined,identity),true);
+  assert.equal(belongs(command,2,undefined,identity),false);
+  assert.equal(belongs(command,1,"alert-02",identity),false);
+  assert.equal(belongs({device_code:"alert-01"},1,undefined,identity),false);
+  assert.equal(belongs({device_code:"alert-01"},1,"alert-01",identity),true);
+  assert.equal(belongs({},1,undefined,identity),false);
+});
+
+test("xem lệnh của một cảnh báo gửi cả bộ lọc thiết bị và cảnh báo", async () => {
+  let requested;
+  const service = await loadModule("../src/services/commands.js", {
+    localStorage:{getItem:()=>"token"}, fetch:async url=>{requested=url;return response(200,[]);},
+  });
+  await service.getCommands({deviceId:1,alertId:12});
+  assert.equal(requested,"/api/commands?device_id=1&alert_id=12");
+});
+
+test("hủy trước khi gửi khác lỗi thiết bị; chỉ dùng phân loại do Backend xác nhận", async () => {
+  const display = await loadModule("../src/services/commandDisplay.js");
+  const service = await loadModule("../src/services/commands.js");
+  const command = {request_id:"cmd-cancel",status:"FAILED",ack_status:"FAILED",
+    cancellation_status:"CANCELLED",error_message:"Risk episode no longer actionable"};
+  assert.equal(display.commandStatus(command).label, "Đã hủy trước khi gửi");
+  assert.equal(display.commandAckLabel(command.ack_status, command), "Chưa gửi tới thiết bị");
+  assert.match(display.commandDetailLabel(command), /nguy cơ/);
+  const partial = {...command,cancellation_status:"PARTIALLY_CANCELLED"};
+  assert.equal(display.commandStatus(partial).label, "Đã hủy phần chưa gửi");
+  assert.equal(display.commandStatus({...command,cancellation_status:null}).tone, "error");
+  const actualFailure = {...partial,cancellation_status:null,error_message:"COMMAND_EXPIRED"};
+  const updated = service.keepNewerCommand(partial, actualFailure);
+  assert.equal(display.commandStatus(updated).tone, "error");
+  assert.equal(updated.error_message, "COMMAND_EXPIRED");
+});
+
 test("HTTP thành công vẫn giữ trạng thái FAILED do BE trả và từ chối response sai thiết bị", async () => {
   const service = await loadModule("../src/services/commands.js", {
     localStorage: { getItem: () => "token" },
@@ -159,7 +197,7 @@ test("trang chi tiết đặt nút kiểm tra trước thông số; biểu mẫu
   const { default: Detail } = await loadModule("../src/pages/DeviceDetailPage.jsx", {}, true);
   const alert = renderToStaticMarkup(React.createElement(Detail, {
     user: { role: "Admin" }, deviceId: 1,
-    summary: { id: 1, device_code: "alert-01", model: "Thiết bị cảnh báo V1", status: "ONLINE" },
+    summary: { id: 1, device_code: "alert-01", type:"ALERT_NODE", model: "Thiết bị cảnh báo V1", status: "ONLINE" },
   }));
   assert.match(alert, /Kiểm tra cảnh báo/);
   assert.match(alert, /aria-expanded="false"/);

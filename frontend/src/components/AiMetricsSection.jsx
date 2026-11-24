@@ -3,7 +3,7 @@ import { getTelemetryHistory } from "../services/telemetryApi.js";
 import { mergeTelemetryItems } from "../services/telemetry.js";
 import { Icon } from "./AppShell.jsx";
 import { normalizeAiSignals } from "../services/aiSignals.js";
-import { metricPath } from "../services/chartSeries.js";
+import { metricPath, metricBandPath, appendTimeline } from "../services/chartSeries.js";
 import "../styles/ai-metrics.css";
 
 const FILTER_OPTIONS = [
@@ -58,7 +58,7 @@ export default function AiMetricsSection({ deviceId, deviceCode, realtime, onUna
       fromTime = new Date(Date.now() - selectedFilter.minutes * 60 * 1000).toISOString();
     }
 
-    getTelemetryHistory(deviceId, { fromTime, limit: 100, signal: controller.signal })
+    getTelemetryHistory(deviceId, { fromTime, limit: 100, chart: true, signal: controller.signal })
       .then(res => {
         if (!active) return;
         const snapshot = res || { items: [], total_samples: 0, model_version: null, last_updated: null };
@@ -66,9 +66,13 @@ export default function AiMetricsSection({ deviceId, deviceCode, realtime, onUna
         const recentRealtimeItems = realtimeItemsRef.current.filter(item =>
           fromTimestamp === null || Date.parse(item.recorded_at) >= fromTimestamp);
         const items = mergeTelemetryItems(snapshot.items || [], recentRealtimeItems);
+        const livePoints = recentRealtimeItems.filter(item => Date.parse(item.recorded_at) >= Date.parse(snapshot.snapshot_at));
         setHistory({
           ...snapshot,
           items,
+          live_points: livePoints,
+          total_samples: snapshot.chart_points ? snapshot.total_samples + livePoints.length : items.length,
+          timeline_segments: snapshot.timeline_segments ? livePoints.reduce(appendTimeline, snapshot.timeline_segments) : null,
           model_version: items.at(-1)?.model_version || snapshot.model_version,
           last_updated: latestTimestamp(snapshot.last_updated, items.at(-1)?.recorded_at),
         });
@@ -93,6 +97,12 @@ export default function AiMetricsSection({ deviceId, deviceCode, realtime, onUna
     };
   }, [deviceId, filterKey, reloadKey, onUnauthorized]);
 
+  useEffect(() => {
+    if (!realtime?.connected || !history.chart_mode) return;
+    const timer = setInterval(() => setReloadKey(value => value + 1), 15000);
+    return () => clearInterval(timer);
+  }, [realtime?.connected, history.chart_mode, deviceId]);
+
   // Reconnect recovery: when WebSocket reconnects, refresh history snapshot (TV4-15)
   useEffect(() => {
     if (realtime?.generation) {
@@ -109,6 +119,8 @@ export default function AiMetricsSection({ deviceId, deviceCode, realtime, onUna
       if (ev.type !== "telemetry.updated") continue;
       const data = ev.data;
       if (data.device_id !== deviceId && data.device_code !== deviceCode) continue;
+      const selectedFilter = FILTER_OPTIONS.find(option => option.key === filterKey);
+      if (selectedFilter?.minutes && Date.parse(data.recorded_at) < Date.now() - selectedFilter.minutes * 60000) continue;
 
       const newItem = {
         id: data.id || Date.now(),
@@ -128,16 +140,22 @@ export default function AiMetricsSection({ deviceId, deviceCode, realtime, onUna
           ...newItem,
           model_version: newItem.model_version || current.model_version,
         }]);
+        const livePoints = [...(current.live_points || [])];
+        const isNew = current.chart_points && Date.parse(newItem.recorded_at) >= Date.parse(current.snapshot_at)
+          && !livePoints.some(item => item.id === newItem.id || item.recorded_at === newItem.recorded_at);
+        if (isNew) livePoints.push(newItem);
         return {
           ...current,
           items: updatedItems,
-          total_samples: updatedItems.length,
+          live_points: livePoints,
+          timeline_segments: isNew && current.timeline_segments ? appendTimeline(current.timeline_segments, newItem) : current.timeline_segments,
+          total_samples: current.chart_points ? current.total_samples + (isNew ? 1 : 0) : updatedItems.length,
           model_version: updatedItems.at(-1)?.model_version || current.model_version,
           last_updated: latestTimestamp(current.last_updated, updatedItems.at(-1)?.recorded_at),
         };
       });
     }
-  }, [realtime?.events, deviceId, deviceCode]);
+  }, [realtime?.events, deviceId, deviceCode, filterKey]);
 
   const items = history.items || [];
   const isStale = !realtime?.connected;
@@ -149,19 +167,23 @@ export default function AiMetricsSection({ deviceId, deviceCode, realtime, onUna
   const innerW = chartWidth - padding.left - padding.right;
   const innerH = chartHeight - padding.top - padding.bottom;
 
-  const validItems = items.filter(it => Number.isFinite(Date.parse(it.recorded_at)));
-  const chartOptions = { width: chartWidth, height: chartHeight, padding };
-  const earPath = metricPath(validItems, it => it.ear, { ...chartOptions, maxValue: .5 });
-  const perclosPath = metricPath(validItems, it => it.perclos, { ...chartOptions, maxValue: 1 });
-  const marOf = it => normalizeAiSignals(it.ai_signals)?.mar;
+  const chartItems = history.chart_points ? [...history.chart_points, ...(history.live_points || [])] : items;
+  const validItems = chartItems.filter(it => Number.isFinite(Date.parse(it.recorded_at)))
+    .sort((a, b) => Date.parse(a.recorded_at) - Date.parse(b.recorded_at));
+  const timeline = history.timeline_segments || items.reduce(appendTimeline, []);
+  const chartOptions = { width: chartWidth, height: chartHeight, padding,
+    maxGapMs: Math.max(5000, (history.bucket_seconds || 0) * 1500) };
+  const earPath = metricPath(validItems, it => it.ear, { ...chartOptions, maxValue: .5, gapOf: it => it.ear_has_gap });
+  const perclosPath = metricPath(validItems, it => it.perclos, { ...chartOptions, maxValue: 1, gapOf: it => it.perclos_has_gap });
+  const marOf = it => Object.hasOwn(it, "mar") ? it.mar : normalizeAiSignals(it.ai_signals)?.mar;
   const hasMar = validItems.some(it => Number.isFinite(marOf(it)));
-  const marPath = metricPath(validItems, marOf, { ...chartOptions, maxValue: 2 });
+  const marPath = metricPath(validItems, marOf, { ...chartOptions, maxValue: 2, gapOf: it => it.mar_has_gap });
 
   return (
     <section className="surface-card ai-metrics-section" aria-label="AI Metrics và Timeline">
       <div className="section-heading ai-metrics-header">
         <div>
-          <h2>AI Metrics & Timeline số đo</h2>
+          <h2>Số đo AI & trạng thái tài xế</h2>
           <p>Lịch sử EAR / PERCLOS{hasMar ? " / MAR" : ""} và timeline trạng thái tài xế</p>
         </div>
         <div className="ai-metrics-controls">
@@ -193,12 +215,13 @@ export default function AiMetricsSection({ deviceId, deviceCode, realtime, onUna
       <div className="ai-metadata-bar">
         <div className="metadata-item">
           <span className="metadata-label">Phiên bản mô hình:</span>
-          <strong>{history.model_version || "Chưa cung cấp"}</strong>
+          <strong className="metadata-version" title={history.model_version || "Chưa cung cấp"}>{history.model_version || "Chưa cung cấp"}</strong>
         </div>
         <div className="metadata-item">
-          <span className="metadata-label">Tổng số mẫu:</span>
+          <span className="metadata-label">{history.chart_points ? "Bản ghi trong khoảng:" : "Mẫu gần nhất:"}</span>
           <strong>{history.total_samples || items.length} mẫu</strong>
         </div>
+        <div className="metadata-item"><span className="metadata-label">Điểm hiển thị:</span><strong>{validItems.length}</strong></div>
         <div className="metadata-item">
           <span className="metadata-label">Cập nhật cuối:</span>
           <strong>{formatTime(history.last_updated)}</strong>
@@ -258,7 +281,9 @@ export default function AiMetricsSection({ deviceId, deviceCode, realtime, onUna
               <text x={padding.left - 8} y={padding.top + innerH / 2 + 4} textAnchor="end" fontSize="10" fill="#64748b">0.25 / 50%</text>
               <text x={padding.left - 8} y={padding.top + innerH + 4} textAnchor="end" fontSize="10" fill="#64748b">0</text>
 
-              {/* Lines */}
+              {/* Mean curves and min/max envelopes from time buckets. */}
+              {history.chart_mode === "BUCKETED" && [["ear", .5, "#0284c7"], ["perclos", 1, "#10b981"], ["mar", 2, "#9333ea"]].map(([key, maxValue, color]) =>
+                <path key={key} d={metricBandPath(validItems, key, { ...chartOptions, maxValue })} fill={color} fillOpacity="0.12" />)}
               {earPath && <path d={earPath} fill="none" stroke="#0284c7" strokeWidth="2.5" strokeLinecap="round" />}
               {perclosPath && <path d={perclosPath} fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" />}
               {marPath && <path d={marPath} fill="none" stroke="#9333ea" strokeWidth="2.5" strokeLinecap="round" />}
@@ -273,22 +298,24 @@ export default function AiMetricsSection({ deviceId, deviceCode, realtime, onUna
               )}
             </svg>
           </div>
+          {history.chart_mode === "BUCKETED" && <p className="muted-note">Đường biểu diễn trung bình theo khoảng {history.bucket_seconds} giây; vùng màu nhạt thể hiện nhỏ nhất–lớn nhất. Khoảng trống là thiếu số đo.</p>}
 
           {/* Timeline Trạng thái tài xế (TV4-11) */}
           <div className="ai-timeline-wrap">
-            <h3 className="timeline-title">Timeline trạng thái tài xế</h3>
+            <h3 className="timeline-title">Diễn biến trạng thái · tối đa 60 đoạn gần nhất</h3>
             <div className="timeline-bar" role="list" aria-label="Chuỗi trạng thái theo thời gian">
-              {items.slice(-20).map((it, idx) => {
+              {timeline.map((it, idx) => {
                 const conf = STATE_COLORS[it.driver_state] || STATE_COLORS.UNKNOWN;
                 return (
                   <div
-                    key={it.id || idx}
+                    key={`${it.start}-${idx}`}
+                    role="listitem"
                     className="timeline-segment"
                     style={{ backgroundColor: conf.bg, borderColor: conf.border, color: conf.text }}
-                    title={`${formatTime(it.recorded_at)} - ${conf.label} (EAR: ${it.ear ?? "—"}, PERCLOS: ${it.perclos ? (it.perclos * 100).toFixed(0) + "%" : "—"})`}
+                    title={`${conf.label} · ${formatTime(it.start)}–${formatTime(it.end)} · ${it.samples} mẫu`}
                   >
                     <span>{conf.label}</span>
-                    <small>{formatTime(it.recorded_at)}</small>
+                    <small>{formatTime(it.start)}{it.end !== it.start ? `–${formatTime(it.end)}` : ""}</small>
                   </div>
                 );
               })}
@@ -297,16 +324,7 @@ export default function AiMetricsSection({ deviceId, deviceCode, realtime, onUna
         </>
       )}
 
-      {/* Model Evaluation Notice (TV4-17) */}
-      <div className="ai-model-evaluation-card">
-        <div className="evaluation-heading">
-          <Icon name="info" size={18} />
-          <strong>Đánh giá mô hình thực nghiệm (TV4-17):</strong>
-        </div>
-        <p className="evaluation-text">
-          Các số đo trên là dữ liệu vận hành. Kết quả huấn luyện và đánh giá theo từng phiên bản được bàn giao trong model card; chưa phải nghiệm thu độc lập trên camera đeo kính. Giao diện không suy ra Accuracy/F1 từ telemetry.
-        </p>
-      </div>
+      <p className="muted-note ai-metrics-note">Số đo vận hành từ Vision Node; không phải kết quả đánh giá độ chính xác mô hình.</p>
     </section>
   );
 }

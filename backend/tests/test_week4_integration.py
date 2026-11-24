@@ -305,8 +305,7 @@ class Week4Integration(unittest.TestCase):
             {self.alert_device_id},
         )
         self.assertEqual(customer_status.status_code, 403, customer_status.text)
-        self.assertEqual(employee_status.status_code, 200, employee_status.text)
-        self.assertEqual(employee_status.json()["status"], "OFFLINE")
+        self.assertEqual(employee_status.status_code, 403, employee_status.text)
 
     def test_viewer_endpoint_and_assignment_matrix(self):
         """Kiem tra viewer doc cac endpoint duoc gan va bi tu choi voi device chua gan."""
@@ -404,7 +403,7 @@ class Week4Integration(unittest.TestCase):
                 actual["config_update"][role] = response.status_code
                 self.assertEqual(response.status_code, expected_status, response.text)
 
-        for role, expected_status in (("Admin", 200), ("Employee", 200), ("Customer", 403)):
+        for role, expected_status in (("Admin", 200), ("Employee", 200), ("Customer", 200)):
             response = self.client.post(
                 f"/api/alerts/{self.alert_id}/acknowledge",
                 headers=self.auth(role),
@@ -483,7 +482,7 @@ class Week4Integration(unittest.TestCase):
 
         expected = {
             "config_update": {"Admin": 200, "Employee": 200, "Customer": 403},
-            "alert_acknowledge": {"Admin": 200, "Employee": 200, "Customer": 403},
+            "alert_acknowledge": {"Admin": 200, "Employee": 200, "Customer": 200},
             "command_create": {"Admin": 201, "Employee": 201, "Customer": 403},
             "rule_read": {"Admin": 200, "Employee": 403, "Customer": 403},
             "rule_update": {"Admin": 200, "Employee": 403, "Customer": 403},
@@ -504,7 +503,7 @@ class Week4Integration(unittest.TestCase):
             role: self.auth(role)
             for role in ("Employee", "Customer")
         }
-        registration = {"device_code": lifecycle_code, "model": "Lifecycle test device"}
+        registration = {"device_code": lifecycle_code, "model": "Lifecycle test device", "device_type":"ALERT_NODE"}
         for role, headers in role_headers.items():
             response = self.client.post("/api/devices/register", headers=headers, json=registration)
             actual[f"register_{role}"] = response.status_code

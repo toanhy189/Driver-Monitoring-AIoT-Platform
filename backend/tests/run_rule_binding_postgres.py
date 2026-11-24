@@ -3,6 +3,7 @@
 No MQTT, application containers, production database or physical outputs are used.
 """
 import os
+import argparse
 from pathlib import Path
 import secrets
 import socket
@@ -15,6 +16,9 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--suite", choices=["test_rule_binding_postgres.py", "test_access_metrics.py", "test_ota_postgres.py"], default="test_rule_binding_postgres.py")
+    args = parser.parse_args()
     suffix = secrets.token_hex(6)
     name = "codex-rule-binding-pg-" + suffix
     database = "codex_rule_binding_" + suffix
@@ -39,7 +43,7 @@ def main():
             env = {**os.environ, "RULE_BINDING_TEST_POSTGRES":
                    f"postgresql+psycopg://rule_test:{password}@127.0.0.1:{port}/{database}"}
             return subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", "backend/tests",
-                "-p", "test_rule_binding_postgres.py", "-v"], cwd=ROOT, env=env, timeout=120).returncode
+                "-p", args.suite, "-v"], cwd=ROOT, env=env, timeout=180).returncode
         finally:
             assert name.startswith("codex-rule-binding-pg-") and name.endswith(suffix)
             subprocess.run(["docker", "rm", "-f", "-v", name], capture_output=True, timeout=30)

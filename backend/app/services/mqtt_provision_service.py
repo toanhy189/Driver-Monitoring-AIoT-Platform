@@ -11,12 +11,16 @@ DEVICE_CODE = re.compile(r"[A-Za-z0-9_-]+\Z")
 
 
 def provision_device(device_code: str, *, device_type: str | None = None) -> dict[str, str]:
+    if device_type not in {"VISION_NODE", "ALERT_NODE"}:
+        raise ValueError("Device type must be VISION_NODE or ALERT_NODE before MQTT provisioning")
     if not DEVICE_CODE.fullmatch(device_code):
         raise ValueError("Invalid device code for MQTT topic")
     if device_code in {settings.MQTT_USERNAME, settings.MQTT_ADMIN_USERNAME}:
         raise ValueError("Reserved MQTT account name")
 
     if device_code == settings.AI_DEVICE_CODE:
+        if device_type != "VISION_NODE":
+            raise ValueError("The configured AI device must be a VISION_NODE")
         with BrokerSecurity() as broker:
             if not broker.has_client(settings.AI_MQTT_USERNAME):
                 raise RuntimeError("Edge AI MQTT account is not initialized")

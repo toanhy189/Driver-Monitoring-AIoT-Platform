@@ -11,6 +11,7 @@
 #include "mqtt_client.h"
 #include "command_handler.h"
 #include "request_log.h"
+#include "ota.h"
 
 #if __has_include("network_config.h")
 #include "network_config.h"
@@ -55,9 +56,9 @@ void initMqtt()
     mqtt.setSocketTimeout(3);   // giây
     mqtt.setKeepAlive(15);
     // [CONFIG - sửa] Payload đủ 3 tải x 3 mức cần buffer 1024 byte, lớn hơn mặc định 256.
-    if (!mqtt.setBufferSize(1024))
+    if (!mqtt.setBufferSize(3072))
     {
-        Serial.println("[MQTT] Failed to allocate 1024-byte buffer");
+        Serial.println("[MQTT] Failed to allocate 3072-byte buffer");
     }
 }
 
@@ -157,6 +158,8 @@ void runMqtt()
                 bool commandSubscribed = mqtt.subscribe(COMMAND_TOPIC, 1);
                 // [CONFIG - thêm] QoS 1 nhận config retained ngay khi subscribe/reconnect.
                 bool configSubscribed = mqtt.subscribe(CONFIG_TOPIC, 1);
+                String otaTopic=String("driver/")+DEVICE_CODE+"/ota/request";
+                mqtt.subscribe(otaTopic.c_str(),1);
                 bool published = mqtt.publish(STATUS_TOPIC, onlineMessage, true);//thêm 'true'
                 Serial.printf("[MQTT] subscribe command=%s config=%s, publish=%s\n",
                               commandSubscribed ? "OK" : "FAIL",
@@ -179,6 +182,25 @@ void runMqtt()
 
 void onMessage(char *topic, byte *payload, unsigned int length)
 {
+    String otaTopic=String("driver/")+DEVICE_CODE+"/ota/request";
+    if(otaTopic==topic) {
+        JsonDocument request;
+        if(!deserializeJson(request,payload,length))otaOnMessage(request);
+        return;
+    }
+    if(otaBlocksCommands()) {
+        JsonDocument blocked;
+        if(!deserializeJson(blocked,payload,length)) {
+            if(strcmp(topic,CONFIG_TOPIC)==0) {
+                const char* id=blocked["config_id"] | "";
+                if(strlen(id) && strcmp(id,currentConfigId())==0 && blocked["revision"].as<uint32_t>()==currentConfigRevision())
+                    sendConfigAck(id,"APPLIED",nullptr);
+                else sendConfigAck(id,"REJECTED","OTA_IN_PROGRESS");
+            }
+            else if(strcmp(topic,COMMAND_TOPIC)==0)sendAcks(blocked["request_id"],"FAILED",0,"OTA_IN_PROGRESS");
+        }
+        return;
+    }
     Serial.print("[MQTT] Topic: ");
     Serial.println(topic);
 
@@ -226,6 +248,7 @@ void sendHeartbeat(){
     response["status"] = "ALIVE";
     response["firmware_version"] = FIRMWARE_VERSION;
     response["hardware_version"] = HARDWARE_VERSION;
+    otaCapabilities(response["ota"].to<JsonObject>());
     // [CONFIG - thêm] Backend có thể đối chiếu config thiết bị đang thực sự chạy.
     response["config_id"] = currentConfigId();
     response["config_revision"] = currentConfigRevision();
@@ -234,8 +257,8 @@ void sendHeartbeat(){
     Serial.println();
 
     // [CONFIG - sửa] Tăng buffer để chứa thêm config_id trong heartbeat.
-    char buffer[320];
-    serializeJson(response, buffer);
+    char buffer[1024];
+    serializeJson(response, buffer,sizeof(buffer));
 
     mqtt.publish(STATUS_TOPIC, buffer);
 }

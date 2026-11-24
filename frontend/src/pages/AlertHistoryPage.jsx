@@ -4,7 +4,7 @@ import FeedbackDialog from "../components/FeedbackDialog.jsx";
 import VideoPlayer from "../components/VideoPlayer.jsx";
 import { acknowledgeAlert, getAlerts } from "../services/alerts.js";
 import { alertVideoState, canAcknowledgeAlert, isAlertAcknowledged, mergeAlerts } from "../services/alertModel.js";
-import { alertStatusLabel, alertTypeLabel } from "../services/alertDisplay.js";
+import { alertLifecycleLabel, alertTypeLabel } from "../services/alertDisplay.js";
 import { commandTime, commandValue } from "../services/commandDisplay.js";
 import { hasPermission } from "../services/permissions.js";
 import "../styles/commands.css";
@@ -73,7 +73,7 @@ function AlertHistoryPage({ user, realtime = NO_REALTIME, onDashboard, onDevices
       if (result && isAlertAcknowledged(result)) {
         setAlerts(current => mergeAlerts(current, [result]));
         setNotice("Đã đánh dấu cảnh báo là đã xem.");
-        setFeedback({ tone: "success", title: "Đã đánh dấu là đã xem", message: "Trạng thái cảnh báo đã được cập nhật." });
+        setFeedback({ tone: "success", title: "Đã đánh dấu là đã xem", message: "Đã lưu xác nhận cho tài khoản của bạn. Thiết bị tiếp tục cảnh báo theo trạng thái AI." });
       } else {
         setNotice("BE đã nhận yêu cầu. Đang tải lại trạng thái cảnh báo.");
         setFeedback({ tone: "success", title: "Đã nhận yêu cầu", message: "Đang tải lại trạng thái cảnh báo để kiểm tra kết quả." });
@@ -111,7 +111,7 @@ function AlertHistoryPage({ user, realtime = NO_REALTIME, onDashboard, onDevices
       onUnauthorized={onUnauthorized}
     />}
     <section className="surface-card history-panel" aria-label="Lịch sử cảnh báo">
-      <div className="section-heading"><div><h2>Các cảnh báo</h2><p>Xác nhận đã xem chỉ cập nhật cảnh báo, không thay đổi ACK của lệnh thiết bị.</p></div>
+      <div className="section-heading"><div><h2>Các cảnh báo</h2><p>Xác nhận đã xem được lưu riêng cho bạn; không tắt còi/rung hoặc dừng cảnh báo tự động. Đợt cảnh báo đã kết thúc vẫn có thể đánh dấu đã xem.</p></div>
         <button className="outline-button" type="button" onClick={() => setReloadKey(value => value + 1)}><Icon name="refresh" size={17} /> Tải lại</button></div>
       {loading && <p role="status">Đang tải cảnh báo…</p>}
       {error && <p className="notice-error" role="alert">{error}</p>}
@@ -125,7 +125,7 @@ function AlertHistoryPage({ user, realtime = NO_REALTIME, onDashboard, onDevices
         <td>{alertTypeLabel(alert.alert_type ?? alert.type)}</td>
         <td>{Number.isInteger(alert.severity) ? `Mức ${alert.severity}` : "Chưa phân mức"}</td>
         <td>{commandTime(alert.created_at ?? alert.timestamp)}</td>
-        <td><span className={`alert-state ${isAlertAcknowledged(alert) ? "alert-state--seen" : "alert-state--new"}`}>{alertStatusLabel(alert)}</span></td>
+        <td><span className="alert-state">{alertLifecycleLabel(alert)}</span><div><span className={`alert-state ${isAlertAcknowledged(alert) ? "alert-state--seen" : "alert-state--new"}`}>{isAlertAcknowledged(alert) ? "Bạn đã xem" : "Bạn chưa xem"}</span></div></td>
         <td>{alert.request_id && hasPermission(user?.role, "command:view") ?
           <button className="text-link" type="button" onClick={() => onCommands(alert)}>Xem lệnh</button> :
           "Không có"}</td>

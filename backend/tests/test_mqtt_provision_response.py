@@ -17,6 +17,12 @@ from app.models.device import Device  # noqa: E402
 
 
 class Session:
+    def __init__(self, device):
+        self.device = device
+
+    def exec(self, query):
+        return SimpleNamespace(first=lambda:self.device)
+
     def add(self, obj):
         pass
 
@@ -29,14 +35,14 @@ class Session:
 
 class ProvisionResponseTest(unittest.TestCase):
     def test_credentials_only_in_provision_response(self):
-        device = Device(id=2, device_code="alert-01", model="Alert")
+        device = Device(id=2, device_code="alert-01", model="Alert",device_type="ALERT_NODE")
         with patch("app.api.routes.devices.assigned_device", return_value=device), patch(
             "app.api.routes.devices.provision_device",
             return_value={"username": "alert-01", "password": "test-secret"},
         ):
             http_response = Response()
             result = provision_mqtt_credentials(
-                2, response=http_response, current_user=SimpleNamespace(id=1), session=Session()
+                2, response=http_response, current_user=SimpleNamespace(id=1), session=Session(device)
             )
         self.assertEqual(result.mqtt_username, "alert-01")
         self.assertEqual(result.mqtt_password, "test-secret")

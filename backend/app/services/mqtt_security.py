@@ -19,8 +19,8 @@ def acl(kind: str, topic: str) -> dict:
 
 def device_acls(code: str) -> list[dict]:
     prefix = f"driver/{code}"
-    writes = ("telemetry", "status", "ack", "heartbeat", "config/applied")
-    reads = ("command", "config/update")
+    writes = ("telemetry", "status", "ack", "heartbeat", "config/applied", "ota/status")
+    reads = ("command", "config/update", "ota/request")
     return [acl("publishClientSend", f"{prefix}/{part}") for part in writes] + [
         acl("subscribeLiteral", f"{prefix}/{part}") for part in reads
     ] + [acl("publishClientReceive", f"{prefix}/{part}") for part in reads]
@@ -37,7 +37,7 @@ def vision_acls(code: str, *, legacy: bool = False) -> list[dict]:
 
 def backend_acls() -> list[dict]:
     return [acl("subscribeLiteral", "driver/#"), acl("publishClientReceive", "driver/#"),
-            *[acl("publishClientSend", f"driver/+/{part}") for part in ("command", "config/update", "storage_ack")]]
+            *[acl("publishClientSend", f"driver/+/{part}") for part in ("command", "config/update", "storage_ack", "ota/request")]]
 
 
 class BrokerSecurity:

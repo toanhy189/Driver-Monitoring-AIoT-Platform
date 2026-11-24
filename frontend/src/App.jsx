@@ -15,6 +15,7 @@ import { DASHBOARD_VIEW, currentView, ensureView, hasPreviousView, pushView, rep
 import useRealtime from "./hooks/useRealtime.js";
 import { authenticatedRequest } from "./services/api.js";
 import { AppNavigation } from "./services/AppNavigation.jsx";
+import FirmwarePage from "./pages/FirmwarePage.jsx";
 
 function App() {
   const [session, setSession] = useState(() => ({
@@ -180,6 +181,11 @@ function App() {
   }
 
   const renderAuthenticated = () => {
+    if (view.page === "firmware") return <FirmwarePage user={session.user} realtime={realtime}
+      onDashboard={()=>navigateTo(DASHBOARD_VIEW)} onDevices={()=>navigateTo({page:"devices"})}
+      onCommands={()=>navigateTo({page:"commands"})} onAlerts={()=>navigateTo({page:"alerts"})}
+      onOpenDevice={device=>navigateTo({page:"device-detail",deviceId:device.id})}
+      onLogout={handleLogout} onUnauthorized={handleLogout} />;
     if (view.page === "devices") {
       return (
         <DeviceListPage
@@ -219,10 +225,12 @@ function App() {
     if (view.page === "commands") {
       return (
         <CommandHistoryPage
+          key={`${view.deviceId ?? "all"}:${view.alertId ?? "all"}`}
           user={session.user}
           realtime={realtime}
           deviceId={view.deviceId}
           deviceCode={view.deviceCode}
+          alertId={view.alertId}
           onBack={() => navigateBack({ page: "device-detail", deviceId: view.deviceId })}
           onDashboard={() => navigateTo(DASHBOARD_VIEW)}
           onDevices={() => navigateTo({ page: "devices" })}
@@ -260,7 +268,8 @@ function App() {
         realtime={realtime}
         onDashboard={() => navigateTo(DASHBOARD_VIEW)}
         onDevices={() => navigateTo({ page: "devices" })}
-        onCommands={alert => navigateTo(alert && Number.isSafeInteger(alert.device_id) ?
+        onCommands={alert => navigateTo(alert && Number.isSafeInteger(alert.command_device_id) ?
+          { page: "commands", deviceId: alert.command_device_id, alertId: Number(alert.alert_id) } : alert && Number.isSafeInteger(alert.device_id) ?
           { page: "commands", deviceId: alert.device_id, deviceCode: alert.device_code } :
           { page: "commands" })}
         onLogout={handleLogout}
@@ -296,6 +305,7 @@ function App() {
 
   return <AppNavigation.Provider value={{
     onMonitoring: () => navigateTo({ page: "monitoring" }),
+    onFirmware: () => navigateTo({ page: "firmware" }),
     onDashboard: () => navigateTo(DASHBOARD_VIEW),
   }}>{renderAuthenticated()}</AppNavigation.Provider>;
 }

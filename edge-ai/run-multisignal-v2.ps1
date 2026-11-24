@@ -3,6 +3,7 @@ param(
     [ValidateSet('cpu','cuda')][string]$Device = 'cpu',
     [string]$CalibrationPath,
     [string]$ProfileId,
+    [string]$NodeConfigPath,
     [ValidateSet('glasses','no-glasses')][string]$Condition = 'glasses',
     [int]$Camera = 0,
     [switch]$EyeTrial,
@@ -12,6 +13,18 @@ param(
     [switch]$Demo
 )
 $ErrorActionPreference = 'Stop'
+$taskNode = $null
+if ($NodeConfigPath) {
+    if (!$Demo) { throw 'NodeConfigPath is for -Demo (or -Demo -Check). Private trials do not connect to a node.' }
+    $taskNode = Get-Content -LiteralPath (Resolve-Path -LiteralPath $NodeConfigPath).Path -Raw -Encoding utf8 | ConvertFrom-Json
+    if ($taskNode.format -ne 'driver-ai-node-v1' -or $taskNode.device_code -notmatch '^[A-Za-z0-9_-]+$' -or
+        !$taskNode.mqtt_username -or !$taskNode.mqtt_password -or !$taskNode.mqtt_host -or
+        $taskNode.mqtt_port -lt 1 -or $taskNode.mqtt_port -gt 65535 -or
+        $taskNode.backend_url -notmatch '^https?://[^\s]+$') { throw 'Invalid Camera AI node configuration.' }
+    if ($Condition -eq 'glasses' -and !$CalibrationPath -and $taskNode.device_code -ne 'vision-01') {
+        throw 'A new camera with glasses needs its matching CalibrationPath and ProfileId. The saved vision-01 profile is not reused.'
+    }
+}
 $taskPython = Join-Path $PSScriptRoot '.venv/Scripts/python.exe'
 $taskBundle = (Resolve-Path -LiteralPath $BundlePath).Path
 $taskManifest = Get-Content -Raw -LiteralPath (Join-Path $taskBundle 'manifest.json') | ConvertFrom-Json
@@ -37,10 +50,26 @@ if ($Demo -and ($EyeTrial -or $HeadTrial)) {
 if ($EyeTrial -and $HeadTrial) { throw 'Choose either -EyeTrial or -HeadTrial.' }
 $taskPrevious = @{}
 foreach ($taskName in @('AI_MODEL_MODE','AI_MULTISIGNAL_BUNDLE','AI_MULTISIGNAL_DEVICE',
-    'AI_EYE_CLOSURE_GUARD_ENABLED','AI_EYE_CLOSURE_CALIBRATION','AI_PROFILE_ID','AI_CAPTURE_CONDITION','AI_CAMERA_INDEX','AI_HEAD_DOWN_RISK_ENABLED')) {
+    'AI_EYE_CLOSURE_GUARD_ENABLED','AI_EYE_CLOSURE_CALIBRATION','AI_PROFILE_ID','AI_CAPTURE_CONDITION','AI_CAMERA_INDEX','AI_HEAD_DOWN_RISK_ENABLED',
+    'AI_DEVICE_CODE','AI_MQTT_USERNAME','AI_MQTT_PASSWORD','AI_MQTT_HOST','AI_MQTT_PORT','BACKEND_HOST',
+    'AI_QUEUE_DB','AI_RECORDING_DIR','AI_EVENT_AUDIT_PATH','AI_METRICS_PATH')) {
     $taskPrevious[$taskName] = [Environment]::GetEnvironmentVariable($taskName, 'Process')
 }
 try {
+    if ($taskNode) {
+        $env:AI_DEVICE_CODE = $taskNode.device_code
+        $env:AI_MQTT_USERNAME = $taskNode.mqtt_username
+        $env:AI_MQTT_PASSWORD = $taskNode.mqtt_password
+        $env:AI_MQTT_HOST = $taskNode.mqtt_host
+        $env:AI_MQTT_PORT = "$($taskNode.mqtt_port)"
+        $env:BACKEND_HOST = $taskNode.backend_url.TrimEnd('/')
+        $taskNodeDir = Join-Path $PSScriptRoot "local-nodes/$($taskNode.device_code)"
+        $env:AI_QUEUE_DB = Join-Path $taskNodeDir 'queue.db'
+        $env:AI_RECORDING_DIR = Join-Path $taskNodeDir 'recordings'
+        $env:AI_EVENT_AUDIT_PATH = Join-Path $taskNodeDir 'events.jsonl'
+        $env:AI_METRICS_PATH = Join-Path $taskNodeDir 'performance.jsonl'
+        Write-Host "Camera AI node: $($taskNode.device_code); camera index: $Camera; local storage is isolated."
+    }
     if (!$Demo) {
         $taskArgs = @('-X','utf8', (Join-Path $PSScriptRoot 'diagnose_multisignal.py'),
             '--bundle',$taskBundle,'--condition',$Condition,'--camera',"$Camera",'--device',$Device,'--auto-close')

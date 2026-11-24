@@ -30,19 +30,25 @@ export async function getDeviceDetail(id, { signal } = {}) {
   return device;
 }
 
-export async function registerDevice({ device_code, name, model }, { signal } = {}) {
-  const normalizedCode = device_code.trim();
+export async function registerDevice({ device_code, name, model, device_type }, { signal } = {}) {
+  if (!["VISION_NODE", "ALERT_NODE"].includes(device_type)) throw new Error("Hãy chọn Camera AI hoặc Bộ cảnh báo ESP32.");
+  const normalizedCode = device_code?.trim() || "";
   const result = await authenticatedRequest("/devices", {
     method: "POST",
     missingMessage: "Bạn cần đăng nhập để xem thiết bị.",
-    body: { device_code: normalizedCode, name: name.trim(), model: model.trim() },
+    body: { ...(normalizedCode ? {device_code:normalizedCode} : {}), name: name.trim(), model: model.trim(), device_type },
     signal,
   });
   if (!result?.device || !Number.isSafeInteger(result.device.id) ||
-      result.device.id <= 0 || result.device.device_code !== normalizedCode) {
+      result.device.id <= 0 || typeof result.device.device_code !== "string" || !result.device.device_code.trim() ||
+      (normalizedCode && result.device.device_code !== normalizedCode) || result.device.type !== device_type) {
     throw new Error("BE chưa trả đúng thiết bị vừa đăng ký.");
   }
   return result;
+}
+
+export async function deleteDeviceRegistration(id, {signal} = {}) {
+  await authenticatedRequest(devicePath(id), { method:"DELETE", signal });
 }
 
 const LIFECYCLE_ACTIONS = ["provision", "activate", "maintenance", "decommission"];

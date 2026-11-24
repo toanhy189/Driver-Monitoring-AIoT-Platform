@@ -1,18 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import AppShell, { ConnectionBadge, Icon } from "../components/AppShell.jsx";
 import { hasPermission } from "../services/permissions.js";
-import { displayValue, formatLastSeen } from "../services/deviceDisplay.js";
+import { displayValue, formatLastSeen, deviceTypeLabel } from "../services/deviceDisplay.js";
+import DeviceScopeTabs from "../components/DeviceScopeTabs.jsx";
 
 function DeviceListView({ user, onBack, onOpenDevice, onOpenCommands, onOpenAlerts, onLogout, serverConnected, devices, loading, error, retry, fields, setFields, registerBusy, registerError, registerNotice, submitRegistration, resetRegistration }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [registerOpen, setRegisterOpen] = useState(false);
+  const [scope, setScope] = useState("current");
   const registerPanelRef = useRef(null);
   useEffect(() => {
     if (registerOpen) registerPanelRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
   }, [registerOpen]);
   useEffect(() => {
-    if (registerNotice) setRegisterOpen(false);
+    if (registerNotice) { setRegisterOpen(false); setScope("current"); }
   }, [registerNotice]);
   const canManage = hasPermission(user?.role, "device:manage");
   const onlineCount = devices.filter(device => !device.isStale && device.status === "ONLINE").length;
@@ -20,7 +22,8 @@ function DeviceListView({ user, onBack, onOpenDevice, onOpenCommands, onOpenAler
     const query = search.trim().toLocaleLowerCase("vi-VN");
     const matchesSearch = !query || [device.device_code, device.name, device.model].some(value => String(value || "").toLocaleLowerCase("vi-VN").includes(query));
     const matchesStatus = statusFilter === "all" || (statusFilter === "unknown" ? !["ONLINE", "OFFLINE"].includes(device.status) : device.status === statusFilter);
-    return matchesSearch && matchesStatus;
+    const matchesScope = (device.lifecycle_state === "DECOMMISSIONED") === (scope === "archived");
+    return matchesSearch && matchesStatus && matchesScope;
   });
 
   return <AppShell user={user} activePage="devices" serverConnected={serverConnected} onDashboard={onBack} onDevices={() => {}} onCommands={onOpenCommands} onAlerts={onOpenAlerts} onLogout={onLogout}>
@@ -32,6 +35,7 @@ function DeviceListView({ user, onBack, onOpenDevice, onOpenCommands, onOpenAler
     {devices.some(device => device.isStale) && <p className="muted-note">Trạng thái dữ liệu cũ không được tính vào số đang kết nối.</p>}
 
     <section className="surface-card device-list-panel" aria-label="Danh sách thiết bị">
+      <DeviceScopeTabs devices={devices} value={scope} onChange={setScope} />
       <div className="device-toolbar">
         <label className="search-field"><Icon name="search" /><span className="sr-only">Tìm thiết bị</span><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Tìm theo mã hoặc tên thiết bị" /></label>
         <label className="filter-field"><span className="sr-only">Lọc kết nối</span><select value={statusFilter} onChange={event => setStatusFilter(event.target.value)}><option value="all">Kết nối: Tất cả</option><option value="ONLINE">Online</option><option value="OFFLINE">Offline</option><option value="unknown">Chưa xác định</option></select></label>
@@ -42,15 +46,17 @@ function DeviceListView({ user, onBack, onOpenDevice, onOpenCommands, onOpenAler
       {!loading && !error && devices.length === 0 && <p>Chưa có thiết bị được gán cho bạn.</p>}
       {devices.length > 0 && <div className="device-table-wrap"><table className="device-table"><thead><tr><th>Thiết bị</th><th>Loại / Model</th><th>Quản lý</th><th>Kết nối</th><th>Hoạt động cuối</th><th><span className="sr-only">Thao tác</span></th></tr></thead><tbody>{visibleDevices.map(device => <tr key={device.id}>
         <td><div className="device-name-cell"><span className="device-icon"><Icon name="device" /></span><div><strong>{displayValue(device.name)}</strong><small>{device.device_code}</small></div></div></td>
-        <td>{displayValue(device.model)}</td><td className="muted-cell">{displayValue(device.lifecycle_state)}</td>
+        <td><div className="device-kind"><strong>{deviceTypeLabel(device.type ?? device.device_type)}</strong><small>{displayValue(device.model)}</small></div></td><td className="muted-cell">{displayValue(device.lifecycle_state)}</td>
         <td><ConnectionBadge status={device.status} isStale={device.isStale} /></td><td>{formatLastSeen(device.last_seen)}</td>
         <td><button className="outline-button" onClick={() => onOpenDevice(device)}>Xem chi tiết <Icon name="arrow" size={17} /></button></td>
       </tr>)}</tbody></table>{visibleDevices.length === 0 && <p className="empty-result">Không tìm thấy thiết bị phù hợp.</p>}</div>}
 
       {canManage && registerOpen && <section id="register-panel" ref={registerPanelRef} className="register-panel" aria-labelledby="register-heading"><div className="section-heading"><div><h2 id="register-heading">Đăng ký thiết bị</h2><p>Thêm thiết bị mới vào hệ thống</p></div></div><form className="device-form" onSubmit={submitRegistration}>
-        <label>Mã thiết bị<input required value={fields.device_code} placeholder="Nhập mã thiết bị" onChange={event => setFields(current => ({ ...current, device_code: event.target.value }))} /></label>
+        <label>Mã thiết bị (tùy chọn)<input value={fields.device_code} placeholder="Để trống để hệ thống tự tạo mã" onChange={event => setFields(current => ({ ...current, device_code: event.target.value }))} /></label>
         <label>Tên thiết bị<input required value={fields.name} placeholder="Nhập tên thiết bị" onChange={event => setFields(current => ({ ...current, name: event.target.value }))} /></label>
-        <label>Loại / Model<input required value={fields.model} placeholder="Nhập loại hoặc model" onChange={event => setFields(current => ({ ...current, model: event.target.value }))} /></label>
+        <label>Loại thiết bị<select required aria-label="Loại thiết bị" value={fields.device_type} onChange={event => setFields(current => ({ ...current, device_type:event.target.value }))}><option value="">Chọn loại thiết bị</option><option value="VISION_NODE">Camera AI</option><option value="ALERT_NODE">Bộ cảnh báo ESP32</option></select></label>
+        <label>Model phần cứng<input required value={fields.model} placeholder="Ví dụ: USB webcam hoặc ESP32 DevKit" onChange={event => setFields(current => ({ ...current, model: event.target.value }))} /></label>
+        <p className="muted-note registration-note">Hệ thống tự tạo mã duy nhất theo loại đã chọn. Chỉ nhập mã khi kết nối thiết bị đã cấu hình sẵn. Sau đăng ký, dùng đúng mã được trả về trong cấu hình AI/ESP32.</p>
         <div className="form-actions"><button className="outline-button" type="button" disabled={registerBusy} onClick={() => { resetRegistration(); setRegisterOpen(false); }}>Hủy</button><button className="primary-button" disabled={registerBusy} type="submit">{registerBusy ? "Đang gửi…" : "Đăng ký"}</button></div>
       </form>{registerError && <p className="notice-error" role="alert">{registerError}</p>}{registerNotice && <p className="notice-success" role="status">{registerNotice}</p>}</section>}
     </section>

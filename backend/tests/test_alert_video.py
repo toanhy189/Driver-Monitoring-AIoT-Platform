@@ -16,7 +16,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel, create_engine
-from sqlalchemy.pool import StaticPool
 from sqlalchemy.dialects.postgresql import INET, MACADDR
 from sqlalchemy.ext.compiler import compiles
 from app.main import app as production_app  # Register all model tables, no lifespan run.
@@ -47,7 +46,7 @@ class AlertVideo(unittest.TestCase):
         self.root = Path(self.directory.name)
         self.storage = patch.object(settings, "AI_VIDEO_DIR", self.root)
         self.storage.start()
-        self.engine = create_engine("sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False})
+        self.engine = create_engine("sqlite:///" + str(self.root / "fixture.sqlite"), connect_args={"check_same_thread": False})
         SQLModel.metadata.create_all(self.engine)
         with Session(self.engine) as session:
             self.users = {}

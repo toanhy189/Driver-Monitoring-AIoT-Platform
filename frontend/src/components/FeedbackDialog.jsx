@@ -15,8 +15,10 @@ function FeedbackDialog({ feedback, onClose }) {
     const onKeyDown = event => {
       if (event.key === "Escape") onCloseRef.current();
       if (event.key === "Tab") {
-        event.preventDefault();
-        closeButton.current?.focus();
+        const buttons = [...closeButton.current?.closest("section").querySelectorAll("button") || []];
+        const first = buttons[0], last = buttons.at(-1);
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
       }
     };
     document.addEventListener("keydown", onKeyDown);

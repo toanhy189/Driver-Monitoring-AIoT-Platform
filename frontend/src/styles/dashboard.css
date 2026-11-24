@@ -55,16 +55,16 @@ button:disabled { cursor: not-allowed; }
 .stat-card strong.text-green { color: #078b60; }
 .stat-card strong.text-red { color: #ca2843; }
 .muted-note { margin: -5px 0 16px; color: #71809a; font-size: 12px; }
-.telemetry-toolbar { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 14px 16px; border: 1px solid #dbe7f1; border-radius: 9px; background: #fff; }
-.telemetry-toolbar label { display: grid; gap: 6px; color: #405471; font-size: 13px; font-weight: 700; }
+.telemetry-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 12px 16px; border: 1px solid #dbe7f1; border-radius: 9px; background: #fff; }
+.telemetry-toolbar label { display: flex; align-items: center; gap: 12px; min-width: 0; white-space: nowrap; color: #405471; font-size: 13px; font-weight: 700; }
 .telemetry-toolbar select { min-width: 260px; max-width: 100%; min-height: 38px; padding: 7px 10px; border: 1px solid #cbd8e7; border-radius: 7px; background: #fff; color: #173352; }
 .telemetry-freshness { color: #60758e; font-size: 13px; }
-.telemetry-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(250px, 1fr); gap: 14px; margin: 18px 0 22px; }
-.ai-detail-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: -8px 0 22px; }
+.telemetry-grid { display: grid; grid-template-columns: minmax(240px, .9fr) minmax(0, 1.8fr); gap: 14px; margin: 18px 0 22px; }
+.ai-detail-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0; }
 .ai-detail-grid .metric-card { min-height: 110px; }
 .ai-detail-grid .metric-card__value { font-size: clamp(16px, 2vw, 22px); }
-.metric-stack { display: grid; grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 14px; }
-.driver-status-card { display: flex; flex-direction: column; min-height: 330px; padding: 22px 24px; }
+.metric-stack { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.driver-status-card { display: flex; flex-direction: column; min-height: 240px; padding: 22px 24px; }
 .card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .card-header h2, .section-heading h2, .panel-heading h2 { margin: 0; font-size: 19px; letter-spacing: -.02em; color: #142541; }
 .driver-state { display: inline-flex; padding: 8px 12px; border-radius: 999px; font-size: 11px; font-weight: 800; white-space: nowrap; }
@@ -73,7 +73,7 @@ button:disabled { cursor: not-allowed; }
 .driver-state--drowsy { color: #c42342; background: #ffe9ed; }
 .driver-state--unknown { color: #53627a; background: #e9edf3; }
 .driver-status-body { display: grid; place-content: center; justify-items: center; flex: 1; text-align: center; }
-.driver-face { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 13px; width: 80px; height: 80px; margin-bottom: 16px; border: 4px solid #92a0b7; border-radius: 50%; color: #92a0b7; }
+.driver-face { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 13px; width: 64px; height: 64px; margin-bottom: 12px; border: 4px solid #92a0b7; border-radius: 50%; color: #92a0b7; }
 .driver-face-eyes { display: flex; gap: 19px; }
 .driver-face-eyes span { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .driver-face-mouth { width: 30px; height: 3px; border-radius: 3px; background: currentColor; }
@@ -84,9 +84,9 @@ button:disabled { cursor: not-allowed; }
 .driver-face--drowsy .driver-face-eyes span { height: 3px; border-radius: 3px; }
 .driver-status-message { margin: 0; font-size: 20px; font-weight: 800; color: #142541; }
 .driver-status-description { margin: 7px 0 0; color: #71809a; font-size: 14px; }
-.metric-card { display: flex; flex-direction: column; justify-content: center; min-height: 155px; padding: 20px 24px; }
-.metric-card__title { color: #142541; font-size: 19px; font-weight: 800; }
-.metric-card__value { margin-top: 12px; color: #0d213e; font-size: 38px; line-height: 1; font-weight: 800; }
+.metric-card { display: flex; flex-direction: column; justify-content: center; min-height: 115px; min-width: 0; padding: 16px 18px; }
+.metric-card__title { color: #142541; font-size: 14px; font-weight: 800; }
+.metric-card__value { margin-top: 10px; color: #0d213e; font-size: 28px; line-height: 1.3; overflow-wrap: anywhere; font-weight: 800; }
 .metric-card__unit { margin-left: 2px; font-size: 23px; }
 .metric-card__description { margin-top: 8px; font-size: 13px; color: #71809a; }
 .device-preview { padding: 20px 22px; }
@@ -111,6 +111,76 @@ button:disabled { cursor: not-allowed; }
 .outline-button:hover:not(:disabled), .icon-button:hover:not(:disabled) { background: #eef8fc; }
 .icon-button { width: 44px; padding: 8px; }
 @media (max-width: 1000px) { .app-shell { grid-template-columns: 210px minmax(0,1fr); } .brand { padding: 17px 14px; } .brand strong { font-size: 14px; } .brand-mark { flex-basis: 38px; height: 38px; } .stats-grid { gap: 10px; } .stat-card { padding: 15px; } }
-@media (max-width: 760px) { .app-shell { display: block; } .app-sidebar { position: static; height: auto; border-right: 0; border-bottom: 1px solid #e5ebf3; } .brand { min-height: 62px; padding: 11px 18px; } .side-nav { display: flex; overflow-x: auto; padding: 0 12px 8px; } .side-nav button { width: auto; min-width: max-content; min-height: 42px; padding: 0 12px; gap: 8px; } .side-nav button.active::before { display: none; } .sidebar-user { display: none; } .app-topbar { min-height: 54px; padding: 8px 16px; gap: 12px; } .topbar-user { display: none; } .app-content { padding: 20px 16px; } .stats-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .stats-grid .stat-card:last-child:nth-child(odd) { grid-column: 1 / -1; } .telemetry-grid, .preview-grid { grid-template-columns: 1fr; } .driver-status-card { min-height: 290px; } .metric-stack { grid-template-columns: repeat(2,minmax(0,1fr)); grid-template-rows: auto; } .metric-card { min-height: 145px; } }
-@media (max-width: 500px) { .page-title--actions { flex-direction: column; } .stats-grid { grid-template-columns: 1fr; } .stats-grid .stat-card:last-child:nth-child(odd) { grid-column: auto; } .metric-stack { grid-template-columns: 1fr; } .card-header { flex-wrap: wrap; } .connection-status { font-size: 11px; } }
+@media (max-width: 760px) { .app-shell { display: block; } .app-sidebar { position: static; height: auto; border-right: 0; border-bottom: 1px solid #e5ebf3; } .brand { min-height: 62px; padding: 11px 18px; } .side-nav { display: flex; overflow-x: auto; padding: 0 12px 8px; } .side-nav button { width: auto; min-width: max-content; min-height: 42px; padding: 0 12px; gap: 8px; } .side-nav button.active::before { display: none; } .sidebar-user { display: none; } .app-topbar { min-height: 54px; padding: 8px 16px; gap: 12px; } .topbar-user { display: none; } .app-content { padding: 20px 16px; } .stats-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .stats-grid .stat-card:last-child:nth-child(odd) { grid-column: 1 / -1; } .telemetry-grid, .preview-grid { grid-template-columns: 1fr; } .driver-status-card { min-height: 240px; } .metric-stack { grid-template-columns: repeat(2,minmax(0,1fr)); grid-template-rows: auto; } .metric-card { min-height: 115px; } }
+@media (max-width: 500px) { .page-title--actions { flex-direction: column; } .stats-grid { grid-template-columns: 1fr; } .stats-grid .stat-card:last-child:nth-child(odd) { grid-column: auto; } .card-header { flex-wrap: wrap; } .connection-status { font-size: 11px; } }
 @media (max-width: 760px) { .ai-detail-grid { grid-template-columns: 1fr; } .telemetry-toolbar label, .telemetry-toolbar select { width: 100%; min-width: 0; } }
+
+
+/* Shared controls stay inside the authenticated app; login keeps its own theme. */
+.app-shell :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]):not([type="hidden"]):not([type="submit"]):not([type="button"]), select, textarea) {
+  width: 100%; min-width: 0; min-height: 40px; padding: 8px 12px;
+  border: 1px solid #cbd7e5; border-radius: 7px; background: #fff; color: #172c4b;
+  font-size: 13px; transition: border-color .15s ease, box-shadow .15s ease;
+}
+.app-shell :where(input, select, textarea):focus-visible {
+  border-color: #0788b1; outline: 2px solid #0788b1; outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgb(7 136 177 / 12%);
+}
+.app-shell :where(input[readonly], input:disabled, select:disabled, textarea[readonly], textarea:disabled) {
+  background: #f3f6fa; color: #64748b;
+}
+.app-shell :where(input, textarea)::placeholder { color: #8493a8; }
+.form-stack { display: grid; gap: 14px; }
+.form-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
+.form-field { display: grid; gap: 6px; min-width: 0; color: #243b59; font-size: 13px; font-weight: 600; }
+.form-field--wide { grid-column: 1 / -1; }
+.inline-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.inline-actions--end { justify-content: flex-end; }
+.table-scroll { max-width: 100%; overflow-x: auto; }
+.account-modal { width: min(520px, 100%); max-height: 90vh; overflow: auto; padding: 24px; box-shadow: 0 24px 80px rgb(15 23 42 / 20%); }
+.account-modal .section-heading { align-items: flex-start; }
+.account-badge { display: inline-block; margin-top: 8px; padding: 4px 9px; border-radius: 6px; background: #e9f6fb; color: #087da7; font-size: 12px; overflow-wrap: anywhere; }
+.account-password { margin-top: 18px; padding-top: 18px; border-top: 1px solid #e4eaf1; }
+.account-password h3 { margin: 0 0 8px; font-size: 16px; }
+.account-password > .muted-note { margin: 0 0 16px; line-height: 1.5; }
+.telemetry-metrics { display: grid; gap: 12px; min-width: 0; }
+.telemetry-metrics .ai-detail-grid .metric-card__value { font-size: clamp(15px, 1.5vw, 22px); }
+.telemetry-metrics .ai-detail-grid .metric-card:nth-child(2) .metric-card__value { font-size: 15px; }
+.signals-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0; }
+.signals-grid > div { min-width: 0; padding: 14px 16px; border: 1px solid #e0e7f0; border-radius: 9px; background: #f8fafc; }
+.signals-grid dt { color: #64748b; font-size: 12px; font-weight: 600; line-height: 1.5; }
+.signals-grid dd { margin: 6px 0 0; color: #142541; font-size: 15px; font-weight: 700; line-height: 1.5; overflow-wrap: anywhere; }
+.signals-posture { margin-top: 18px; padding-top: 18px; border-top: 1px solid #e0e7f0; }
+.signals-posture h3, .signals-technical h3 { margin: 0 0 12px; color: #243b59; font-size: 15px; }
+.signals-technical { margin-top: 16px; padding-top: 14px; border-top: 1px solid #e0e7f0; }
+.signals-technical > summary { color: #3b5874; font-size: 13px; font-weight: 600; cursor: pointer; line-height: 1.6; }
+.signals-technical[open] > summary { margin-bottom: 14px; }
+.signals-technical section { margin-top: 16px; }
+.signals-note, .signals-posture > .muted-note, .signals-technical .muted-note { margin: 12px 0 0; line-height: 1.6; }
+.history-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0; }
+.history-filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; align-items: end; gap: 12px; }
+.history-filters + p { margin: 12px 0 16px; color: #64748b; font-size: 12px; }
+.history-pagination { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.video-actions { justify-self: stretch; width: 100%; }
+@media (max-width: 1100px) {
+  .telemetry-grid { grid-template-columns: 1fr; }
+  .driver-status-card { min-height: 220px; }
+  .history-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .form-grid-2 { grid-template-columns: 1fr; }
+  .telemetry-toolbar label { flex-wrap: wrap; }
+  .telemetry-freshness { width: 100%; line-height: 1.5; }
+  .signals-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .telemetry-metrics .ai-detail-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .topbar-user { display: inline-flex; flex: 0 0 40px; width: 40px; min-height: 40px; padding: 0; gap: 0; font-size: 0; }
+  .topbar-user .avatar { flex-basis: 30px; height: 30px; }
+}
+@media (max-width: 500px) {
+  .account-modal { padding: 18px; }
+  .video-modal-backdrop { padding: 12px; }
+  .history-filters, .signals-grid, .telemetry-metrics .ai-detail-grid { grid-template-columns: 1fr; }
+  .history-filters > button { justify-self: start; }
+  .telemetry-metrics .metric-card { padding: 14px; }
+  .history-tabs > button { flex: 1 1 auto; }
+}

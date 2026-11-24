@@ -22,13 +22,14 @@ export function mergeAlerts(current, incoming) {
 }
 
 export function isAlertAcknowledged(alert) {
+  if (typeof alert?.acknowledged === "boolean") return alert.acknowledged;
   return Boolean(alert?.acknowledged_at) || alert?.acknowledged === true ||
     alert?.status === "ACKNOWLEDGED";
 }
 
 export function canAcknowledgeAlert(alert) {
   if (isAlertAcknowledged(alert)) return false;
-  return alert?.status === "NEW";
+  return ["NEW", "ACKNOWLEDGED", "RESOLVED", "CLOSED"].includes(alert?.status);
 }
 
 // Adapted from feature/alert-video-link; include current deletion/file states.

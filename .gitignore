@@ -1,4 +1,4 @@
-# Python environments, caches and test output
+# Môi trường Python, bộ nhớ đệm và đầu ra kiểm thử
 __pycache__/
 *.py[cod]
 .venv/
@@ -13,7 +13,7 @@ htmlcov/
 *.egg-info/
 .ipynb_checkpoints/
 
-# Node / build tools
+# Node.js / PlatformIO / công cụ build
 node_modules/
 dist/
 build/
@@ -21,15 +21,17 @@ build/
 .pio/
 compile_commands.json
 
-# Credentials and machine-specific configuration
+# Biến môi trường, khóa bí mật và cấu hình mạng cục bộ
 .env
 .env.*
 !.env.example
 /deployment/monitoring/secrets/
 /deployment/tls/certs/
 /firmware/esp32-alert-node/include/network_config.h
+/firmware/esp32-alert-node/include/ota_trust.h
+/deployment/ota/public.pem
 
-# Editor / OS / logs
+# Trình soạn thảo, hệ điều hành và file log
 .vscode/
 .idea/
 *.code-workspace
@@ -37,8 +39,9 @@ compile_commands.json
 Thumbs.db
 *.log
 
-# Backups, private media, queued data and local model artifacts
+# Dữ liệu cục bộ, bản sao lưu, video và trọng số mô hình AI
 /.local-backups/
+/ota-demo-*/
 *.dump
 *.sql.bak
 /storage/
@@ -46,35 +49,39 @@ recordings/
 /edge-ai/data/*.db
 /edge-ai/data/*.db-*
 /edge-ai/data/*.jsonl
+/edge-ai/local-nodes/
 /edge-ai/datasets/
 /edge-ai/ml-data/
 /edge-ai/ml-runs/
 /edge-ai/models/
 
-# Local progress, handoffs, proposals and old generated evidence.
-# Keep final design documents, contracts, model card and reviewed final evidence.
+# Ghi chú nội bộ theo tuần và log chạy thử cục bộ
+/Huong-dan-*.md
+/README-*.md
+/TV*-*.md
 /docs/progress/
 /docs/handoffs/
 /docs/proposals/
-/docs/TV[1-4]-*.md
-/docs/BE-ai-event-video-ket-qua.md
+/docs/evidence/
+/docs/TV*-*.md
+/docs/*-ket-qua.md
 /docs/ai-camera-review-*.md
 /docs/database-schema-object-flow-example.md
-/docs/evidence/week*/
-/database/de_xuat_sua_w4.md
-/edge-ai/TV3_Ban_giao*.md
+/database/de_xuat_*.md
+/edge-ai/TV*_Ban_giao*.md
 /firmware/esp32-alert-node/tuan*-ban_giao.md
 /tests/week*-integration-results.md
 
-# Standalone personal guides
-README-Driver-Monitoring-AIoT-FINAL-NO-ESP-NOW.md
-Huong-dan-chi-tiet-TUAN-1-FASTAPI-Driver-Monitoring-AIoT.md
-Huong-dan-TV1-tuan-1-ESP32-cho-nguoi-moi.md
-/Huong-dan-FE-tuan-2-va-hoan-thien-tuan-1.md
-/Huong-dan-chi-tiet-TUAN-2-4-thanh-vien-Driver-Monitoring-AIoT.md
-TV2-huong-dan-chi-tiet-tuan-4.md
+# Báo cáo tiến độ và bàn giao theo tuần ở các thư mục khác.
+# Giữ lại hợp đồng API week2-fe-be-contract.md, migration và mã kiểm thử.
+**/tuan*-ban_giao*.md
+**/*-ban-giao*-tuan-*.md
+**/*bao-cao*tuan*.md
+**/*tuan*-bao-cao*.md
+**/week[0-9]*-report*.md
+**/week[0-9]*-handoff*.md
 
-# Generated PlatformIO placeholders
+# File mẫu mặc định của PlatformIO
 /firmware/esp32-alert-node/include/README
 /firmware/esp32-alert-node/lib/README
 /firmware/esp32-alert-node/test/README

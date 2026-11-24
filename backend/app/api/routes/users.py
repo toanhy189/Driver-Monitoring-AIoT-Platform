@@ -227,7 +227,7 @@ def update_user(user_id: int, data: UserAdminUpdate, current_user: User = Depend
                 session: Session = Depends(get_session)):
     if not data.model_fields_set or any(getattr(data, name) is None for name in data.model_fields_set):
         raise HTTPException(status_code=422, detail="A role or status is required")
-    # Lock admins in a stable order so concurrent demotions cannot remove the last admin.
+    # Administrator identity is provisioned outside the public user-management API.
     admins = session.exec(select(User).where(User.role.in_(["Admin", "ADMIN"]))
                           .order_by(User.id).with_for_update()
                           .execution_options(populate_existing=True)).all()
@@ -238,12 +238,9 @@ def update_user(user_id: int, data: UserAdminUpdate, current_user: User = Depend
                         .execution_options(populate_existing=True)).first()
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
+    if user.role in {"Admin", "ADMIN"}:
+        raise HTTPException(status_code=409, detail="Administrator role and status are protected")
     role, state = data.role or user.role, data.status or user.status
-    if user.id == current_user.id and (role != user.role or state != "ACTIVE"):
-        raise HTTPException(status_code=409, detail="Cannot disable or change your own administrator role")
-    if user.role in {"Admin", "ADMIN"} and user.status == "ACTIVE" and (role not in {"Admin", "ADMIN"} or state != "ACTIVE"):
-        if sum(item.status == "ACTIVE" for item in admins) <= 1:
-            raise HTTPException(status_code=409, detail="The last active administrator must remain")
     changed = (user.role, user.status) != (role, state)
     user.role, user.status = role, state
     if changed:

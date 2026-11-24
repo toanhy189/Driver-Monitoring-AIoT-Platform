@@ -55,7 +55,7 @@ RECORDING_DIR = Path(os.getenv("AI_RECORDING_DIR", str(BASE_DIR / "recordings"))
 VIDEO_MAX_CLIP_SECONDS = float(os.getenv("AI_VIDEO_MAX_CLIP_SECONDS", "60"))
 VIDEO_MAX_CLIP_BYTES = int(os.getenv("AI_VIDEO_MAX_CLIP_BYTES", "33554432"))
 VIDEO_STORAGE_MAX_BYTES = int(os.getenv("AI_VIDEO_STORAGE_MAX_BYTES", "1073741824"))
-METRICS_PATH = BASE_DIR / "data" / "performance.jsonl"
+METRICS_PATH = Path(os.getenv("AI_METRICS_PATH", str(BASE_DIR / "data" / "performance.jsonl")))
 EVENT_AUDIT_PATH = Path(os.getenv("AI_EVENT_AUDIT_PATH", str(BASE_DIR / "data" / "events.jsonl")))
 
 for _name in ("FACE_LOSS_RESET_SECONDS", "MAX_OBSERVATION_GAP_SECONDS",

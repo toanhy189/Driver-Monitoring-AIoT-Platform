@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from ipaddress import IPv4Address, IPv4Interface, IPv6Address, IPv6Interface
 from pydantic import BaseModel, Field, field_validator
 
@@ -6,12 +7,18 @@ from app.services.time_utils import as_utc
 
 
 class DeviceRegisterRequest(BaseModel):
-    device_code: str
-    model: str
-    name: str | None = None
+    device_type: Literal["VISION_NODE", "ALERT_NODE"]
+    device_code: str | None = Field(default=None, min_length=1, max_length=100, pattern=r"^[A-Za-z0-9_-]+$")
+    model: str = Field(min_length=1, max_length=100)
+    name: str | None = Field(default=None, min_length=1, max_length=255)
     ip_address: str | None = None
     mac_address: str | None = None
     hardware_version: str | None = Field(default=None, min_length=1, max_length=80)
+
+    @field_validator("device_code", "model", "name", mode="before")
+    @classmethod
+    def trim_registration(cls, value):
+        return value.strip() if isinstance(value, str) else value
 
 
 class HardwareVersionUpdate(BaseModel):
@@ -36,6 +43,9 @@ class DeviceResponse(BaseModel):
     mac_address: str | None = None
     last_seen: datetime | None = None
     created_at: datetime
+    can_delete_registration: bool = False
+    delete_block_reason: str | None = None
+    ota_capabilities: dict | None = None
 
     @classmethod
     def from_device(cls, device):

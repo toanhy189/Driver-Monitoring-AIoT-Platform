@@ -50,12 +50,12 @@ export default function DeviceHistoryPanel({ deviceId, deviceType, onUnauthorize
   return <section className="surface-card detail-panel" aria-label="Lịch sử và thống kê">
     <button type="button" className="outline-button" aria-expanded={open} onClick={() => setOpen(!open)}>Lịch sử và thống kê thiết bị</button>
     {open && <>
-      <div className="config-actions">{Object.entries(tabs).map(([key, label]) => <button key={key} type="button"
+      <div className="history-tabs">{Object.entries(tabs).map(([key, label]) => <button key={key} type="button"
         className={key === activeKind ? "primary-button" : "outline-button"} onClick={() => { setKind(key); setOffset(0); }}>{label}</button>)}</div>
-      <form className="test-alert-fields" onSubmit={event => { event.preventDefault(); setOffset(0); setQuery({ ...filters }); }}>
-        <label>Từ thời điểm<input type="datetime-local" value={filters.from} onChange={event => setFilters({ ...filters, from: event.target.value })} /></label>
-        <label>Đến thời điểm<input type="datetime-local" value={filters.to} onChange={event => setFilters({ ...filters, to: event.target.value })} /></label>
-        <label>Phiên bản AI<input value={filters.modelVersion} maxLength={80} onChange={event => setFilters({ ...filters, modelVersion: event.target.value })} /></label>
+      <form className="history-filters" onSubmit={event => { event.preventDefault(); setOffset(0); setQuery({ ...filters }); }}>
+        <label className="form-field">Từ thời điểm<input type="datetime-local" value={filters.from} onChange={event => setFilters({ ...filters, from: event.target.value })} /></label>
+        <label className="form-field">Đến thời điểm<input type="datetime-local" value={filters.to} onChange={event => setFilters({ ...filters, to: event.target.value })} /></label>
+        <label className="form-field">Phiên bản AI<input value={filters.modelVersion} maxLength={80} onChange={event => setFilters({ ...filters, modelVersion: event.target.value })} /></label>
         <button className="outline-button" type="submit">Lọc dữ liệu</button>
       </form>
       <p>Mặc định xem 24 giờ gần nhất. Khoảng thời gian tối đa 31 ngày.</p>
@@ -80,9 +80,13 @@ export default function DeviceHistoryPanel({ deviceId, deviceType, onUnauthorize
           <div><dt>EAR trung bình</dt><dd>{number(telemetryMetrics.avg_ear)}</dd></div>
           <div><dt>PERCLOS trung bình</dt><dd>{number(telemetryMetrics.avg_perclos)}</dd></div>
           <div><dt>Cảnh báo / lệnh</dt><dd>{alertMetrics.count ?? 0} / {commandMetrics.count ?? 0}</dd></div>
-          <div><dt>Thời gian HTTP trung bình</dt><dd>{number(latencyMetrics.http_avg_ms)} ms</dd></div>
-          <div><dt>Thời gian hoàn tất trung bình</dt><dd>{number(latencyMetrics.completed_avg_ms)} ms</dd></div>
+          <div><dt>Lệnh hoàn tất / thất bại / đang chờ</dt><dd>{commandMetrics.completed ?? "—"} / {commandMetrics.failed ?? "—"} / {commandMetrics.pending ?? "—"}</dd></div>
+          <div><dt>Đã hủy trước khi gửi / hủy phần chưa gửi</dt><dd>{commandMetrics.cancelled ?? "—"} / {commandMetrics.partially_cancelled ?? "—"}</dd></div>
+          <div><dt>Nguồn lệnh: AI / thử từ web</dt><dd>{commandMetrics.automatic ?? "—"} / {commandMetrics.manual ?? "—"}</dd></div>
+          <div><dt>HTTP trung bình của lệnh thử từ web</dt><dd>{Number.isFinite(latencyMetrics.http_avg_ms) ? `${number(latencyMetrics.http_avg_ms)} ms` : commandMetrics.manual === 0 ? "Không áp dụng" : "Chưa có số đo HTTP"}</dd></div>
+          <div><dt>Thời gian hoàn tất trung bình</dt><dd>{Number.isFinite(latencyMetrics.completed_avg_ms) ? `${number(latencyMetrics.completed_avg_ms)} ms` : "Chưa có lệnh hoàn tất đủ mốc thời gian"}</dd></div>
         </dl>
+        <p className="muted-note">Lệnh AI được liên kết từ cảnh báo của camera tới ESP32 bạn được phép xem. Thời gian hoàn tất gồm cả thời gian LED/còi/rung thực hiện lệnh.</p>
       </>}
       {activeKind !== "metrics" && result?.items && <>
         {result.items.length === 0 ? <p>Chưa có dữ liệu trong khoảng đã chọn.</p> : <div className="table-scroll">
@@ -139,7 +143,7 @@ export default function DeviceHistoryPanel({ deviceId, deviceType, onUnauthorize
 
                       <td>
                         {activeKind === "commands"
-                          ? `${number(item.latency_ms)} ms`
+                          ? `${item.source === "AI" ? "AI tự động" : item.source === "WEB" ? "Thử từ web" : "Lệnh thiết bị"} · ${item.device_code || ""} · ${Number.isFinite(item.latency_ms) ? `${number(item.latency_ms)} ms` : "Chưa có thời gian hoàn tất"}`
                           : item.kind === "command"
                             ? commandStatus(item.data).label
                             : item.kind === "alert"
@@ -175,7 +179,7 @@ export default function DeviceHistoryPanel({ deviceId, deviceType, onUnauthorize
           </table>
 
           </div>}
-        <div className="config-actions">
+        <div className="history-pagination">
           <button className="outline-button" disabled={offset === 0 || loading} onClick={() => setOffset(Math.max(0, offset - 50))}>Trang trước</button>
           <button className="outline-button" disabled={!result.has_more || loading} onClick={() => setOffset(offset + 50)}>Trang sau</button>
         </div>

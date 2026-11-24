@@ -68,6 +68,12 @@
 .action-tile small { color: #72829a; font-size: 11px; line-height: 1.35; }
 .action-tile--decommission { border-color: #f2acb6; background: #fff7f8; color: #d84c62; }
 .action-tile--decommission strong { color: #cb3d53; }
+.device-scope-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }
+.device-kind { display: grid; gap: 4px; }
+.device-kind small { color: #71809a; }
+.registration-note { grid-column: 1 / -1; margin: 0; line-height: 1.6; }
+.device-removal { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 18px; padding-top: 16px; border-top: 1px solid #e4eaf1; }
+.device-removal .muted-note { flex: 1 1 240px; margin: 0; line-height: 1.6; }
 @media (max-width: 1200px) { .action-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .device-details { grid-template-columns: 1fr; } }
 @media (max-width: 760px) { .device-toolbar { grid-template-columns: minmax(0,1fr) 44px; } .filter-field { grid-column: 1 / -1; grid-row: 2; } .device-form { grid-template-columns: 1fr; } .action-grid { grid-template-columns: 1fr; } }
 @media (max-width: 500px) { .device-list-panel, .register-panel, .detail-panel, .lifecycle-panel { padding: 15px; } .warning-banner { flex-wrap: wrap; } .warning-banner .outline-button { margin-left: auto; } .device-details > div { grid-template-columns: 1fr; gap: 4px; padding: 9px 0; } }

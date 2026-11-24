@@ -10,6 +10,7 @@ const ALERT_TYPES = {
   EYE_CLOSED: "Nhắm mắt",
   FATIGUE: "Mệt mỏi",
   SLEEP_DETECTED: "Phát hiện ngủ gật",
+  MONITORING_FAULT: "Gián đoạn giám sát AI",
 };
 
 const ALERT_STATUSES = {
@@ -32,4 +33,9 @@ export function alertStatusLabel(alert) {
   if (isAlertAcknowledged(alert)) return "Đã xem";
   if (!status) return "Chưa xác định";
   return ALERT_STATUSES[status] ?? "Chưa xác định";
+}
+
+export function alertLifecycleLabel(alert) {
+  return { NEW: "Đã ghi nhận", ACKNOWLEDGED: "Đã ghi nhận", RESOLVED: "Đã kết thúc", CLOSED: "Đã đóng" }[
+    alert?.system_status || alert?.status] || "Chưa xác định";
 }
