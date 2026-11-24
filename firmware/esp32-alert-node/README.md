@@ -1,6 +1,9 @@
 # Firmware — ESP32 Alert Node
 
 Chương trình nhúng cho mạch **ESP32 DOIT DevKit V1** (tốc độ Serial **115200 baud**), được quản lý và biên dịch bằng PlatformIO.
+
+`platformio.ini` khóa nền tảng `espressif32@7.1.3` để dùng Arduino 2.0.17 như môi trường đã kiểm tra. Giữ phiên bản này khi build trên máy mới/CI; Arduino 3.x thay đổi API mbedTLS mà phần OTA hiện đang sử dụng.
+
 - Môi trường **`development`** (`src/app/`): Firmware vận hành chính thức, kết nối Wi-Fi/MQTT, đồng bộ thời gian NTP, điều khiển tải, lưu cấu hình vào NVS và phản hồi `ACK`.
 - Môi trường **`ota-release`** / **`ota-demo-043`**: Các bản build phục vụ quy trình ký số và cập nhật firmware từ xa qua mạng (OTA).
 - Môi trường **`test`** (`src/tests/`): Bộ bài kiểm tra độc lập từng linh kiện phần cứng trên breadboard.
