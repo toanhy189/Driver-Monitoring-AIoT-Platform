@@ -1,39 +1,42 @@
-# Luồng ESP32 Alert Node
+# Luồng giao tiếp MQTT trên ESP32 Alert Node
 
-Gửi lệnh qua React/Backend; Backend lưu lệnh và kiểm tra quyền trước khi publish. Firmware `src/app/` nhận MQTT và phản hồi; không dùng publisher/consumer độc lập để thay luồng demo.
+Tài liệu mô tả chu trình nhận lệnh điều khiển, phản hồi `ACK` và đồng bộ cấu hình từ xa của firmware trong `src/app/`.
 
 ```mermaid
 sequenceDiagram
-    participant UI as React
-    participant BE as FastAPI
-    participant MQ as Mosquitto
-    participant ESP as ESP32
-    UI->>BE: POST commands, JWT
-    BE->>BE: Kiểm tra quyền, lifecycle, kết nối; lưu lệnh
-    BE->>MQ: driver/{code}/command
-    MQ->>ESP: request_id, command, duration, TTL
-    ESP->>ESP: Kiểm tra payload, giờ, hạn và request_id
-    ESP->>MQ: ACKNOWLEDGED / STARTED hoặc FAILED
-    ESP->>ESP: Chạy tải theo duration
-    ESP->>MQ: COMPLETED hoặc INTERRUPTED / FAILED
-    MQ->>BE: driver/{code}/ack
-    BE->>BE: Đối chiếu request_id; cập nhật DB
-    BE->>UI: command.updated qua WebSocket
+    participant UI as Giao diện React
+    participant BE as FastAPI Backend
+    participant MQ as Mosquitto Broker
+    participant ESP as ESP32 Alert Node
+    UI->>BE: POST /api/devices/{id}/commands (kèm JWT)
+    BE->>BE: Kiểm tra phân quyền, vòng đời ACTIVE và trạng thái ONLINE
+    BE->>MQ: Publish driver/{code}/command
+    MQ->>ESP: Bản tin JSON (request_id, command, duration_ms, expires_at_ms)
+    ESP->>ESP: Kiểm tra tham số, hạn TTL và chống trùng request_id
+    ESP->>MQ: Gửi ACK trạng thái nhận / bắt đầu thực thi
+    ESP->>ESP: Bật đầu ra không chặn vòng lặp và tự tắt khi hết thời lượng
+    ESP->>MQ: Gửi ACK COMPLETED (hoặc INTERRUPTED / FAILED)
+    MQ->>BE: Nhận driver/{code}/ack
+    BE->>BE: Đối chiếu request_id và lưu kết quả vào PostgreSQL
+    BE->>UI: Đẩy sự kiện command.updated qua WebSocket
 ```
 
-## Command và ACK
+---
 
-- Command firmware: LED_ON/OFF, BUZZER_ON/OFF, MOTOR_ON/OFF.
-- `TEST_ALERT` là yêu cầu cấp Backend, tách thành ba lệnh con; hoàn tất khi đủ ba COMPLETED.
-- Firmware kiểm tra mã lệnh, duration/intensity, đồng hồ và expires_at_ms; lỗi gửi FAILED với nguyên nhân.
-- Gửi lại cùng request_id không được chạy tải thêm lần nữa; request_id của lần cảnh báo mới phải khác.
-- Luồng chạy tải dùng vòng lặp không chặn; hết duration thì tắt tải và gửi COMPLETED. Lệnh ưu tiên cao có thể ngắt lệnh đang chạy và trả INTERRUPTED.
-- ACK thiết bị hiện publish QoS 0; Backend theo dõi timeout. Gửi MQTT thành công chưa chứng minh tải đã hoàn tất.
+## 1. Xử lý lệnh điều khiển và xác nhận (`Command` & `ACK`)
 
-## Cấu hình và kết nối
+- **Tập lệnh phần cứng hỗ trợ:** `LED_ON` / `LED_OFF`, `BUZZER_ON` / `BUZZER_OFF`, `MOTOR_ON` / `MOTOR_OFF`.
+- **Gộp lệnh kiểm tra (`TEST_ALERT`):** Một yêu cầu kiểm tra từ giao diện Web được Backend tách thành 3 lệnh con tương ứng với 3 đầu ra; lệnh tổng trên hệ thống được tính là hoàn tất khi nhận đủ cả 3 phản hồi `COMPLETED`.
+- **Kiểm tra hợp lệ & Chống chạy lặp:**
+  - Firmware kiểm tra định dạng lệnh, giới hạn thời lượng (`duration`), đồng bộ đồng hồ và hạn sử dụng bản tin (`expires_at_ms`); nếu quá hạn hoặc sai tham số sẽ từ chối ngay kèm mã lỗi trong gói `FAILED`.
+  - Nhật ký `request_id` được lưu trong bộ nhớ NVS giúp thiết bị nhận biết gói tin gửi lại do mạng chập chờn: trả lại đúng trạng thái `ACK` đã lưu mà không kích hoạt lại còi/motor lần thứ hai.
+- **Điều khiển không chặn (`Non-blocking`):** Quá trình bật/nhấp nháy tải sử dụng bộ đếm thời gian `millis()` trong vòng lặp chính, đảm bảo ESP32 vẫn duy trì kết nối MQTT và nhận được lệnh ngắt ưu tiên cao hơn bất kỳ lúc nào.
 
-Backend gửi config_id, revision và timings qua `driver/{code}/config/update` (retained, QoS 1). ESP32 kiểm tra, lưu NVS và trả APPLIED/REJECTED qua `config/applied`. Applied chỉ được cập nhật sau phản hồi khớp thiết bị/config_id; revision cũ không được ghi đè cấu hình mới.
+---
 
-Heartbeat mỗi 5 giây; khi mất Wi-Fi/MQTT, firmware thử reconnect và subscribe lại. Đồng hồ hỏi NTP ở laptop LAN trước nguồn dự phòng. Board chưa đồng bộ giờ có thể từ chối lệnh; kiểm tra Serial thay vì bỏ kiểm tra TTL.
+## 2. Đồng bộ cấu hình từ xa và duy trì kết nối
 
-Xem [hướng dẫn firmware](README.md) và [demo 10 bước](../../README.md#4-demo-theo-mục-84-của-đề-bài). Không thử tải trước khi xác nhận mạch.
+- **Cấu hình nhịp cảnh báo (`Config Shadow`):** Backend phát cấu hình mới gồm `config_id`, `revision` và bảng thời gian bật/tắt 3 mức tới topic `driver/{code}/config/update` (cờ `retained`, `QoS 1`). ESP32 kiểm tra tính hợp lệ và số thứ tự `revision` (bỏ qua nếu `revision` cũ hơn bản đang lưu), ghi xuống bộ nhớ Flash **NVS** rồi gửi phản hồi `APPLIED` hoặc `REJECTED` lên `driver/{code}/config/applied`.
+- **Kết nối & Đồng bộ thời gian:** Thiết bị gửi heartbeat định kỳ mỗi **5 giây** lên `driver/{code}/status`, tự động kết nối lại Wi-Fi/MQTT khi mất sóng và ưu tiên đồng bộ giờ qua máy chủ NTP nội bộ trong mạng LAN trước khi dùng máy chủ NTP Internet dự phòng.
+
+Tham khảo thêm: [Hướng dẫn biên dịch & nạp Firmware](README.md) · [Kịch bản Demo hệ thống](../../README.md#4-kịch-bản-demo-tổng-thể-10-bước-nghiệm-thu).

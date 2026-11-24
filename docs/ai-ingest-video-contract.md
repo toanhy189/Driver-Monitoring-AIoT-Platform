@@ -1,58 +1,46 @@
-# Hợp đồng dữ liệu AI và video
+# Giao thức dữ liệu Edge AI và lưu trữ Video sự kiện
 
-Nguồn triển khai: edge-ai/service/message/publisher.py, edge-ai/mqtt_client.py, backend/app/services/mqtt_service.py và backend/app/api/routes/videos.py. Policy bản nộp: driver-bench-20261107-v1.
+Tài liệu mô tả cấu trúc trao đổi bản tin MQTT giữa Vision Node (`edge-ai`) và FastAPI Backend (`backend`), cơ chế biên nhận chống lưu trùng và quy trình tải/phát video sự kiện cảnh báo.
 
-## Bản tin MQTT
+---
 
-AI gửi driver/{device_code}/telemetry, events, status; nhận storage_ack. Mã trong payload phải khớp topic và Vision Node đã đăng ký. Timestamp có múi giờ; model_version gắn trước khi lưu SQLite. Retry giữ nguyên message_id/nội dung; metadata vận chuyển live/backfill nằm ngoài hash nội dung bất biến.
+## 1. Luồng bản tin MQTT và biên nhận lưu trữ (`Storage ACK`)
 
-| Event | Xử lý |
+Vision Node phát dữ liệu lên ba nhánh topic theo mã định danh riêng:
+- `driver/{device_code}/telemetry`: Số đo định kỳ mỗi giây (`ear`, `perclos`, `driver_state`, `head_pose`, `model_version` và đối tượng mở rộng `ai_signals`).
+- `driver/{device_code}/events`: Các sự kiện nghiệp vụ kèm `policy_version`, `session_id`, `sequence_number`, `episode_id`, `level` và `state_duration_ms`.
+- `driver/{device_code}/status`: Trạng thái kết nối và thông tin phiên làm việc của tiến trình AI.
+
+### Các loại sự kiện AI chính
+
+| Mã sự kiện (`event_type`) | Ý nghĩa và cách Backend xử lý |
 |---|---|
-| STATE_CHANGED | Lưu trạng thái/lịch sử, không tự phát lệnh tải |
-| DROWSY_THRESHOLD_REACHED | Xét policy, episode, mức và điều kiện dispatch |
-| DISTRACTED_THRESHOLD_REACHED | Policy v1 xét cảnh báo như thiết kế đã thống nhất; nhánh legacy có thể POLICY_PENDING |
-| RISK_SUSPENDED | Ngắt đợt nguy cơ theo đúng phiên/episode |
-| MONITORING_FAULT | Ghi nhận lỗi giám sát, không suy diễn là tài xế buồn ngủ |
-| SESSION_ENDED | Kết thúc đúng phiên; không phát tải mới, xử lý command chưa gửi theo policy |
+| `STATE_CHANGED` | Ghi nhận thời điểm chuyển đổi trạng thái tài xế vào lịch sử/timeline |
+| `DROWSY_THRESHOLD_REACHED` | Sự kiện buồn ngủ chạm mốc thời gian 3s/6s/10s; đưa vào Rule Engine xét tạo cảnh báo và phát lệnh ESP32 |
+| `DISTRACTED_THRESHOLD_REACHED` | Sự kiện mất tập trung chạm mốc thời gian cảnh báo theo policy `driver-bench-20261107-v1` |
+| `RISK_SUSPENDED` | Tài xế hồi phục hoặc ngắt đợt nguy cơ hiện tại; hủy các phần lệnh tự động đang xếp hàng chưa gửi |
+| `MONITORING_FAULT` | Lỗi thiếu góc quan sát kéo dài (`UNKNOWN ≥ 2 giây`); ghi nhận riêng, không quy thành buồn ngủ |
+| `SESSION_ENDED` | Đóng phiên giám sát hiện tại và dọn các lệnh chờ thuộc phiên đó |
 
-Event v1 mang policy_version, session_id, session_started_at, sequence_number, model_version; event threshold cần episode_id, episode_start_event_id, observed_at, level và state_duration_ms. Xem schema thực tế trong backend/app/schemas/rules.py.
+### Cơ chế chống trùng và xác nhận lưu DB
+1. Trước khi phát MQTT, Edge AI lưu bản tin bất biến vào hàng đợi SQLite kèm khóa `message_id` và mã băm nội dung.
+2. Backend ghi dữ liệu cùng bản ghi biên nhận vào bảng `ai_message_receipts` trong một giao dịch (transaction) duy nhất. Sau khi `COMMIT` thành công, Backend mới phản hồi lên `driver/{device_code}/storage_ack`:
+   ```json
+   { "message_id": "...", "status": "SAVED" }
+   ```
+3. Chỉ khi nhận được phản hồi `SAVED` khớp đúng `message_id`, Edge AI mới xóa bản tin khỏi SQLite. Nếu gửi lặp cùng `message_id` và nội dung, Backend trả lại `SAVED` mà không tạo bản ghi trùng.
 
-BE lưu dữ liệu và receipt trong cùng giao dịch; sau commit mới gửi:
+---
 
-```json
-{"message_id":"ID-ban-tin","status":"SAVED"}
-```
+## 2. Quy trình tải lên và phát Video sự kiện
 
-Cùng ID/nội dung được xác nhận lại mà không lưu trùng; ID trùng nhưng nội dung khác bị từ chối. PUBACK của MQTT không thay SAVED. Bản tin chưa lưu hợp lệ không được xóa khỏi queue.
+### 2.1. Tải clip từ Edge AI lên Backend
+- Worker nền tại Edge gửi yêu cầu ` multipart/form-data` tới `POST /api/videos/upload` gồm tệp `.mp4`, `device_code`, `state` và `message_id` định danh clip.
+- **Xác thực thiết bị:** Endpoint yêu cầu HTTP Basic Auth bằng chính cặp tài khoản/mật khẩu MQTT của Vision Node đó.
+- Backend kiểm tra dung lượng kho lưu trữ (`AI_VIDEO_TOTAL_MAX_BYTES`), lưu tệp vào Docker volume `video_data`, ghi metadata/SHA-256 vào bảng `ai_videos` và phản hồi `SAVED` để Edge dọn tệp tạm cục bộ.
+- Clip được ghép chính xác với sự kiện và cảnh báo thông qua mã `clip_message_id` / `episode_start_event_id` (tuyệt đối không ghép đại theo khoảng thời gian gần đúng).
 
-Rule cần cờ môi trường và binding bật, đúng loại node, thiết bị ACTIVE/ONLINE, phiên/thứ tự hợp lệ, event/quan sát còn mới và không có dispatch chưa rõ kết quả. Backfill chỉ lưu lịch sử. [Thiết kế và bảo mật](final-architecture-security.md) mô tả các kiểm soát.
-
-## Video
-
-POST /api/videos/upload là multipart: file MP4, device_code, state và message_id của clip. Xác thực HTTP Basic bằng credential MQTT của Vision Node; worker hiện đã gửi auth riêng cho HTTP.
-
-Thành công trả SAVED cùng danh tính upload theo contract; Edge kiểm tra phản hồi trước khi dọn file/queue. Không coi ACK SAVED của event là thành công upload video. Lỗi mạng/401/507 giữ file và thử lại theo chính sách; quota đầy không được xóa clip pending để báo thành công.
-
-Video ghép với event theo clip_message_id/episode_start_event_id và message_id, không đoán liên kết theo thời gian. Có thể upload trước khi event đến. GET /api/devices/{id}/events/{event_id}/video trả liên kết/trạng thái tương ứng theo quyền; GET /api/devices/{id}/videos liệt kê clip. Xem/content dùng JWT và quyền thiết bị.
-
-`GET /api/alerts` trả `video_status`, `clip_message_id` và metadata `video`; `GET /api/alerts/{id}/video` tra liên kết của một cảnh báo. Hai API dùng cùng bộ giải liên kết với timeline. Hỗ trợ thêm `state_event_id` từ nhánh video cũ. Ưu tiên `clip_message_id` hiện tại; clip đang chờ không được thay bằng clip khác trong cùng episode. Trạng thái: `UNLINKED`, `PENDING_OR_UNAVAILABLE`, `AVAILABLE`, `MISSING`, `DELETED`. Dữ liệu cũ không có mã liên kết vẫn giữ nguyên, không ghép theo thời gian.
-
-### Phát trên trình duyệt
-
-- React mở clip tại **Cảnh báo → Xem video** hoặc timeline thiết bị. Cần JWT và quyền trên camera nguồn ở mọi bước, kể cả tải file.
-- `POST /api/videos/{id}/playback` chuẩn bị bản xem H.264/AAC/MP4 bằng FFmpeg đi kèm `imageio-ffmpeg`. `GET` cùng URL đọc tiến độ; `GET /api/videos/{id}/playback/content` lấy bản xem khi `READY`. UI chờ tiến độ, có nút thử lại và **Tải video gốc** khi chuyển mã thất bại.
-- Chuyển mã chạy nền, một worker, tối đa bốn công việc đang chạy/chờ, timeout 120 giây mỗi clip, một luồng CPU cho encoder. Bản xem tối đa 1280×720, tính vào quota kho video và giới hạn kích thước clip. Khi bận hoặc đầy, giữ file gốc và báo rõ; không chặn vòng lặp camera hay upload.
-- `GET /api/videos/{id}/content` vẫn tải đúng file gốc; không đổi hash hoặc nội dung upload. Bản xem là file bổ sung trong cùng volume, không cần migration DB. Xóa thủ công một video sẽ dọn cả file gốc và bản xem, giữ metadata tombstone. Không cho tác vụ chuyển mã khôi phục file sau khi xóa.
-
-Backend lưu file vào AI_VIDEO_DIR (Compose: volume video_data), DB giữ metadata/hash. Xóa thủ công bằng DELETE /api/videos/{id}, chỉ vai trò có quyền trên thiết bị; tombstone ngăn retry làm clip đã xóa xuất hiện lại. GET /api/videos/storage dành cho Admin. Không có tác vụ tự xóa video theo tuổi.
-
-## Readiness và kiểm thử
-
-```powershell
-python backend/scripts/setup_ai_ingest.py
-python backend/tests/run_week4_isolated.py --regression
-```
-
-Readiness chỉ đọc. --apply --assign-user TEN_ADMIN thực sự cập nhật migration/ACL/đăng ký Vision Node, chỉ dùng trên trạng thái đã kiểm tra; không tự đổi credential hay lifecycle node đã có để vượt lỗi.
-
-Runner tích hợp dùng DB/broker tạm và node giả lập. Kết quả tổng hợp cuối ở [verification](final-verification.md); log theo tuần và các báo cáo tiến độ được giữ cục bộ, Git ignore. Video camera và tải ESP32 thật cần minh chứng riêng.
+### 2.2. Xem và quản lý Video trên trình duyệt
+- Người dùng mở clip từ trang **Cảnh báo → Xem video** hoặc tab **Diễn biến** của thiết bị (mọi bước đều kiểm tra JWT và quyền truy cập trên camera nguồn).
+- Để tương thích mọi trình duyệt, `POST /api/videos/{id}/playback` chuyển mã nền sang định dạng chuẩn **H.264/MP4** (tối đa `1280×720`) qua FFmpeg, đồng thời vẫn giữ nút **Tải video gốc** qua `GET /api/videos/{id}/content`.
+- Khi người có quyền (`Admin` / `Employee`) thực hiện xóa thủ công qua `DELETE /api/videos/{id}`, hệ thống xóa tệp vật lý và giữ dấu thời gian `deleted_at` (tombstone) để ngăn tác vụ gửi lại làm xuất hiện lại clip đã xóa.

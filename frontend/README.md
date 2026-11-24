@@ -1,45 +1,43 @@
 # Frontend — React / Vite
 
-Dashboard do nhóm tự xây, gọi REST API và nhận cập nhật qua WebSocket. Grafana chỉ là công cụ giám sát phụ trợ.
+Ứng dụng giao diện Web quản lý và giám sát hệ thống, xây dựng bằng **React + Vite**, giao tiếp với Backend qua REST API và nhận dữ liệu trực tiếp qua WebSocket.
 
-## Chạy
+---
 
-Cách chính dùng Docker: [README dự án](../README.md).
+## 1. Khởi chạy
 
-Chạy Vite khi phát triển, từ gốc repository:
+- **Chạy qua Docker Compose (mặc định):** Truy cập tại `http://localhost:5173` sau khi bật cụm dịch vụ theo [README dự án](../README.md).
+- **Chạy trực tiếp bằng Vite khi phát triển giao diện** (từ thư mục gốc của repository):
 
 ```powershell
 npm --prefix frontend ci
 npm --prefix frontend run dev
 ```
 
-Nếu frontend Docker đang dùng cổng 5173, dừng riêng service frontend hoặc chọn cổng Vite khác và cấu hình CORS/origin cho khớp. Không cần cài Python trong thư mục này.
+*(Nếu container `frontend` của Docker đang chiếm cổng `5173`, có thể tạm dừng service `frontend` trong Compose hoặc đổi cổng chạy Vite và cập nhật biến `FRONTEND_HOST` tương ứng).*
 
-## Chức năng
+---
 
-- Đăng nhập/đăng ký Customer, tài khoản cá nhân, đổi mật khẩu và đăng xuất.
-- Admin quản lý tài khoản và assignment; xem thiết bị, cấp kết nối, kích hoạt, bảo trì, decommission.
-- Dashboard chọn Vision Node, hiển thị EAR/PERCLOS, trạng thái và biểu đồ.
-- Lịch sử telemetry, sự kiện, cảnh báo, lệnh và video có kiểm tra quyền.
-- Employee/Admin gửi TEST_ALERT, theo dõi kết quả; sửa cấu hình desired/applied.
-- WebSocket dùng ticket từ Backend, reconnect và tải lại snapshot khi cần.
+## 2. Các phân hệ chức năng trên giao diện
 
-`App.jsx` điều phối phiên và trang. Các cặp `Page/View` hoặc `Dashboard/DashboardView` tách xử lý dữ liệu với trình bày; cả hai phần đều đang dùng. Quyền UI tại `src/services/permissions.js`; Backend vẫn kiểm tra quyền độc lập.
+- **Tài khoản & Phiên làm việc:** Đăng nhập, đăng ký tài khoản `Customer`, cập nhật thông tin cá nhân, đổi mật khẩu và đăng xuất.
+- **Quản trị hệ thống (`Admin`):** Quản lý danh sách người dùng, khóa/mở khóa tài khoản, gán/thu hồi thiết bị, đăng ký mới và chuyển đổi vòng đời thiết bị (`REGISTERED` → `PROVISIONED` → `ACTIVE` ↔ `MAINTENANCE` → `DECOMMISSIONED`), liên kết tự động Camera–ESP32 và quản lý kho **Firmware / OTA**.
+- **Giám sát thời gian thực:** Chọn thiết bị `Vision Node` để theo dõi trạng thái tài xế, các chỉ số `EAR`, `PERCLOS`, `MAR`, tư thế đầu, biểu đồ chuỗi thời gian và thanh diễn biến trạng thái (Timeline).
+- **Lịch sử, Cảnh báo & Video:** Tra cứu lịch sử số đo/sự kiện/lệnh theo khoảng thời gian, phát trực tiếp hoặc tải clip `.mp4` gắn với cảnh báo và đánh dấu đã xem cho từng tài khoản.
+- **Điều khiển & Cấu hình từ xa (`Admin` / `Employee`):** Gửi lệnh **Kiểm tra cảnh báo** (`TEST_ALERT`) theo dõi phản hồi `ACK`, chỉnh thông số thời gian bật/tắt (ms) cho 3 mức cảnh báo và đối chiếu trạng thái `Đã lưu` (`desired`) với `Đã áp dụng` (`applied`).
 
-Dữ liệu thiếu hiển thị dấu `—`; dữ liệu cũ được đánh dấu khi mất kết nối. Kết nối WebSocket không đồng nghĩa ESP32 ONLINE. FE không tự suy ra trạng thái tài xế từ EAR hoặc dùng dữ liệu mẫu để thay dữ liệu thật.
+### Tổ chức mã nguồn chính
+- `src/App.jsx`: Điều phối phiên đăng nhập, kết nối WebSocket (qua vé một lần `/api/ws-ticket`) và định tuyến màn hình.
+- `src/pages/` & `src/components/`: Tách bạch các thành phần xử lý dữ liệu và hiển thị theo từng nghiệp vụ.
+- `src/services/permissions.js`: Định nghĩa bảng quyền hiển thị trên giao diện theo vai trò (song song với lớp kiểm tra quyền độc lập ở Backend).
 
-## API và cấu hình
+---
 
-- Prefix API mặc định `/api`; Docker Nginx proxy API và WebSocket về Backend.
-- Native Vite dùng cấu hình trong `vite.config.js` và các biến `VITE_*` tương ứng.
-- MQTT consumer nằm trong Backend, không chạy script MQTT riêng để cập nhật web.
-- Contract: [FE–BE](../docs/week2-fe-be-contract.md), [AI/video](../docs/ai-ingest-video-contract.md).
-
-## Kiểm tra
+## 3. Kiểm thử và đóng gói bản Production
 
 ```powershell
 node --test frontend/tests/*.test.mjs
 npm --prefix frontend run build
 ```
 
-Demo 10 bước: [README](../README.md#4-demo-theo-mục-84-của-đề-bài). Khi thử quyền Customer bằng API, phải dùng JWT Customer; ẩn nút trên giao diện chưa đủ chứng minh API đã chặn.
+Tham khảo thêm: [Hợp đồng API FE–BE](../docs/week2-fe-be-contract.md) · [Phân quyền & Thống kê số đo](../docs/roles-and-device-metrics.md).

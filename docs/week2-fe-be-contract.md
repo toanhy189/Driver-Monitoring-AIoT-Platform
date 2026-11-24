@@ -1,61 +1,84 @@
-# Hợp đồng FE–BE
+# Hợp đồng giao tiếp Frontend – Backend (REST API & WebSocket)
 
-Tài liệu này ghi lại API **đang có trong code**. FE gọi JSON dưới `/api`; các request cần đăng nhập dùng `Authorization: Bearer <access_token>`. Mã thiết bị trên URL là `id` số của DB. `device_code` như `alert-01` dùng để nhận diện thiết bị với MQTT và trên giao diện.
+Tài liệu đặc tả các điểm cuối JSON dưới tiền tố `/api` và giao thức sự kiện thời gian thực qua WebSocket giữa giao diện React và FastAPI Backend.
+- Các yêu cầu cần xác thực truyền header `Authorization: Bearer <access_token>`.
+- Tham số định danh thiết bị trên đường dẫn URL sử dụng khóa chính số nguyên (`id` trong DB); trường chuỗi `device_code` (như `vision-01`, `alert-01`) dùng để hiển thị và định tuyến bản tin MQTT.
 
-## Quyền và lỗi HTTP
+---
 
-| Quyền | Admin | Employee | Customer |
+## 1. Phân quyền và quy ước mã trạng thái HTTP
+
+| Nhóm thao tác | Admin | Employee | Customer |
 | --- | --- | --- | --- |
-| Xem thiết bị được gán, lệnh, cảnh báo, cấu hình | Có | Có | Có |
-| Gửi lệnh kiểm tra, sửa cấu hình, đánh dấu cảnh báo đã xem | Có | Có | Không |
-| Đăng ký và đổi vòng đời thiết bị | Có | Không | Không |
+| Xem thiết bị trong phạm vi, số đo, lịch sử lệnh, cảnh báo, cấu hình, video | Có | Có | Có |
+| Đánh dấu cảnh báo đã xem (cho tài khoản cá nhân) | Có | Có | Có |
+| Gửi lệnh kiểm tra cảnh báo, chỉnh cấu hình nhịp tải, xóa video | Có | Có | Không |
+| Quản lý người dùng, đăng ký/vòng đời thiết bị, liên kết tự động, OTA | Có | Không | Không |
 
-BE lọc dữ liệu theo `user_devices` còn hiệu lực và kiểm tra quyền trên từng request. `401` là phiên không hợp lệ; `403` là thiếu quyền; `404` là không tìm thấy hoặc thiết bị không được gán; `409` là xung đột trạng thái; `422` là JSON/tham số sai; `503` có thể xảy ra khi broker provisioning/revoke không sẵn sàng. FE hiển thị lỗi theo HTTP status và `detail`, không quyết định quyền thay BE.
+- **Mã phản hồi chuẩn:** `401` (chưa đăng nhập hoặc phiên đã bị thu hồi), `403` (không đủ quyền thực hiện), `404` (không tồn tại hoặc thiết bị nằm ngoài phạm vi được gán), `409` (xung đột phiên bản/trạng thái), `422` (dữ liệu đầu vào sai định dạng), `503` (dịch vụ phụ thuộc tạm thời chưa sẵn sàng).
 
-## Phiên và thiết bị
+---
 
-| API | Request | Response chính |
+## 2. Xác thực phiên và Quản lý thiết bị
+
+| Endpoint | Dữ liệu gửi lên | Phản hồi chính |
 | --- | --- | --- |
 | `POST /api/login` | `{ "username": "...", "password": "..." }` | `{ "access_token": "...", "token_type": "bearer" }` |
-| `GET /api/me` | Bearer token | `{ "id": 1, "username": "...", "role": "Admin" }` và thông tin user khác |
-| `GET /api/devices` | Bearer token | Mảng `DeviceResponse` của thiết bị được gán |
-| `GET /api/devices/{id}` | Bearer token | Một `DeviceResponse` |
-| `POST /api/devices` | `{ "device_code": "alert-01", "name": "...", "model": "..." }` | `201` + `{ "message": "Device registered", "device": DeviceResponse }` |
-| `POST /api/devices/{id}/{provision,activate,maintenance,decommission}` | Bearer token | `DeviceResponse` sau thao tác |
+| `GET /api/me` | Bearer token | Thông tin hồ sơ và vai trò của người dùng hiện tại |
+| `GET /api/devices` | Bearer token | Danh sách `DeviceResponse` thuộc phạm vi truy cập |
+| `GET /api/devices/{id}` | Bearer token | Chi tiết một `DeviceResponse` |
+| `POST /api/devices` | `{ "device_code": "alert-01", "name": "...", "model": "...", "device_type": "ALERT_NODE" }` | `201` + đối tượng thiết bị vừa khởi tạo |
+| `POST /api/devices/{id}/{provision,activate,maintenance,decommission}` | Bearer token | Trạng thái thiết bị cập nhật (riêng `provision` trả kèm thông tin tài khoản MQTT một lần) |
 
-`DeviceResponse` có `id`, `device_code`, `name`, `model`, `type`, `lifecycle_state`, `status`, `last_seen`, `firmware_version`. `lifecycle_state` nhận `REGISTERED`, `PROVISIONED`, `ACTIVE`, `MAINTENANCE`, `DECOMMISSIONED`. `status` nhận `ONLINE`/`OFFLINE`; hai trường độc lập. Thời gian trả về có múi giờ UTC. API provision chỉ báo thành công khi BE thật sự cấp được credential; lỗi broker trả `503` và không chuyển thiết bị sang `PROVISIONED`.
+---
 
-## Lệnh kiểm tra và ACK
+## 3. Gửi lệnh kiểm tra và đối chiếu `ACK`
 
-`POST /api/devices/{id}/commands` nhận:
+`POST /api/devices/{id}/commands` nhận payload:
 
 ```json
-{ "action": "TEST_ALERT", "buzzer_ms": 1000, "vibration_ms": 1000, "led_mode": "FLASH" }
+{
+  "action": "TEST_ALERT",
+  "buzzer_ms": 1000,
+  "vibration_ms": 1000,
+  "led_mode": "FLASH"
+}
 ```
 
-Hai thời lượng phải là số nguyên `1–10000`; `led_mode` là `ON` hoặc `FLASH`. BE kiểm tra role, thiết bị `ALERT_NODE`, `ACTIVE` và heartbeat còn mới. Response `201` là bản ghi lệnh gồm `request_id`, `device_id`, `device_code`, `action`, `status`, `ack_status`, `error_message`, `created_at`. **HTTP 201 chỉ xác nhận request đã được xử lý ở BE**: `status` trong body vẫn có thể là `FAILED` nếu publish MQTT thất bại. FE phải đọc cả body. BE phát ba lệnh con LED/còi/motor theo giao thức firmware hiện tại; chỉ đặt `ACKNOWLEDGED` + `COMPLETED` khi cả ba ACK `COMPLETED` đúng mã. `ACCEPTED` là thiết bị đã nhận, chưa hoàn tất. `TIMEOUT` là chưa có kết quả cuối, không tự gửi lại POST. Nếu ACK cuối đến muộn, BE có thể sửa `TIMEOUT` thành hoàn tất; một ACK con đến muộn chưa đủ để sửa trạng thái đó.
+- Thời lượng `buzzer_ms` và `vibration_ms` là số nguyên trong khoảng `1–10000` (ms); `led_mode` nhận `ON` hoặc `FLASH`.
+- Backend kiểm tra quyền người gửi, loại thiết bị `ALERT_NODE`, vòng đời `ACTIVE` và kết nối `ONLINE`, sau đó phát 3 lệnh con tương ứng (LED, còi, motor).
+- Trạng thái lệnh tổng chỉ chuyển sang hoàn tất (`status: "ACKNOWLEDGED"`, `ack_status: "COMPLETED"`) khi nhận đủ cả 3 phản hồi `COMPLETED` từ ESP32.
+- Tra cứu lịch sử qua `GET /api/commands?device_id={id}` (lọc thêm `alert_id` khi đi từ trang Cảnh báo) hoặc xem chi tiết một lệnh tại `GET /api/commands/{request_id}`.
 
-`GET /api/commands?device_id={id}` trả tối đa 100 lệnh gần nhất; `GET /api/commands/{request_id}` trả một lệnh. FE dùng `request_id` để ghép HTTP, polling và WebSocket; mã này không cần hiện trong bảng người dùng. Lịch sử vẫn lấy lại từ DB sau khi tải lại trang.
+---
 
-## Cấu hình và cảnh báo
+## 4. Cấu hình nhịp cảnh báo từ xa (`Desired` / `Applied`)
 
-`GET /api/devices/{id}/config` trả:
+`GET /api/devices/{id}/config` trả về cấu hình mong muốn và cấu hình thiết bị thực tế đã áp dụng:
 
 ```json
 {
   "config_id": "cfg-...",
-  "applied_config_id": null,
-  "desired": { "config_id": "cfg-...", "timings": { "led": { "1": { "on_ms": 1000, "off_ms": 1000 } } } },
-  "applied": null
+  "applied_config_id": "cfg-...",
+  "desired": {
+    "config_id": "cfg-...",
+    "timings": { "led": { "1": { "on_ms": 500, "off_ms": 500 } } }
+  },
+  "applied": {
+    "config_id": "cfg-...",
+    "timings": { "led": { "1": { "on_ms": 500, "off_ms": 500 } } }
+  }
 }
 ```
 
-`timings` bắt buộc có **led, buzzer, motor** và cả ba mức `1`, `2`, `3`. `on_ms` là số nguyên 50–5000; `off_ms` là số nguyên 50–10000. `PUT /api/devices/{id}/config` nhận `{ "timings": ... }` và trả `{ "config_id": "cfg-...", "status": "PENDING_APPLICATION" }`. FE chỉ hiển thị **đã áp dụng** khi BE trả cả `applied` và `applied_config_id` khớp `config_id`. Firmware nhận `config/update`, lưu NVS và gửi APPLIED/REJECTED tới `config/applied`. BE publish QoS 1 retained, lưu revision và chỉ cập nhật applied sau ACK APPLIED đúng thiết bị/config_id. Firmware hiện có kiểm tra revision để chặn cấu hình cũ; xem [luồng firmware](../firmware/esp32-alert-node/flow.md).
+- Đối tượng `timings` luôn bao gồm đủ 3 đầu ra (`led`, `buzzer`, `motor`) trên cả 3 mức cảnh báo (`1`, `2`, `3`), với `on_ms` từ `50–5000` ms và `off_ms` từ `50–10000` ms.
+- `PUT /api/devices/{id}/config` lưu bản `desired`, tăng số `revision` và gửi bản tin `config/update` (retained, QoS 1) xuống ESP32. Giao diện chỉ báo **Đã áp dụng** khi ESP32 ghi NVS thành công và gửi phản hồi `APPLIED` khớp đúng `config_id`.
 
-`GET /api/alerts` trả mảng gồm `alert_id`, `device_id`, `device_code`, `alert_type`, `severity`, `created_at`, `status`. `POST /api/alerts/{alert_id}/acknowledge` chỉ nhận cảnh báo `NEW` và trả cảnh báo đã cập nhật `status: "ACKNOWLEDGED"`; thao tác này chỉ đánh dấu đã xem, không thay ACK của lệnh. Rule Engine tuần 3 lưu liên kết sự kiện/cảnh báo/lệnh. request_id chỉ được trả khi có lệnh liên quan và user có quyền xem thiết bị nhận lệnh; nếu chưa có hoặc không có quyền thì là null.
+---
 
-## Realtime và giới hạn kiểm thử
+## 5. Luồng cập nhật thời gian thực qua WebSocket
 
-FE gọi `POST /api/ws-ticket` bằng Bearer token, sau đó mở `/ws/telemetry?ticket=...`. Ticket dùng một lần; reconnect phải xin ticket mới. BE gửi sự kiện theo thiết bị được gán cho user: `telemetry.updated`, `device.updated`, `command.updated`, `alert.created`, `config.updated`. Gói tin có dạng `{ "type": "command.updated", "data": { "request_id": "cmd-...", "device_id": 2, "status": "ACKNOWLEDGED", "ack_status": "COMPLETED" } }`. FE tải lại snapshot khi kết nối lại và ghép theo ID để tránh trùng hoặc lùi trạng thái.
-
-Các topic/payload MQTT AI và ESP32 đang dùng được giữ nguyên. Test FE/BE tự động kiểm tra hợp đồng HTTP, quyền, ghép ACK và định tuyến topic; kiểm chứng còi/đèn/motor và cấu hình **đã áp dụng trên phần cứng** vẫn cần TV1/TV3 thử với thiết bị thật.
+1. Giao diện gọi `POST /api/ws-ticket` (kèm Bearer token) để lấy mã vé `ticket` ngắn hạn dùng một lần.
+2. Mở kết nối tới `/ws/telemetry?ticket=...`.
+3. Backend chỉ đẩy các sự kiện thuộc phạm vi thiết bị mà người dùng được phép xem: `telemetry.updated`, `device.updated`, `command.updated`, `alert.created`, `alert.updated`, `config.updated`.
+4. Khi mất mạng và kết nối lại, giao diện xin vé mới, tải lại bản chụp lịch sử (`snapshot`) và gộp dữ liệu theo định danh bản ghi để không tạo điểm trùng lặp trên biểu đồ.

@@ -1,43 +1,40 @@
-# Nghiệm thu cuối: 5–7 phút demo và các ca chuẩn bị trước
+# Kịch bản kiểm thử tích hợp và nghiệm thu hệ thống
 
-## Trước buổi demo
+Tài liệu tổng hợp danh sách kiểm tra chuẩn bị trước buổi bảo vệ, kịch bản nghiệm thu 10 bước đầu-cuối và phương pháp đo các chỉ tiêu phi chức năng của hệ thống.
 
-- Sao lưu DB; giữ riêng `.env`, credential MQTT, model và clip dự phòng. Không quay màn hình lộ secret.
-- TV1 xác nhận mạch/nguồn tải, flash firmware, giờ LAN và Wi-Fi. Chỉ bật nguồn tải sau kiểm tra mạch.
-- TV2 kiểm tra đúng cặp Vision → Alert, policy v1 và trạng thái ACTIVE/ONLINE; không tự bật binding chưa được nhóm chốt.
-- TV3 chạy model nhị phân đã khóa, kiểm tra hiệu chuẩn nhìn thẳng, camera/âm thanh, ánh sáng và kính.
-- TV4 kiểm tra đăng nhập ba vai trò, socket, đồ thị, lệnh, alert, cấu hình và trình phát video.
+---
 
-## Kịch bản trên giao diện
+## 1. Công tác chuẩn bị trước buổi trình diễn
 
-| Bước | Thao tác | Dấu hiệu đạt | Minh chứng cần ghi |
+- **Hạ tầng & Dữ liệu:** Khởi động cụm Docker Compose (`postgres`, `mosquitto`, `backend`, `frontend`, `time-server`, `ota-gateway`), sao lưu sẵn cơ sở dữ liệu và kiểm tra dung lượng trống cho kho video.
+- **Phần cứng ESP32 (`Alert Node`):** Kiểm tra chắc chắn đường nối `GND` chung, mạch đệm transistor/diode của còi và motor rung, cấp nguồn qua cáp USB truyền dữ liệu ổn định và xác nhận thiết bị gửi heartbeat `ONLINE` cùng giờ NTP hợp lệ.
+- **Camera & Edge AI (`Vision Node`):** Chạy kiểm tra cấu hình bằng `./edge-ai/run-multisignal-v2.ps1 -Demo -Condition glasses -Check`, bố trí góc đặt camera thấy rõ toàn bộ khuôn mặt và cằm trong điều kiện ánh sáng ổn định.
+- **Phân quyền & Liên kết:** Mở sẵn 3 phiên trình duyệt độc lập cho 3 vai trò (`Admin`, `Employee`, `Customer`); kiểm tra thiết bị thử nghiệm đã được gán cho `Employee` / `Customer` và liên kết `vision-01` → `alert-01` đã sẵn sàng trong mục **Cảnh báo tự động**.
+
+---
+
+## 2. Kịch bản nghiệm thu chức năng đầu-cuối (10 bước)
+
+| Bước | Quy trình kiểm tra | Kết quả đạt yêu cầu | Minh chứng đối chiếu |
 |---|---|---|---|
-| 1 | Đăng nhập Admin; tạo Customer/Employee dùng thử | Người dùng mới có đúng vai trò; public register chỉ Customer | Ảnh không có mật khẩu |
-| 2 | Đăng ký node demo; cấp credential; gán thiết bị | REGISTERED → PROVISIONED; tài khoản MQTT riêng | Mã node và trạng thái; che secret |
-| 3 | Kết nối node rồi kích hoạt | ACTIVE và ONLINE hiển thị độc lập | Heartbeat, thời gian, firmware/hardware |
-| 4 | Employee xem node được gán; Customer thử gửi lệnh | Employee đúng phạm vi; Customer bị chặn | HTTP 403/404 khi truy cập trái quyền |
-| 5 | Camera nhìn thẳng, quay đầu/nhắm mắt trong điều kiện thử trên bàn | Số đo và trạng thái lên React; local audio hoạt động | Video có đồng hồ và thời điểm ground truth |
-| 6 | Quan sát mức 1/2/3 và lần nhắc | Đúng tải, duration, request_id và ACK; không chỉ nhìn trạng thái publish | Ghép event_id → alert_id → command_id → ACK |
-| 7 | Đổi cấu hình rồi reboot ESP32 | Desired → APPLIED; revision không lùi; NVS giữ cấu hình | Revision trước/sau, config_id, Serial |
-| 8 | Xem lịch sử event và clip tương ứng; xóa một clip đã chọn | Đúng event/video; chỉ người có quyền xóa; retry không làm clip xuất hiện lại | message_id/video_id, ảnh trước/sau |
-| 9 | Dừng BE/broker có kiểm soát | Camera/local audio tiếp tục; SQLite/file vẫn giữ; không bật tải cũ sau reconnect | Pending trước/sau, outcome backfill, video upload |
-| 10 | Bảo trì rồi ngừng sử dụng node thử | Thu hồi credential; mất kết nối; lịch sử vẫn còn | Trạng thái quản lý và lần reconnect bị từ chối |
+| **1** | Đăng nhập trên 3 vai trò `Admin`, `Employee`, `Customer` | Hiển thị đúng menu và phạm vi thao tác; đăng ký công khai chỉ tạo `Customer` | Giao diện 3 vai trò & phản hồi `/api/me` |
+| **2** | Đăng ký thiết bị mới, cấp thông tin kết nối và gán người dùng | Chuyển trạng thái `REGISTERED → PROVISIONED`; sinh tài khoản MQTT riêng | Trạng thái thiết bị trên Web & bảng `devices` |
+| **3** | Kết nối phần cứng và bấm **Kích hoạt** | Trạng thái quản lý `ACTIVE` và kết nối `ONLINE` hiển thị độc lập | Nhịp heartbeat, `last_seen`, phiên bản firmware |
+| **4** | Kiểm tra phân quyền thao tác lệnh qua API | `Employee` gửi được lệnh trên node được gán; `Customer` gọi API nhận `HTTP 403` | Kết quả trả về trên Swagger `/docs` |
+| **5** | Chạy Edge AI thu thập dữ liệu từ webcam thực tế | Số đo `EAR`, `PERCLOS`, `MAR`, tư thế đầu và biểu đồ cập nhật trực tiếp qua WebSocket | Cửa sổ camera song song với Dashboard |
+| **6** | Giữ trạng thái buồn ngủ / mất tập trung qua các mốc 3s, 6s, 10s | Kích hoạt đúng tải trên ESP32 theo Mức 1/2/3, tạo cảnh báo và trả đủ `ACK COMPLETED` | Tải vật lý chạy thật + chuỗi `event → alert → command` |
+| **7** | Thay đổi cấu hình nhịp bật/tắt từ xa và khởi động lại ESP32 | `desired` cập nhật trước, chuyển sang `APPLIED` sau phản hồi từ board; giữ cấu hình trong NVS | Số `revision` tăng và log Serial sau reboot |
+| **8** | Mở xem video sự kiện cảnh báo và đánh dấu đã xem | Phát đúng clip liên kết với `message_id` của sự kiện; `Customer` bấm **Đánh dấu đã xem** | Trình phát video trên Web & bảng `alert_reads` |
+| **9** | Thử nghiệm ngắt kết nối mạng / dừng tạm thời Broker | Edge AI tiếp tục kêu loa cục bộ và lưu vào SQLite; khi nối lại tự động đồng bộ bù mà không bật còi cũ | Số bản ghi chờ về `0` sau khi có mạng lại |
+| **10** | Thực hiện cập nhật OTA (nâng cao) và **Ngừng sử dụng** thiết bị ở cuối buổi | OTA nâng phiên bản thành công (`CONFIRMED`); sau `Decommission` tài khoản MQTT cũ bị từ chối kết nối | Tiến trình OTA & log từ chối kết nối của Broker |
 
-Để tránh mất quyền thiết bị thật, dùng node thử cho bước thu hồi; thiết bị DECOMMISSIONED không dùng làm node demo tiếp theo.
+---
 
-## Đo thực tế cần điền
+## 3. Phương pháp đo các chỉ tiêu phi chức năng
 
-Mỗi tổ hợp ánh sáng tốt/yếu × có/không kính: người tham gia đồng ý, có nhãn quan sát, thời lượng, model/hash, FPS, CPU/RAM, p50/p95 xử lý, false alarm và thời gian phát hiện. Tách độ trễ vòng xử lý khỏi thời gian cửa sổ model 20 giây và thời gian policy. Không dùng NME landmark thay Accuracy/F1 trạng thái.
-
-| Ca | Ngày / người thử | Kết quả | File minh chứng / ID |
-|---|---|---|---|
-| Camera + audio thật | 08/11/2026; TV3, không kính | Đạt thao tác nhắm/mở mắt và quay đầu với RF ứng viên + guard hiệu chuẩn; kính chưa đạt, chưa phải accuracy | `docs/final-ai-model.md`; `verification.json`: `camera-calibrated-no-glasses` |
-| Ba mức + nhắc + hồi phục | Chưa ghi | Chưa nghiệm thu | |
-| UNKNOWN / mất mặt / SESSION_ENDED | Chưa ghi | Chưa nghiệm thu | |
-| Mất Internet, reboot ESP32, NTP LAN | Chưa ghi | Chưa nghiệm thu | |
-| Mất BE/broker, gửi bù không kích tải muộn | 08/11/2026; TV3 | Camera/loa và gửi bù đạt: 180 MQTT + 14 clip về 0; phần không kích tải muộn trên ESP32 chưa nghiệm thu (rule tắt) | `verification.json`: `real-queue-recovery` |
-| Config/NVS sau reboot, lệnh trùng, TTL hết hạn | Chưa ghi | Chưa nghiệm thu | |
-| Restore DB tạm | 08/11/2026 | Đạt; 17 bảng phục hồi vào DB tạm, không ghi đè DB ứng dụng | `docs/evidence/final-20261108/verification.json` |
-| Phát lại demo dự phòng | Chưa ghi | Chưa nghiệm thu | |
-
-Video dự phòng hỗ trợ trình bày khi có sự cố; không thay thế yêu cầu demo trực tiếp của giảng viên.
+| Chỉ tiêu đánh giá | Phương pháp đo và thu thập số liệu | Ghi chú kỹ thuật |
+|---|---|---|
+| **Độ trễ số đo tới Dashboard** | Đối chiếu mốc thời gian `recorded_at` tại nguồn phát với thời điểm Backend lưu (`received_at`) và cập nhật giao diện (cùng đồng hồ máy chủ) | Tính trung vị (`p50`) và phân vị `p95` trên chuỗi mẫu liên tục |
+| **Độ trễ thực thi lệnh điều khiển** | Tính hiệu số `completed_ack_at - created_at` trong bảng `commands` (tổng thời gian từ lúc tạo lệnh đến khi nhận đủ `ACK COMPLETED`) | Khoảng thời gian này bao gồm cả thời lượng bật tải vật lý (`duration_ms`) |
+| **Tốc độ xử lý AI & Tài nguyên** | Sử dụng công cụ `ml.multisignal_benchmark` hoặc exporter Prometheus để ghi nhận thời gian xử lý mỗi mẫu (ms) và mức RAM đỉnh (`RSS`) | Tách biệt thời gian suy luận 1 khung hình (~20–22 ms trên CPU) với độ dài cửa sổ trượt 5 giây |
+| **Độ tin cậy khi mất kết nối & Chống trùng** | Tạm dừng Broker trong lúc camera chạy, đối chiếu tổng số `message_id` sinh ra ở Edge với số biên nhận `SAVED` trong PostgreSQL sau khi khôi phục | Kiểm chứng cơ chế `ai_message_receipts` và `request_id` không lưu lặp hay kích tải lặp |

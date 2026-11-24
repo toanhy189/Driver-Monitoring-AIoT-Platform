@@ -1,102 +1,87 @@
 # Driver Monitoring AIoT Platform
 
-Hệ thống nguyên mẫu giám sát trạng thái tài xế bằng camera tại Edge, quản lý thiết bị trên web và cảnh báo qua ESP32. Dự án kết hợp **Python/MediaPipe/scikit-learn, FastAPI, React, PostgreSQL và MQTT/Mosquitto**.
+Hệ thống nguyên mẫu giám sát trạng thái buồn ngủ và mất tập trung của tài xế tại biên (Edge AI), kết hợp quản lý thiết bị trên nền tảng Web và phát cảnh báo vật lý qua vi điều khiển ESP32. Dự án tích hợp **Python (MediaPipe, PyTorch, scikit-learn), FastAPI, React, PostgreSQL và MQTT (Eclipse Mosquitto)**.
 
-## Lệnh demo trên laptop đã chuẩn bị
+---
 
-```powershell
-./edge-ai/run-multisignal-v2.ps1 -Demo
-```
+## 1. Tổng quan hệ thống
 
-Launcher dùng bundle v2 và profile kính v5 đã thử trên laptop này; cần các artifact cục bộ tương ứng. **Nhìn thẳng, giữ đầu tương đối yên 5 giây đầu** để lấy mốc, rồi mới thử thao tác. Bấm Q để thoát. Camera, MQTT, upload video và tải ESP32 theo binding đang bật được sử dụng trong chế độ này.
+Hệ thống gồm các thành phần chính phối hợp theo thời gian thực:
 
-Theo yêu cầu demo, cúi đầu từ 12° liên tục 3 giây được ánh xạ thành `DROWSY` với lý do **Cúi đầu kéo dài**. Đây là quy tắc tư thế và cũng có thể kích hoạt khi chủ động nhìn xuống; không phải kết quả model xác nhận ngủ. Quay ngang vẫn dùng `DISTRACTED`, mất mặt vẫn `UNKNOWN`. Không cần profile mắt cúi hoặc chạy hiệu chuẩn mới để dùng quy tắc này. [Logic và phạm vi](docs/head-motion-v1.md).
+- **Vision Node (`edge-ai/`):** Chạy trên máy tính gắn webcam, trích xuất đặc trưng khuôn mặt (EAR, PERCLOS, MAR, góc tư thế đầu), phân loại trạng thái tài xế (`ATTENTIVE`, `DROWSY`, `DISTRACTED`, `UNKNOWN`), phát âm thanh cảnh báo tại chỗ và cắt clip sự kiện.
+- **Alert Node (`firmware/`):** Mạch **ESP32 DOIT DevKit V1** nhận lệnh điều khiển qua MQTT, kích hoạt **Đèn LED, Còi báo động (Buzzer) và Motor rung**, gửi gói tin trạng thái định kỳ (heartbeat), phản hồi xác nhận lệnh (`ACK`) và hỗ trợ cập nhật firmware qua mạng (**OTA**).
+- **Backend (`backend/`):** Xây dựng bằng FastAPI + PostgreSQL, đảm nhiệm xác thực JWT, phân quyền theo vai trò, quản lý vòng đời thiết bị, tiếp nhận dữ liệu MQTT, chạy bộ quy tắc cảnh báo tự động (**Rule Engine**), lưu trữ video và quản lý kho firmware OTA.
+- **Web Dashboard (`frontend/`):** Ứng dụng React/Vite hiển thị số đo và biểu đồ thời gian thực qua WebSocket, quản lý người dùng/thiết bị, cấu hình nhịp cảnh báo từ xa, tra cứu lịch sử lệnh/video và theo dõi tiến trình cập nhật OTA.
+- **Cơ chế chịu lỗi mạng:** Dữ liệu đo và clip sự kiện tại Edge được ghi vào hàng đợi SQLite cục bộ trước khi gửi, đảm bảo tự động đồng bộ bù lịch sử khi khôi phục kết nối mà không phát lại lệnh kích tải cũ.
 
-Lệnh demo ở trên là đường chạy chính. Profile kính áp dụng cho cùng người/camera/setup đã thử; máy khác cần nhận bundle và profile phù hợp. Công cụ kiểm tra riêng và hiệu chuẩn nhìn thẳng được giữ cho việc kiểm chứng, không cần chạy lại trước mỗi buổi demo.
+### Phân quyền người dùng (RBAC)
 
-[Bản hợp nhất với thay đổi của nhóm và kết quả kiểm tra ngày 10/11](docs/integration-cleanup-20261110.md).
-
-## 1. Tổng quan
-
-- **Vision Node:** laptop + webcam, đo EAR/PERCLOS và hướng đầu; nhận biết `ATTENTIVE`, `DROWSY`, `DISTRACTED`, `UNKNOWN`.
-- **Alert Node:** ESP32 nhận lệnh, điều khiển LED/còi/motor rung, gửi heartbeat và ACK.
-- **Backend:** tài khoản, phân quyền, vòng đời thiết bị, telemetry, lịch sử, Rule Engine, cấu hình và lệnh/ACK.
-- **Web React:** dữ liệu thời gian thực, danh sách thiết bị, lịch sử, cảnh báo, điều khiển và video có kiểm tra quyền.
-- **Phục hồi:** SQLite tại Edge, gửi bù MQTT và upload video nền; bản tin chỉ được dọn sau xác nhận hợp lệ.
-
-AI v2 dùng CNN MobileNet phân tích mắt/miệng, RF kết hợp đặc trưng theo thời gian, nhánh EAR cho nhắm mắt kéo dài và quy tắc hướng đầu. Profile kính v5 đã qua một phiên camera đủ chín tình huống trên laptop nhóm. Quy tắc cúi đầu kéo dài đã nối vào Backend/web và được kiểm thử bằng MQTT/DB/ESP32 mô phỏng; còn xác nhận trên lượt camera và tải thật mới.
-
-[Luồng AI hiện tại](docs/luong-xu-ly-ai-v2.md) ghi dataset, đặc trưng và quyết định. [Kết quả và giới hạn v2](docs/ai-v2-quality-calibration.md) giữ số đo đã thu. [Quy tắc cúi đầu](docs/head-motion-v1.md) mô tả ngưỡng và giao thức tích hợp. Baseline/RF cũ vẫn được giữ để đối chiếu và đọc artifact cũ.
-
-### Vai trò
-
-| Vai trò | Phạm vi |
+| Vai trò | Phạm vi chức năng |
 |---|---|
-| Admin | Quản lý toàn hệ thống, tài khoản, gán thiết bị, vòng đời và binding cảnh báo |
-| Employee | Xem, gửi lệnh, sửa cấu hình và xử lý cảnh báo trên thiết bị được gán |
-| Customer | Xem dữ liệu, lịch sử và cấu hình của thiết bị được gán |
+| **Admin** | Quản trị toàn hệ thống: quản lý tài khoản, đăng ký và điều chuyển vòng đời thiết bị, gán thiết bị cho người dùng, liên kết tự động Camera–ESP32 và quản lý cập nhật Firmware OTA |
+| **Employee** | Nhân viên điều hành: theo dõi số đo trực tiếp, gửi lệnh kiểm tra cảnh báo, chỉnh cấu hình nhịp tải, xem/xóa video và đánh dấu đã xem cảnh báo trên các thiết bị được gán |
+| **Customer** | Tài xế / Khách hàng cá nhân: xem trạng thái trực tiếp, biểu đồ lịch sử, cấu hình hiện tại, video sự kiện và đánh dấu đã xem cảnh báo của thiết bị được gán |
 
-Đăng ký công khai chỉ tạo Customer. `ACTIVE/MAINTENANCE/...` là vòng đời quản lý; `ONLINE/OFFLINE` là kết nối, được theo dõi riêng.
+---
 
 ## 2. Kiến trúc và luồng dữ liệu
 
 ```mermaid
 flowchart LR
     CAM[Webcam] --> AI[Vision Node / Python]
-    AI <-->|MQTT telemetry, event, storage ACK| MQTT[Mosquitto]
-    MQTT <-->|MQTT| BE[FastAPI]
-    BE <-->|Đọc / ghi| DB[(PostgreSQL)]
-    BE <-->|REST / WebSocket| WEB[React Dashboard]
-    MQTT <-->|Command, config, ACK, heartbeat| ESP[ESP32 Alert Node]
+    AI <-->|MQTT: telemetry, events, storage_ack| MQTT[Mosquitto Broker]
+    MQTT <-->|MQTT| BE[FastAPI Backend]
+    BE <-->|SQL| DB[(PostgreSQL)]
+    BE <-->|REST API / WebSocket| WEB[React Dashboard]
+    MQTT <-->|Command, config, ACK, heartbeat, OTA| ESP[ESP32 Alert Node]
     ESP --> LOAD[LED / Còi / Motor rung]
-    AI -->|HTTP upload xác thực| VIDEO[Kho video Backend]
-    AI --> LOCAL[Loa tại laptop]
+    AI -->|HTTP POST có xác thực| VIDEO[Kho lưu trữ Video]
+    AI --> LOCAL[Âm thanh tại máy trạm]
 ```
 
-| Luồng | Cách hoạt động |
+| Luồng nghiệp vụ | Cơ chế hoạt động |
 |---|---|
-| Số đo | AI → MQTT → Backend → PostgreSQL; Backend cập nhật React qua WebSocket |
-| Cảnh báo tự động | Event AI → Rule Engine → đúng ESP32 theo binding → tải → ACK |
-| Điều khiển thủ công | React → REST API → MQTT command → ESP32 → ACK → lịch sử lệnh |
-| Video | AI → hàng đợi bền vững → HTTP upload có xác thực → volume video của Backend |
-| Mất BE/broker | Camera và loa tại Edge tiếp tục; dữ liệu lưu SQLite, gửi bù khi kết nối lại |
+| **Thu thập số đo (Telemetry)** | Vision Node → MQTT (`driver/{code}/telemetry`) → Backend lưu PostgreSQL → Đẩy qua WebSocket lên giao diện React |
+| **Cảnh báo tự động (Rule Engine)** | Sự kiện AI đạt ngưỡng → Backend đối chiếu liên kết `rule_bindings` → Phát lệnh MQTT tới đúng ESP32 → Bật tải → Trả `ACK COMPLETED` |
+| **Điều khiển & Cấu hình từ xa** | Giao diện React → REST API → MQTT (`command` / `config/update`) → ESP32 thực thi hoặc lưu NVS → Phản hồi `ACK` / `APPLIED` |
+| **Lưu trữ Video sự kiện** | Vision Node đóng gói clip `.mp4` → Worker nền tải lên qua HTTP Basic Auth của thiết bị → Lưu vào Docker volume riêng |
+| **Cập nhật Firmware (OTA)** | Admin tải lên file `.bin` và `.manifest.json` đã ký RSA-2048 → Backend gửi yêu cầu qua MQTT → ESP32 tải qua HTTPS, xác minh chữ ký/SHA-256, ghi phân vùng mới và phản hồi `CONFIRMED` |
 
-Topic theo mã thiết bị: `driver/{device_code}/telemetry`, `events`, `status`, `storage_ack`, `command`, `ack`, `config/update`, `config/applied`. `message_id` chống lưu trùng; `request_id` ghép lệnh và ACK. `SAVED` xác nhận lưu dữ liệu, `COMPLETED` xác nhận thiết bị báo thực hiện xong.
+Bộ quy tắc cảnh báo tự động (`driver-bench-20261107-v1`) leo thang theo thời gian duy trì trạng thái nguy cơ đã xác nhận:
+- **Mức 1 (3 giây):** Bật LED + Còi trong 1 giây.
+- **Mức 2 (6 giây):** Bật LED + Còi + Motor rung trong 2 giây.
+- **Mức 3 (10 giây):** Bật cả 3 đầu ra trong 3 giây (nhắc lại mỗi 5 giây nếu nguy cơ vẫn tiếp diễn).
 
-Policy thử nghiệm `driver-bench-20261107-v1`: mức 1/2/3 tại 3/6/10 giây trạng thái nguy cơ đã xác nhận; thời lượng tải 1/2/3 giây. Mức 1 LED+còi, mức 2/3 cả ba tải; mức 3 đề nghị nhắc mỗi 5 giây với quan sát mới. Backend còn kiểm tra tuổi event, phiên, trạng thái thiết bị và lệnh đang chờ. Xem [kiến trúc và bảo mật](docs/final-architecture-security.md).
-
-### Cấu trúc repository
+### Cấu trúc thư mục dự án
 
 ```text
-backend/       API, nghiệp vụ, MQTT consumer tích hợp và kiểm thử
-frontend/      React/Vite và kiểm thử giao diện
-edge-ai/       Camera, đặc trưng, huấn luyện/suy luận, queue và local audio
-firmware/      Firmware PlatformIO cho ESP32
-database/      Schema, seed minh họa và migration đang sử dụng
-deployment/    Docker Compose, broker, NTP LAN, HTTPS và monitoring
-hardware/      Thông tin board, GPIO và tài liệu đấu nối
-tests/         Kịch bản nghiệm thu và demo
-docs/          Thiết kế, hợp đồng dữ liệu, model card và kết quả cuối
+backend/       Mã nguồn FastAPI, xử lý MQTT, Rule Engine, OTA và bộ kiểm thử API
+frontend/      Giao diện web React/Vite và kiểm thử đơn vị giao diện
+edge-ai/       Thu thập camera, mô hình CNN + Random Forest v2, hàng đợi SQLite và upload video
+firmware/      Mã nguồn C++ (PlatformIO) cho mạch ESP32 Alert Node
+database/      File khởi tạo bảng (create.sql), dữ liệu mẫu và các bản migration SQL
+deployment/    Docker Compose, cấu hình Mosquitto ACL, đồng bộ giờ NTP LAN, TLS và monitoring
+hardware/      Sơ đồ chân GPIO, nguyên lý mạch đệm tải và danh mục linh kiện
+tests/         Kịch bản kiểm thử tích hợp và nghiệm thu hệ thống
+docs/          Tài liệu kiến trúc, hợp đồng API/MQTT, thiết kế mô hình AI và quy trình OTA
 ```
 
-Báo cáo tiến độ, bàn giao theo tuần và output kiểm thử cũ được giữ cục bộ, nằm trong `.gitignore`. Code huấn luyện, test và minh chứng tổng hợp cuối vẫn được quản lý bằng Git. Model, dataset, video, SQLite, credential và backup DB được bàn giao riêng.
+---
 
-## 3. Cài đặt và chạy
+## 3. Hướng dẫn cài đặt và khởi chạy
 
-Các lệnh dưới đây chạy bằng **PowerShell tại thư mục gốc repository**. Cần Docker Desktop đang chạy, Python 3.13 cho Edge AI; Node.js 22 chỉ cần khi chạy frontend trực tiếp. ESP32 dùng PlatformIO.
+Các lệnh dưới đây được thực thi trên **PowerShell tại thư mục gốc của repository**. Yêu cầu cài sẵn **Docker Desktop**, **Python 3.13** (cho Edge AI) và **PlatformIO** (khi biên dịch/nạp code cho ESP32).
 
-### 3.1. Chuẩn bị `.env`
+### 3.1. Tạo file biến môi trường `.env`
 
 ```powershell
 if (!(Test-Path .env)) { Copy-Item .env.example .env }
 python deployment/mqtt/prepare_env.py
 ```
 
-Mở `.env`, đặt `POSTGRES_PASSWORD`, `DATABASE_URL` và `SECRET_KEY` riêng. `DATABASE_URL` cho Backend chạy trực tiếp phải khớp `POSTGRES_*`, host `localhost:5433` theo `POSTGRES_PORT`; Compose tự đặt host nội bộ là `postgres`. Script tạo credential MQTT còn thiếu, giữ giá trị đã có.
+Mở file `.env` vừa tạo để cập nhật mật khẩu cơ sở dữ liệu (`POSTGRES_PASSWORD`, `DATABASE_URL`) và khóa ký JWT (`SECRET_KEY`). Script `prepare_env.py` sẽ tự động sinh mật khẩu ngẫu nhiên cho các tài khoản MQTT hệ thống còn trống.
 
-Giữ `RULE_ENGINE_ENABLED=false` trong lúc chuẩn bị mạch. `AI_DEVICE_CODE`, `AI_MQTT_USERNAME` và `AI_MQTT_PASSWORD` phải khớp Vision Node đã đăng ký/cấp kết nối. Tài khoản web và tài khoản MQTT thiết bị là hai loại khác nhau.
-
-### 3.2. Khởi động Docker
+### 3.2. Khởi động cụm dịch vụ bằng Docker Compose
 
 ```powershell
 docker compose --env-file .env -f deployment/docker-compose.yml config --quiet
@@ -104,46 +89,31 @@ docker compose --env-file .env -f deployment/docker-compose.yml up -d --build
 docker compose --env-file .env -f deployment/docker-compose.yml ps -a
 ```
 
-Compose chạy PostgreSQL, Mosquitto, migration, cấp quyền broker, Backend, React và giờ LAN. `mqtt-init`, `mqtt-setup`, `migrate` là tác vụ chạy một lần: **Exited (0)** là bình thường. PostgreSQL cần `healthy`; Backend/frontend/broker cần `Up`.
+Khi khởi động thành công, các container `postgres`, `mosquitto`, `backend`, `frontend` và `time-server` ở trạng thái `Up` (các tác vụ khởi tạo một lần `mqtt-init`, `mqtt-setup`, `migrate` kết thúc với `Exited (0)`).
 
-| Dịch vụ | Địa chỉ từ laptop |
+| Dịch vụ | Địa chỉ truy cập trên máy chạy Docker |
 |---|---|
-| Giao diện React | <http://localhost:5173> |
-| Swagger API | <http://localhost:8000/docs> |
-| Health API | <http://localhost:8000/api/health> |
-| MQTT cho AI/ESP32 | IP laptop, cổng **1884**; trong Docker là `mosquitto:1883` |
-| PostgreSQL | `localhost:5433` mặc định; đổi bằng `POSTGRES_PORT` |
-| NTP LAN | IP laptop, UDP **123** |
+| Giao diện Web (React) | <http://localhost:5173> |
+| Tài liệu OpenAPI (Swagger) | <http://localhost:8000/docs> |
+| Kiểm tra trạng thái Backend | <http://localhost:8000/api/health> |
+| MQTT Broker (cho AI & ESP32) | `<IP-LAN-laptop>:1884` (trong mạng Docker là `mosquitto:1883`) |
+| PostgreSQL | `localhost:5433` (hoặc theo biến `POSTGRES_PORT` trong `.env`) |
+| Đồng bộ thời gian NTP LAN | `<IP-LAN-laptop>:123/UDP` |
 
-Những lần sau, nếu code không đổi, dùng `up -d` thay cho `up -d --build`. Kiểm tra lỗi bằng `docker compose --env-file .env -f deployment/docker-compose.yml logs --tail 80 backend`.
+> **Lưu ý quản lý dữ liệu:** Không dùng lệnh `docker compose down -v` khi khởi động lại bình thường để tránh xóa dữ liệu trong các Docker volume (`postgres_data`, `mqtt_data`, `video_data`, `firmware_data`).
 
-**Dữ liệu:** PostgreSQL, broker và video dùng volume riêng. Không dùng `down -v` để khởi động lại. `create.sql`/`insert.sql` chỉ tự chạy khi DB mới; không chạy lại chúng trên DB có dữ liệu. Compose áp dụng migration trước Backend. Xem [triển khai và backup](deployment/README.md).
+### 3.3. Tài khoản mẫu và đăng ký thiết bị
 
-### 3.3. Tài khoản và chuẩn bị thiết bị
+Khi khởi tạo DB lần đầu từ file dữ liệu mẫu (`database/insert.sql`), hệ thống tạo sẵn 3 tài khoản minh họa ứng với 3 vai trò: `lec` (Admin), `tranb` (Employee) và `nguyenan` (Customer) với mật khẩu mặc định `123456`.
 
-Với DB nhóm đang dùng, đăng nhập bằng tài khoản được cấp. **Chỉ với DB vừa khởi tạo từ seed**, có tài khoản minh họa `lec` (Admin), `tranb` (Employee), `nguyenan` (Customer), mật khẩu mẫu `123456`. Đổi mật khẩu trước khi dùng chung; seed không chứng minh thiết bị đang kết nối.
+Quy trình đưa thiết bị mới vào vận hành trên giao diện Admin:
+1. Mở **Thiết bị → Đăng ký thiết bị**, chọn đúng phân loại (`VISION_NODE` cho Camera AI hoặc `ALERT_NODE` cho mạch ESP32).
+2. Vào trang chi tiết thiết bị, chọn **Cấp thông tin kết nối** để nhận tài khoản/mật khẩu MQTT riêng, sau đó bấm **Kích hoạt** (`ACTIVE`).
+3. Vào trang **Quản trị → Người dùng** để gán thiết bị cho tài khoản `Employee` và `Customer` cần phân quyền.
 
-Trong React, Admin mở **Thiết bị → Đăng ký thiết bị → Xem chi tiết → Cấp thông tin kết nối**, lưu credential riêng rồi **Kích hoạt**. Admin gán thiết bị cho tài khoản demo tại phần quản lý người dùng. Nếu node đã có credential, dùng đúng credential đã cấp, không provision lại tùy tiện.
+### 3.4. Cài đặt và chạy Edge AI (Vision Node)
 
-Với DB mới, nên tạo mã riêng như `vision-demo` và `alert-demo`, tránh dùng nhầm node seed. Cập nhật mã tương ứng trong `.env` của AI và `include/config.h` của ESP32. Gán **cùng thiết bị thử** cho Employee/Customer để so sánh quyền.
-
-### 3.4. Chạy Edge AI
-
-Trên laptop đã chuẩn bị, dùng đúng một lệnh:
-
-```powershell
-./edge-ai/run-multisignal-v2.ps1 -Demo
-```
-
-Nhìn thẳng 5 giây đầu để lấy mốc góc, sau đó thử nhắm mắt, ngáp, quay đầu và cúi vừa phải; bấm Q để thoát. `-Demo` mở camera/loa, ghi clip, upload và gửi MQTT, có thể điều khiển ESP32 theo binding đang bật.
-
-Kiểm tra bundle/profile mà không mở camera hoặc kết nối mạng:
-
-```powershell
-./edge-ai/run-multisignal-v2.ps1 -Demo -Check
-```
-
-**Khi cài trên máy khác:** Git không chứa trọng số, dataset, video hoặc profile cá nhân. Nhận bundle v2 tin cậy và profile đúng người/camera riêng; không copy profile người khác làm hiệu chuẩn của mình. Cài môi trường:
+Cài đặt môi trường ảo Python cho `edge-ai` (chỉ cần chạy lần đầu):
 
 ```powershell
 if (!(Test-Path edge-ai/.venv/Scripts/python.exe)) { python -m venv edge-ai/.venv }
@@ -151,104 +121,83 @@ if (!(Test-Path edge-ai/.venv/Scripts/python.exe)) { python -m venv edge-ai/.ven
 ./edge-ai/.venv/Scripts/python.exe -m pip install -r edge-ai/requirements-multisignal.txt --index-url https://download.pytorch.org/whl/cpu
 ```
 
-`-BundlePath`, `-CalibrationPath`, `-ProfileId`, `-Condition` và `-Camera` chọn artifact/setup khác. Thiếu artifact/profile thì launcher dừng với lỗi rõ ràng, không tự đổi model hoặc tắt nhánh mắt. [Hiệu chuẩn nhìn thẳng](docs/eye-guard-calibration.md) chỉ cần khi đổi người/kính/camera/setup; không còn bước hiệu chuẩn mắt lúc cúi.
+**Chuẩn bị gói trọng số mô hình và hồ sơ hiệu chuẩn (bắt buộc khi chạy trên máy mới):**
+Do thư mục `edge-ai/ml-runs/` nằm trong `.gitignore`, khi cài đặt trên một máy tính mới sau khi `git clone`, cần chuẩn bị đủ 2 thành phần trước khi khởi chạy:
+1. **Gói mô hình v2 (`regions.pt`, `fusion.joblib`, `manifest.json`):** Tải ZIP và file `.sha256` từ [Release v1.0.0](https://github.com/toanhy189/Driver-Monitoring-AIoT-Platform/releases/tag/v1.0.0), đối chiếu SHA-256 rồi giải nén vào đường dẫn mặc định `edge-ai/ml-runs/multisignal-v2-20261110/selected/` (hoặc lưu ở thư mục tùy chọn và truyền đường dẫn qua tham số `-BundlePath`).
+2. **Hồ sơ hiệu chuẩn mắt (`Calibration Profile`):**
+   - Nếu chạy ở chế độ **không đeo kính**, có thể dùng ngay nhánh mặc định bằng cờ `-Condition no-glasses`.
+   - Nếu chạy ở chế độ **có đeo kính** (`-Condition glasses`), cần đo hồ sơ riêng cho người và webcam của máy đó theo [docs/eye-guard-calibration.md](docs/eye-guard-calibration.md), sau đó truyền đường dẫn `report.json` qua `-CalibrationPath` cùng `-ProfileId` tương ứng.
 
-**Kiểm tra riêng trên máy:** `./edge-ai/run-multisignal-v2.ps1 -EyeTrial` thử mắt; `-HeadTrial` thử tư thế. Hai chế độ này lưu clip/log riêng, không gửi MQTT/HTTP hay điều khiển ESP32. Cùng condition kính mặc định, cả thử riêng và demo dùng cùng profile kính đã kiểm tra cùng quy tắc cúi đầu. Baseline chỉ dùng khi cần đối chiếu qua `main.py`; không dùng lẫn với lệnh demo v2.
-
-Clip pending và queue ở `edge-ai/recordings/`, `edge-ai/data/`; clip đã upload nằm trong volume video của Backend. Upload dùng credential MQTT của chính Vision Node qua HTTP Basic, khác tài khoản đăng nhập web. Edge chỉ dọn clip sau phản hồi upload hợp lệ.
-
-**Xem clip:** mở **Cảnh báo → Xem video**, hoặc chọn sự kiện có clip liên kết trong tab **Diễn biến** của Vision Node. Một sự kiện có thể không có clip khi chưa ghi xong/chưa upload; giao diện hiển thị tình trạng thực tế. Backend tạo bản xem H.264 và giữ nút tải gốc. Xem [hợp đồng video](docs/ai-ingest-video-contract.md).
-
-**Admin:** mục **Giám sát AI** mở số đo/trạng thái; tại chi tiết Vision Node, **Cảnh báo tự động** chọn Alert Node rồi lưu để bật liên kết. `RULE_ENGINE_ENABLED=true`, Vision/Alert Node hoạt động và event mới hợp lệ là điều kiện gửi tải. Employee/Customer xem trong phạm vi thiết bị được gán.
-
-### 3.5. Chuẩn bị ESP32
-
-1. Kiểm tra nguồn, mạch driver/diode và GND theo [tài liệu phần cứng](hardware/README.md).
-2. Copy `firmware/esp32-alert-node/include/network_config.example.h` thành `network_config.h`; điền Wi-Fi 2,4 GHz, IP LAN laptop, cổng **1884** và credential MQTT của đúng Alert Node.
-3. Kiểm tra `DEVICE_CODE` trong `include/config.h` khớp mã đã đăng ký. Laptop và ESP32 cùng mạng LAN.
-4. Build trước; chỉ upload sau khi người phụ trách xác nhận mạch:
+Kiểm tra nhanh cấu hình mô hình và chạy phiên giám sát trực tiếp:
 
 ```powershell
-$taskPio = "$env:USERPROFILE\.platformio\penv\Scripts\pio.exe"
-& $taskPio device list
-& $taskPio run -d firmware/esp32-alert-node -e development
-# COM7 chỉ là ví dụ; chọn USB-SERIAL CH340/USB-Serial hiện có, không chọn Bluetooth.
-$taskPort = 'COM7'
-# Sau khi kiểm tra mạch, ngắt nguồn tải và đóng Monitor trước khi upload:
-& $taskPio run -d firmware/esp32-alert-node -e development -t upload --upload-port $taskPort
-& $taskPio device monitor -d firmware/esp32-alert-node --port $taskPort --baud 115200
+# Kiểm tra gói mô hình và file hiệu chuẩn (không mở camera)
+./edge-ai/run-multisignal-v2.ps1 -Demo -Condition glasses -Check
+
+# Khởi chạy chính thức camera, suy luận AI, gửi MQTT và tải video sự kiện
+./edge-ai/run-multisignal-v2.ps1 -Demo -Condition glasses
 ```
 
-Đoạn trên dùng PlatformIO cài qua VS Code trên Windows; nếu đã có `pio` trong PATH thì có thể dùng `pio` thay `& $taskPio`. Cổng COM có thể đổi khi đổi cáp/cổng USB; đổi cáp không đổi firmware. Mô tả [đấu motor và tháo LED thử](hardware/README.md) đã cập nhật GND tại A5, thông số motor 5 V do người dùng cung cấp và cách bỏ dây cầu chéo nguồn; chưa coi mạch đã nghiệm thu đầy đủ.
+Khi cửa sổ camera mở lên, **nhìn thẳng và giữ đầu ổn định trong 5 giây đầu** để hệ thống lấy mốc góc tư thế chuẩn; nhấn phím `Q` khi muốn kết thúc phiên. Nếu thay đổi người thử, góc đặt webcam hoặc điều kiện đeo kính, xem hướng dẫn đo lại profile tại [docs/eye-guard-calibration.md](docs/eye-guard-calibration.md).
 
-Firmware lấy giờ LAN từ máy chạy broker trước khi dùng nguồn Internet dự phòng. Kiểm tra dịch vụ bằng `python deployment/time/check_ntp.py`; probe trên laptop chưa thay kiểm tra giờ trên ESP32. Không flash hoặc bật tải chỉ vì build thành công.
+### 3.5. Cấu hình và nạp chương trình cho ESP32 (Alert Node)
 
-## 4. Demo theo mục 8.4 của đề bài
+1. Đấu nối phần cứng theo sơ đồ tại [hardware/README.md](hardware/README.md) (LED tại `GPIO26`, Còi tại `GPIO25`, Motor rung 5 V qua mạch đệm transistor và diode dập xung tại `GPIO33`, chung đường `GND` với ESP32).
+2. Sao chép `firmware/esp32-alert-node/include/network_config.example.h` thành `network_config.h`, điền thông tin Wi-Fi 2.4 GHz, địa chỉ IP LAN của máy chạy broker (cổng `1884`) và tài khoản MQTT đã cấp cho thiết bị.
+3. Kiểm tra hằng số `DEVICE_CODE` trong `include/config.h` trùng khớp với mã thiết bị trên Web, sau đó biên dịch và nạp firmware:
 
-Chuẩn bị trước: ba tài khoản, node camera/ESP32 đúng credential và assignment, firmware đã nghiệm thu mạch, camera/loa hoạt động, đồng hồ đúng. Mở sẵn React, Swagger và Serial. Dành **5–7 phút demo**, ưu tiên quan sát tải thật và ACK.
+```powershell
+$pio = "$env:USERPROFILE\.platformio\penv\Scripts\pio.exe"
+& $pio device list
+& $pio run -d firmware/esp32-alert-node -e development
 
-| Bước | Thao tác trình diễn | Dấu hiệu cần thấy |
+# Thay COM7 bằng cổng USB-Serial thực tế của mạch ESP32 trên máy
+$port = "COM7"
+& $pio run -d firmware/esp32-alert-node -e development -t upload --upload-port $port
+& $pio device monitor -d firmware/esp32-alert-node --port $port --baud 115200
+```
+
+---
+
+## 4. Kịch bản Demo tổng thể (10 bước nghiệm thu)
+
+Trước khi bắt đầu luồng cảnh báo tự động ở Bước 8, đảm bảo `RULE_ENGINE_ENABLED=true` trong `.env` (nếu vừa sửa `.env`, chạy `docker compose --env-file .env -f deployment/docker-compose.yml up -d --force-recreate backend`), đồng thời bật liên kết Camera → ESP32 trong mục **Cảnh báo tự động** ở trang chi tiết Vision Node.
+
+| Bước | Nội dung thực hiện | Kết quả quan sát |
 |---|---|---|
-| **1. Đăng nhập các vai trò** | Dùng ba cửa sổ/profile riêng cho Admin, Employee, Customer | Admin có quản lý người dùng; Employee có lệnh/config trên node được gán; Customer chỉ xem |
-| **2. Đăng ký hoặc kích hoạt** | Admin đăng ký node thử, cấp kết nối và kích hoạt; chuẩn bị credential trước nếu cần nạp board | REGISTERED → PROVISIONED → ACTIVE; ONLINE chỉ xuất hiện khi node thực sự kết nối |
-| **3. Thiết bị gửi dữ liệu** | Chạy AI; quan sát Serial heartbeat ESP32 | AI gửi EAR/PERCLOS/trạng thái; ESP32 gửi heartbeat, phiên bản |
-| **4. Dashboard realtime** | Chọn đúng Vision Node, nhìn thẳng rồi quay đầu vừa phải | Số đo/trạng thái và biểu đồ thay đổi; không dùng dữ liệu seed làm dữ liệu sống |
-| **5. Điều khiển và phản hồi** | Employee/Admin mở chi tiết Alert Node → thử cảnh báo | Tải thật chạy; lịch sử có request_id và ACK. TEST_ALERT chỉ hoàn tất khi đủ ba ACK COMPLETED |
-| **6. Đổi cấu hình** | Mở cấu hình Alert Node, thay một timing hợp lệ và lưu | Desired đổi trước; chỉ báo áp dụng khi ESP32 gửi APPLIED đúng config_id/revision |
-| **7. Phát hiện offline** | Ngắt nguồn ESP32 hoặc Wi-Fi node, giữ Backend/broker chạy | ONLINE → OFFLINE; nếu không có LWT, chờ quá ngưỡng heartbeat khoảng 60 giây cộng chu kỳ quét. Sau đó nối lại |
-| **8. Kích hoạt cảnh báo** | Dùng bản AI vừa kiểm tra, nhắm mắt mô phỏng tại bàn hoặc quay đầu vừa phải | Trạng thái nguy cơ, local audio, alert/command đúng node và tải thật; xem điều kiện Rule Engine bên dưới |
-| **9. Thao tác trái quyền** | Customer gọi API gửi lệnh bằng chính JWT Customer trong Swagger, trên node đã gán | HTTP 403; không dùng JWT Admin cho bước này. UI cũng ẩn nút gửi lệnh |
-| **10. Thu hồi thiết bị** | Admin decommission node thử và thử reconnect bằng credential cũ | Không được kết nối lại; lịch sử vẫn còn. Thực hiện cuối, vì node đó không dùng tiếp cho demo |
+| **1. Đăng nhập theo vai trò** | Mở 3 phiên trình duyệt đăng nhập `Admin`, `Employee`, `Customer` | Giao diện và chức năng hiển thị đúng phạm vi quyền của từng vai trò |
+| **2. Đăng ký / Kích hoạt thiết bị** | Admin đăng ký hoặc kích hoạt thiết bị trên trang chi tiết | Vòng đời chuyển sang `ACTIVE`, trạng thái kết nối báo `ONLINE` khi có heartbeat |
+| **3. Thiết bị gửi dữ liệu cảm biến** | Chạy tiến trình Edge AI với webcam thực tế | Số đo `EAR`, `PERCLOS`, `MAR`, góc đầu và `model_version` gửi liên tục về Backend |
+| **4. Dashboard thời gian thực** | Mở trang **Giám sát AI / Tổng quan**, chọn `vision-01` | Trạng thái tài xế, thẻ chỉ số và biểu đồ cập nhật trực tiếp qua WebSocket |
+| **5. Gửi lệnh điều khiển & nhận ACK** | Mở chi tiết `alert-01` → bấm **Kiểm tra cảnh báo** | LED, Còi, Motor rung hoạt động thực tế; lịch sử lệnh cập nhật `COMPLETED` kèm độ trễ |
+| **6. Thay đổi cấu hình từ xa** | Mở **Cấu hình cảnh báo**, đổi thông số bật/tắt (ms) và lưu | Cấu hình mong muốn (`desired`) được gửi xuống ESP32, lưu NVS và báo `APPLIED` |
+| **7. Phát hiện thiết bị Offline** | Ngắt nguồn hoặc kết nối mạng của ESP32 rồi cấp nguồn lại | Trạng thái chuyển sang `OFFLINE` (qua LWT/heartbeat timeout) và tự `ONLINE` lại khi khôi phục |
+| **8. Sinh và xử lý cảnh báo tự động** | Nhắm mắt hoặc quay/cúi đầu trước camera vượt ngưỡng thời gian | Sinh cảnh báo, kích hoạt tải trên ESP32 theo mức, tải clip sự kiện và bấm **Đánh dấu đã xem** |
+| **9. Kiểm thử chặn thao tác trái quyền** | Dùng JWT của `Customer` gọi API `POST /api/devices/{id}/commands` trên Swagger | Backend từ chối với mã `HTTP 403 Forbidden`, không phát sinh lệnh xuống thiết bị |
+| **10. Ngừng sử dụng thiết bị** | Admin bấm **Ngừng sử dụng** (`Decommission`) thiết bị ở cuối buổi demo | Trạng thái chuyển sang `DECOMMISSIONED`, thu hồi quyền MQTT, chặn kết nối lại nhưng giữ lịch sử |
 
-### Bật cảnh báo tự động cho bước 8
+> Với chức năng nâng cao **OTA**, thực hiện trước Bước 10 tại menu **Firmware / OTA** trên tài khoản Admin theo hướng dẫn chi tiết ở [docs/firmware-ota.md](docs/firmware-ota.md).
 
-Chỉ bật sau khi xác nhận mạch. Đặt `RULE_ENGINE_ENABLED=true` trong `.env`, recreate Backend để nhận biến mới:
+---
 
-```powershell
-docker compose --env-file .env -f deployment/docker-compose.yml up -d --force-recreate backend
-```
-
-Trên web, đăng nhập **Admin → Thiết bị → chi tiết Vision Node → Cảnh báo tự động**:
-
-1. Chọn đúng Alert Node, bấm **Lưu thiết lập**. Liên kết mới được lưu ở trạng thái tắt.
-2. Bấm **Mở … để kiểm tra / xem lệnh** để đến đúng ESP32. Chủ động dùng **Kiểm tra cảnh báo** sau khi mạch sẵn sàng; quan sát tải và phản hồi lệnh.
-3. Quay lại Vision Node, bật **Bật cảnh báo tự động**, rồi **Lưu thiết lập**.
-4. Đọc trạng thái đã lưu và các lý do bị chặn. `effective_enabled=true` chỉ có nghĩa là hai công tắc đã bật; dữ liệu AI mới, ESP32 ACTIVE/ONLINE, đồng hồ board và điều kiện từng lệnh vẫn được kiểm tra riêng.
-
-Form tự tải lại trạng thái mỗi 5 giây, giữ phần đang sửa. Nếu người khác đã sửa liên kết, yêu cầu tải lại trước khi lưu tiếp. Mỗi camera có một thiết bị nhận; một ESP32 chỉ nhận liên kết tự động đang bật từ một camera. Đổi thiết bị nhận sẽ lưu ở trạng thái tắt và hủy phần lệnh tự động cũ chưa gửi. Phần đã gửi có thể chạy hết thời lượng; kiểm tra ACK/lịch sử trước khi bật lại. Hết thời gian chờ ACK không chứng minh motor đã dừng.
-
-Policy `driver-bench-20261107-v1` hiển thị để xem, không chỉnh ngưỡng trên form. Event live mới, đúng phiên và còn hạn mới được phát lệnh; dữ liệu gửi bù chỉ lưu lịch sử. Rule Engine toàn hệ thống vẫn cấu hình tại `.env`, không được đổi bằng công tắc của từng camera.
-
-API Admin vẫn có `GET/PUT /api/devices/{VISION_ID}/rule`. Khi dùng trực tiếp, đọc GET trước và gửi `expected_updated_at` đúng giá trị `updated_at` nhận được (null nếu chưa có liên kết), cùng `target_device_id`, `enabled` và `policy: {"policy_version":"driver-bench-20261107-v1"}`. Client cũ chưa gửi trường này vẫn được hỗ trợ; form web luôn kiểm tra phiên bản trước khi lưu. Không đổi ngưỡng để ép demo đạt.
-
-Cho bước 9, dùng `POST /api/devices/{ALERT_ID}/commands` với JWT Customer:
-
-```json
-{"action":"TEST_ALERT","buzzer_ms":1000,"vibration_ms":1000,"led_mode":"FLASH"}
-```
-
-Nếu cần chứng minh thu hồi bằng phần cứng, dùng chính ESP32 demo ở bước 10 và đặt bước này cuối cùng. Không decommission node đang cần dùng cho các bước tiếp theo. Chi tiết cách ghi minh chứng: [kịch bản nghiệm thu](tests/final-acceptance.md).
-
-**AI phải demo trực tiếp:** nhìn thẳng → nhắm mắt mô phỏng → mở lại → quay đầu vừa phải; nêu rõ điều kiện không kính đã thử và giới hạn kính. Có thể bổ sung mất BE/broker và gửi bù, nhưng không thay mười bước bắt buộc. Video dự phòng hỗ trợ khi có sự cố, không thay toàn bộ demo trực tiếp.
-
-## 5. Kiểm thử và tài liệu
+## 5. Chạy bộ kiểm thử tự động & Tài liệu thiết kế
 
 ```powershell
+# Kiểm thử Backend (Unit test & Integration test trên container tạm)
 python -m pip install -r backend/requirements-test.txt
 python -X utf8 -m unittest discover -s backend/tests -v
 python -X utf8 backend/tests/run_week4_isolated.py --regression
+
+# Kiểm thử Edge AI
 ./edge-ai/.venv/Scripts/python.exe -X utf8 -m unittest discover -s edge-ai/tests -v
+
+# Kiểm thử và kiểm tra gói build Frontend
 npm --prefix frontend ci
 node --test frontend/tests/*.test.mjs
 npm --prefix frontend run build
 ```
 
-Runner tích hợp dùng DB/broker tạm, không dùng tải ESP32 thật. GitHub Actions kiểm tra Backend, AI, frontend, firmware và Docker; deployment vào laptop qua Compose, chưa có tự động CD.
-
-- [Backend và API](backend/README.md) · [Frontend](frontend/README.md) · [Edge AI](edge-ai/README.md)
-- [Firmware](firmware/esp32-alert-node/README.md) · [Phần cứng](hardware/README.md)
-- [Docker, backup, migration](deployment/README.md) · [HTTPS/monitoring](docs/final-runbook.md)
-- [Kiến trúc/bảo mật](docs/final-architecture-security.md) · [Model/dữ liệu/giới hạn](docs/final-ai-model.md)
-- [Kết quả kiểm thử cuối](docs/final-verification.md) · [Đối chiếu đề bài](docs/final-project-acceptance.md)
-
-Nhóm cần hoàn tất nghiệm thu tải vật lý, đánh giá kính/ánh sáng/người mới, ảnh mạch, báo cáo/slide và rehearsal trước khi chốt release.
+### Danh mục tài liệu chi tiết
+- **Thành phần hệ thống:** [Backend](backend/README.md) · [Frontend](frontend/README.md) · [Edge AI](edge-ai/README.md) · [Firmware ESP32](firmware/esp32-alert-node/README.md) · [Phần cứng & Sơ đồ đấu dây](hardware/README.md) · [Triển khai Docker](deployment/README.md)
+- **Kiến trúc & Giao thức:** [Kiến trúc tổng thể & Bảo mật](docs/final-architecture-security.md) · [Hợp đồng API FE–BE](docs/week2-fe-be-contract.md) · [Giao thức MQTT AI & Video](docs/ai-ingest-video-contract.md) · [Phân quyền & Thống kê số đo](docs/roles-and-device-metrics.md) · [Đăng ký & Ngừng sử dụng thiết bị](docs/device-registration-and-retirement.md)
+- **Chức năng nâng cao & Nghiệm thu:** [Thiết kế luồng AI v2](docs/luong-xu-ly-ai-v2.md) · [Hiệu chuẩn mắt đeo kính](docs/eye-guard-calibration.md) · [Theo dõi hướng đầu & Cúi đầu](docs/head-motion-v1.md) · [Cập nhật Firmware OTA](docs/firmware-ota.md) · [Kịch bản nghiệm thu](tests/final-acceptance.md)

@@ -1,166 +1,100 @@
-# Phần cứng Alert Node
+# Thiết kế phần cứng — ESP32 Alert Node
 
-Tài liệu mô tả GPIO, đường nguồn và vị trí đấu dây của mạch nhóm. Vị trí
-breadboard là vị trí tham chiếu, không phải sơ đồ chân chung cho mọi transistor.
+Tài liệu này mô tả danh sách linh kiện, phân bổ chân GPIO, nguyên lý cấp nguồn và sơ đồ đấu nối trên breadboard cho mạch cảnh báo **ESP32 Alert Node**.
 
-## 1. Board, linh kiện và GPIO
+---
 
-| Thành phần | GPIO / thông số | Cách dùng |
+## 1. Danh mục linh kiện và phân bổ chân GPIO
+
+| Linh kiện | Chân ESP32 / Thông số | Vai trò và cách kết nối |
 |---|---|---|
-| ESP32 | PlatformIO `esp32doit-devkit-v1`; firmware demo `development` | Cấp board qua USB; đọc tên chân in trên board, không đếm chân vật lý từ tên GPIO |
-| LED cảnh báo | GPIO26 | Nối tiếp điện trở 330 Ω; khác LED thử GPIO33 bên dưới |
-| Còi active | GPIO25 | Qua transistor và điện trở base khoảng 1 kΩ; điện áp định mức còi cần đối chiếu linh kiện |
-| Motor rung | GPIO33; **5 V theo thông số người dùng cung cấp** | Qua transistor, điện trở base và diode; nguồn thực tế/dòng khởi động chưa được đo |
-| Transistor motor | Chữ trên thân: **`2N2222 / A331`** | Chưa xác nhận nhà sản xuất và pinout E/B/C bằng datasheet đúng linh kiện hoặc phép đo |
-| Nút nhấn | GPIO27 | `INPUT_PULLUP`; nhấn nối GPIO27 xuống GND |
-| Serial | 115200 baud | Chọn USB–Serial hiện có bằng `pio device list`; số COM có thể đổi |
+| **Vi điều khiển** | `ESP32 DOIT DevKit V1` | Kết nối Wi-Fi 2.4 GHz, nhận lệnh MQTT và điều khiển các cơ cấu chấp hành; giao tiếp Serial `115200 baud` |
+| **Đèn LED cảnh báo** | `GPIO26` (`D26`) | Mắc nối tiếp qua điện trở hạn dòng `330 Ω` xuống `GND` |
+| **Còi báo động (Active Buzzer)** | `GPIO25` (`D25`) | Điều khiển đóng/ngắt mức thấp (low-side switch) qua transistor NPN và điện trở cực Base `~1 kΩ` |
+| **Motor rung DC (5 V)** | `GPIO33` (`D33`) | Điều khiển qua transistor NPN (`2N2222`), điện trở cực Base `~1 kΩ` và diode dập xung ngược `1N4007` |
+| **Nút nhấn kiểm tra** | `GPIO27` (`D27`) | Cấu hình `INPUT_PULLUP` nội; một chân nối `GPIO27`, chân còn lại nối xuống `GND` |
 
-Người dùng đã quan sát LED/còi hoạt động theo lệnh. Không suy điện áp tải từ tên
-GPIO. Cần bổ sung ảnh board và nguồn thực tế trước khi chốt sơ đồ phần cứng.
+---
 
-## 2. Nguồn và thanh nguồn breadboard
+## 2. Nguyên tắc cấp nguồn và đấu nối trên Breadboard
 
-- Các lỗ **A–E cùng số hàng** nối điện với nhau; **F–J cùng số hàng** là nhóm
-  khác, tách khỏi A–E qua rãnh giữa.
-- Hai bên thanh nguồn thường không nối sẵn. Một số breadboard ngắt thanh nguồn
-  ở giữa; cùng dấu/cùng bên chưa chứng minh đã thông điện.
-- Quy ước **“+” là nguồn dương**, **“−” là GND**. Dấu in không tự tạo điện áp;
-  phải lần dây cấp vào từng thanh.
-- GND ESP32, emitter driver motor và cực âm nguồn motor phải có đường nối chung.
-- Khi chia **cùng một nguồn**, nối cầu **+ với +, − với −**. Không nối chung
-  các thanh dương của những nguồn khác nhau.
-- **Tháo dây cầu nối thanh có VIN sang thanh có GND**, kể cả khi hai thanh nằm
-  khác phía. Đường nối đó làm nối tắt nguồn, không phải cách chia nguồn.
-- Motor dùng nguồn **5 V ổn định, đủ dòng theo tải**. Phương án dưới đây dùng
-  nguồn motor riêng, cực âm nối GND chung. Không nối cực dương nguồn riêng vào
-  VIN/3V3 hoặc thanh dương đang được ESP32 cấp. Chưa đo dòng/khả năng cấp tải
-  để chốt dùng VIN làm nguồn motor; không cấp motor 5 V từ 3V3.
+- **Cấu trúc hàng lỗ Breadboard:** Trên mỗi hàng ngang, 5 lỗ **A–E** thông nhau thành một nút điện; 5 lỗ **F–J** bên đối diện là nút điện riêng biệt, ngăn cách qua rãnh giữa.
+- **Thanh nguồn dọc (`+` / `−`):** Hai dải nguồn hai bên mép breadboard không tự thông nhau; một số loại breadboard còn ngắt đôi thanh nguồn ở vạch giữa nên cần kiểm tra thông mạch hoặc nối dây cầu cùng cực (`+` với `+`, `−` với `−`) khi chia nguồn.
+- **Nguyên tắc chung Mass (`GND`):** Chân `GND` của ESP32, chân `Emitter (E)` của các transistor điều khiển và cực âm (`−`) của nguồn cấp ngoài cho motor **bắt buộc phải nối chung một đường `GND`**.
+- **Tách nguồn công suất cho Motor 5 V:** Không cấp trực tiếp nguồn của motor rung từ chân `3V3` hoặc chân GPIO của ESP32 để tránh quá dòng hoặc sụt áp khởi động (`Brownout`). Nguồn dương `+5 V` cấp riêng cho nhánh motor, chỉ nối chung cực âm `GND`.
+- **An toàn thao tác:** Luôn ngắt cáp USB và nguồn ngoài trước khi cắm rút dây hoặc thay đổi linh kiện trên breadboard.
 
-Nguồn 5 V riêng là phương án cấp nguồn tham chiếu; chưa có xác nhận người dùng
-đã lắp nguồn riêng trên mạch hiện tại. Thông số định mức 5 V không thay cho việc
-kiểm tra nguồn đang cấp thực tế.
+---
 
-**Rút USB và ngắt nguồn ngoài trước khi chỉnh dây.** Nếu báo brownout hoặc đèn
-nguồn tắt, tách tải và kiểm tra nguồn trước, không tiếp tục gửi lệnh tải.
+## 3. Sơ đồ khối, sơ đồ đấu nối và vị trí cắm nhánh Motor rung
 
-## 3. Nhánh motor và đường GND đã chỉnh
+### Sơ đồ khối phần cứng
+
+![Sơ đồ khối phần cứng ESP32 Alert Node](esp32-block-diagram.png)
+
+### Sơ đồ đấu nối trên Breadboard 30 hàng (minh họa)
+
+![Sơ đồ đấu nối mạch ESP32 Alert Node trên Breadboard 30 hàng](esp32-breadboard-wiring.jpg)
+
+> *Ghi chú: Hình trên là sơ đồ đấu nối minh họa nguyên lý và phân bổ chân GPIO (`GPIO25`, `GPIO26`, `GPIO27`, `GPIO33`) trên Breadboard 30 hàng; khi lắp mạch vật lý thực tế cần đối chiếu đúng thứ tự chân `E–B–C` theo vỏ transistor và đảm bảo đường `GND` chung.*
+
+### Sơ đồ nguyên lý nhánh Motor rung
 
 ```mermaid
 flowchart LR
-  P["Nguồn motor +5 V"] --> M["Motor rung"]
-  M --> C["Collector transistor"]
-  C --> E["Emitter transistor"]
-  E --> G["GND chung"]
-  N["Cực âm nguồn motor"] --> G
-  EG["GND ESP32"] --> G
-  IO["GPIO33"] --> R["Điện trở base khoảng 1 kΩ"]
-  R --> B["Base transistor"]
+  P["Nguồn dương +5 V"] --> M["Motor rung DC"]
+  M --> C["Chân Collector (C)"]
+  C --> E["Chân Emitter (E)"]
+  E --> G["Đường GND chung"]
+  N["Cực âm nguồn 5 V"] --> G
+  EG["GND của ESP32"] --> G
+  IO["Chân GPIO33"] --> R["Điện trở Base ~1 kΩ"]
+  R --> B["Chân Base (B)"]
 ```
 
-Diode 1N4007 mắc song song motor: **đầu có vạch bạc về dương motor**, đầu không
-vạch về âm motor/collector. Sơ đồ chức năng không thay việc xác nhận đúng chân
-transistor và nguồn trên mạch thực.
+- **Diode chống xung ngược (`1N4007`):** Mắc song song ngược chiều với hai đầu motor — **đầu có vạch bạc (Cathode) nối vào cực dương `+5 V` của motor**, đầu không vạch (Anode) nối vào cực âm của motor (tại chân `Collector` của transistor) để triệt tiêu suất điện động cảm ứng khi motor ngắt.
 
-| Đường nối | Vị trí trên nửa A–E |
+### Bảng vị trí cắm tham chiếu trên Breadboard 30 hàng (nửa A–E)
+
+| Nhánh mạch | Vị trí lỗ cắm tham chiếu |
 |---|---|
-| Điều khiển | **GPIO33/D33 → A10** |
-| Điện trở base cũ | Ba điện trở **330 Ω nối tiếp**: **B10–B9, E9–E8, D8–D6**, tổng khoảng 990 Ω |
-| Phương án thay cả chuỗi | Một điện trở **1 kΩ tại A10–A6**; không dùng đồng thời hai phương án |
-| Transistor | Ba chân cắm **C5/C6/C7**; mạch yêu cầu **C5 = E, C6 = B, C7 = C**, phải xác nhận đúng pinout linh kiện |
-| GND hàng transistor | **GND ESP32 → A5** trong lượt chỉnh; **D5 → thanh GND** là vị trí cũ tương đương nếu cùng đường GND thật |
-| Motor | Dây đỏ → **C12**; dây đen → **B7**; lần theo màu dây sát motor, không suy cực từ màu jumper nối thêm |
-| Diode | Đầu có vạch bạc → **D12**; đầu không vạch → **D7** |
-| Nguồn motor | Nguồn motor +5 V → **A12**; cực âm nguồn → **GND chung** |
+| **Tín hiệu điều khiển** | Chân `D33` (`GPIO33`) của ESP32 → lỗ **A10** |
+| **Điện trở hạn dòng cực Base** | Điện trở `1 kΩ` nối từ **A10 → A6** *(hoặc cụm 3 điện trở `330 Ω` mắc nối tiếp `B10–B9`, `E9–E8`, `D8–D6` tương đương `~990 Ω`)* |
+| **Transistor NPN (`2N2222`)** | Cắm tại 3 hàng **C5 / C6 / C7** ứng với thứ tự chân **C5 = Emitter (E)**, **C6 = Base (B)**, **C7 = Collector (C)** *(cần kiểm tra đúng sơ đồ chân E–B–C theo vỏ linh kiện thực tế)* |
+| **Đường GND chung** | Chân `GND` của ESP32 → lỗ **A5** (cùng hàng với Emitter `C5`) và nối chung với cực âm nguồn motor |
+| **Motor rung DC** | Dây dương (đỏ) → lỗ **C12**; dây âm (đen) → lỗ **B7** (cùng hàng với Collector `C7`) |
+| **Diode dập xung `1N4007`** | Đầu có vạch bạc → lỗ **D12** (hàng dương motor); đầu không vạch → lỗ **D7** (hàng âm motor / Collector) |
+| **Nguồn cấp Motor** | Cực dương `+5 V` → lỗ **A12**; cực âm `−` → nối vào đường **GND chung** |
 
-A5/C5/D5 cùng nhóm điện. Chuyển GND tới A5 không có nghĩa D5 vốn là vị trí sai.
-Bảng ghi **chức năng cần có** tại mỗi hàng, chưa xác nhận thứ tự chân của
-transistor đã mua. **Không mặc định chữ `2N2222 A331` tương đương thứ tự E–B–C**;
-đối chiếu datasheet từ nhà cung cấp hoặc đo/test transistor trước khi chốt mạch.
+> **Lưu ý tránh đấu tắt qua transistor:** Không nối trực tiếp hàng `7` (Collector) xuống hàng `5` (GND) và không cắm dây âm của motor sang hàng `5`, vì làm vậy dòng điện sẽ đi thẳng về mass khiến motor quay liên tục ngay khi cấp nguồn mà không phụ thuộc lệnh từ `GPIO33`.
 
-**Không giữ dây thử E7–E5; không chuyển âm motor từ B7 sang B5.** Các đường nối
-đó bỏ qua transistor, có thể làm motor rung liên tục ngoài lệnh.
+---
 
-## 4. LED thử và cách tháo sau kiểm tra
+## 4. Quy trình kiểm tra độc lập từng tầng mạch
 
-Hai bài này dùng LED rời với điện trở hạn dòng, **motor ngắt nguồn**: rút đầu
-nối dây đỏ motor, ngắt nguồn A12, để đầu dây rời không chạm nhau. Chỉ dùng vùng
-A–E hàng 20–23 nếu đang trống. Giữ nguyên LED cảnh báo GPIO26 và nhánh còi GPIO25.
+Khi cần kiểm tra nhanh phần cứng trên breadboard trước khi chạy tải công suất, có thể tách kiểm tra theo 2 bước:
 
-### 4.1. Kiểm tra riêng GPIO33
+1. **Kiểm tra tín hiệu xuất từ `GPIO33`:** Tạm ngắt nguồn nhánh motor, nối `GPIO33` qua điện trở `330 Ω` và một đèn LED đơn về `GND`, sau đó bấm **Kiểm tra cảnh báo** trên giao diện Web (thời lượng rung `3000 ms`). Nếu LED sáng đúng thời lượng rồi tự tắt nghĩa là vi điều khiển và luồng MQTT hoạt động tốt.
+2. **Kiểm tra khả năng đóng/ngắt của Transistor:** Giữ mạch cực Base (`GPIO33 → 1 kΩ → B`) và `Emitter → GND`, thay nhánh tải motor bằng `3V3 → 330 Ω → LED → Collector (hàng 7)`. Gửi lại lệnh kiểm tra trên Web: LED tắt khi nghỉ và chỉ sáng trong thời gian có lệnh chứng tỏ transistor đóng/cắt đúng cực tính. Sau bước này, ngắt điện, tháo LED thử và đấu lại nhánh motor 5 V cùng diode `1N4007`.
 
-Tách dây GPIO33 khỏi A10 rồi đấu:
+---
 
-| Thành phần | Vị trí |
+## 5. Bảng tra cứu xử lý sự cố thường gặp
+
+| Hiện tượng | Nguyên nhân phổ biến & Cách khắc phục |
 |---|---|
-| GPIO33 | **A20** |
-| Điện trở LED 330 Ω | **B20–B22** |
-| LED thử | Anode/chân dài chưa cắt → **C22**; cathode/chân ngắn → **C23** |
-| GND ESP32 | **A23** |
+| Motor quay liên tục ngay khi vừa cắm nguồn | Dây âm motor cắm nhầm thẳng vào hàng `GND` hoặc ngược thứ tự chân `E` và `C` của transistor; ngắt nguồn và kiểm tra lại hàng `5–7` |
+| Đèn nguồn ESP32 chớp tắt hoặc Serial báo `Brownout detector was triggered` | Sụt áp nguồn do chạm chập thanh `+` và `−` hoặc lấy nguồn motor trực tiếp từ đường yếu trên ESP32; kiểm tra lại dây cầu thanh nguồn và cấp nguồn 5 V đủ dòng cho motor |
+| Hệ thống báo `ONLINE` qua MQTT nhưng máy tính không thấy cổng `COM` | Cáp USB đang dùng chỉ có dây sạc hoặc lỏng tiếp xúc dữ liệu; đổi sang cáp USB hỗ trợ truyền data và kiểm tra bằng `pio device list` |
+| Lệnh trên Web báo `COMPLETED` nhưng còi/motor không kêu | `COMPLETED` xác nhận firmware đã chạy hết chu kỳ xuất chân GPIO; kiểm tra lại dây nguồn cấp cho tải, chân transistor và chiều diode |
 
-Đường điện: **GPIO33 → 330 Ω → LED → GND**. Giữ firmware `development`, đợi node
-ONLINE rồi gửi kiểm tra với thời lượng rung 3000 ms một lần trên web. Người
-dùng đã xác nhận LED thử nháy rồi tắt: GPIO33 có tín hiệu theo lệnh; chưa chứng
-minh nhánh transistor hoặc khả năng cấp dòng motor.
+---
 
-### 4.2. Kiểm tra nhánh transistor bằng LED
+## 6. Checklist kiểm tra trước buổi Demo
 
-Ngắt nguồn, giữ LED/điện trở B20–B22/C22–C23 và mạch transistor/điện trở base mục 3.
-Đổi dây so với bài 4.1:
+- [ ] Toàn bộ đường `GND` (ESP32, Emitter transistor, âm nguồn ngoài) đã nối chung chắc chắn.
+- [ ] Diode `1N4007` lắp đúng chiều vạch bạc quay về phía cực dương `+5 V` của motor.
+- [ ] Khi mới cấp nguồn (chưa gửi lệnh), cả LED, Còi và Motor đều ở trạng thái nghỉ hoàn toàn.
+- [ ] Gửi lệnh **Kiểm tra cảnh báo** từ Web: cả 3 cơ cấu chấp hành bật đúng nhịp, tự dừng khi hết thời lượng và không làm ESP32 bị khởi động lại.
 
-| Đường nối | Thay đổi |
-|---|---|
-| GPIO33 | Chuyển từ A20 về **A10** |
-| GND ESP32 | Chuyển từ A23 tới **A5** |
-| Nguồn LED thử | Thêm **3V3 ESP32 → A20** |
-| Âm LED thử tới transistor | Thêm **A23 → A7** |
-
-**3V3 là nguồn 3,3 V, khác GPIO33/D33.** Phải chuyển GPIO33 khỏi A20 trước khi
-thêm dây 3V3; không dùng VIN thay 3V3 trong bài thử này.
-
-Đường điện: **3V3 → 330 Ω → LED → hàng 7/transistor → hàng 5/GND**. LED phải tắt
-khi chưa có lệnh, sáng/nháy rồi tắt theo lệnh kiểm tra rung 3000 ms. Kết quả đúng
-chỉ xác nhận đóng/ngắt được tải nhỏ, chưa chứng minh đủ dòng cho motor.
-
-### 4.3. Tháo bộ LED thử
-
-Ngắt USB và mọi nguồn ngoài. Với cách đấu bài 4.2, tháo đúng bốn phần:
-
-1. Dây **3V3 ESP32 → A20**.
-2. Điện trở thử **B20–B22**.
-3. LED thử **C22–C23**.
-4. Dây thử **A23 → A7**.
-
-Giữ **GPIO33 → A10**, **GND ESP32 → A5**, transistor và điện trở base; không tháo
-nhầm LED/điện trở của GPIO26 hoặc nhánh còi. Chỉ phục hồi nguồn A12 khi đã kiểm
-tra nguồn 5 V, pinout, diode và GND. Không dùng nguồn 3V3 của bài LED để cấp motor.
-
-Người dùng báo motor có rung sau lượt chỉnh. Vì bài thử quy định motor ngắt
-nguồn, báo cáo đó chưa đủ để coi bài 4.2 đạt hoặc nghiệm thu mạch motor hoàn
-chỉnh. Cần xác nhận trạng thái mạch và chu kỳ motor bật/tắt sau khi tháo bộ thử.
-
-## 5. Hiện tượng đã gặp
-
-| Hiện tượng | Ý nghĩa / xử lý |
-|---|---|
-| Nối E7–E5 hoặc chuyển B7 sang B5 thì motor rung liên tục | Đã bỏ qua transistor; tháo dây nối tắt, âm motor giữ B7 |
-| Lay điện trở E8–E9 thì motor rung khi chưa gửi lệnh | Nghi tiếp xúc hở/chập hoặc chân trần chạm nhau; ngắt nguồn kiểm tra, chưa chốt riêng linh kiện hỏng |
-| Nối tải làm đèn nguồn tắt, báo `Brownout` | Nguồn ESP32 bị sụt; đã phát hiện cầu nối giữa thanh có VIN và thanh có GND. Tháo cầu sai, kiểm tra tải/nguồn trước khi thử tiếp |
-| Chỉ VIN/GND vào hai thanh không tải thì đèn vẫn sáng | Bước không tải đã đạt, không chứng minh nguồn chịu được cả ba tải |
-| Web báo `COMPLETED` | Firmware hoàn thành chu kỳ xử lý; không có cảm biến xác nhận motor quay |
-| MQTT vẫn hoạt động nhưng không thấy COM | Kiểm tra USB/cáp/cổng hiện có; đèn nguồn sáng không chứng minh USB truyền dữ liệu được, không suy firmware đã mất |
-
-Tham khảo: [transistor làm công tắc](https://learn.sparkfun.com/tutorials/transistors/),
-[brownout ESP32](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/fatal-errors.html#brownout).
-
-## 6. Kiểm tra trước khi chốt demo
-
-- [ ] Bổ sung ảnh board, hai bên breadboard, nguồn và pinout đúng transistor.
-- [ ] Xác nhận nguồn motor 5 V, dòng khởi động, chiều diode và đầu nối chắc chắn.
-- [ ] Motor đứng yên khi khởi động/chưa có lệnh; không tự rung khi tiếp điểm đã cố định.
-- [ ] Motor rung đúng lệnh và tự dừng hết thời lượng sau khi tháo bộ LED thử.
-- [ ] Cả LED/còi/motor hoạt động đồng thời, không brownout hoặc mất kết nối.
-- [ ] Ghi request_id, ACK và quan sát tải thật; ACK không thay quan sát.
-
-Chưa đánh dấu hoàn tất phần cứng chỉ từ build hoặc một lần motor rung. Xem
-[firmware và lệnh chạy](../firmware/esp32-alert-node/README.md),
-[kịch bản nghiệm thu](../tests/final-acceptance.md).
+Tham khảo thêm: [Hướng dẫn biên dịch và nạp Firmware ESP32](../firmware/esp32-alert-node/README.md) · [Kịch bản nghiệm thu](../tests/final-acceptance.md).

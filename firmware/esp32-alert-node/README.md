@@ -1,108 +1,64 @@
-# ESP32 Alert Node
+# Firmware — ESP32 Alert Node
 
-Board PlatformIO: **ESP32 DOIT DevKit V1**, Serial **115200 baud**. Firmware demo dùng môi trường `development`; các bài thử phần cứng dưới đây dùng `test`.
+Chương trình nhúng cho mạch **ESP32 DOIT DevKit V1** (tốc độ Serial **115200 baud**), được quản lý và biên dịch bằng PlatformIO.
+- Môi trường **`development`** (`src/app/`): Firmware vận hành chính thức, kết nối Wi-Fi/MQTT, đồng bộ thời gian NTP, điều khiển tải, lưu cấu hình vào NVS và phản hồi `ACK`.
+- Môi trường **`ota-release`** / **`ota-demo-043`**: Các bản build phục vụ quy trình ký số và cập nhật firmware từ xa qua mạng (OTA).
+- Môi trường **`test`** (`src/tests/`): Bộ bài kiểm tra độc lập từng linh kiện phần cứng trên breadboard.
 
-## Chọn bài thử
+---
 
-Mở `include/config.h`, sửa dòng sau rồi **Build và Upload lại**:
+## 1. Chế độ kiểm tra phần cứng độc lập (`-e test`)
+
+Khi mới lắp mạch, có thể kiểm tra riêng từng đầu ra bằng cách mở `include/config.h`, chỉnh giá trị `TEST_MODE` rồi biên dịch với môi trường `test`:
 
 ```cpp
-constexpr TestMode TEST_MODE = TestMode::Button;
+constexpr TestMode TEST_MODE = TestMode::Led;
 ```
 
-Thay giá trị sau `TestMode::` bằng một giá trị dưới đây. Mỗi lần chỉ chạy một bài
-thử, theo thứ tự tài liệu. Bài thực sự được chọn nằm trong `include/config.h`.
-
-| Giá trị | GPIO | Kết quả mong đợi |
+| Giá trị `TestMode` | Chân GPIO | Hành vi kiểm tra mong đợi |
 |---|---|---|
-| Led | D26 | Sáng 500 ms, tắt 500 ms; in LED ON/OFF |
-| Button | D27 INPUT_PULLUP, D26 | Nhấn nối D27 xuống GND: PRESSED, LED sáng; thả: RELEASED, LED tắt; đọc mỗi 150 ms |
-| Buzzer | D25 | Buzzer active bật 300 ms, nghỉ 2000 ms |
-| Motor | D33 | Motor bật 400 ms, nghỉ khoảng 3 giây giữa hai lần bật |
-| Wifi | Không thêm dây | In IP hoặc timeout sau 20 giây; nhấn EN để thử lại |
-| Mqtt | Không thêm dây | Kết nối broker, gửi ONLINE, in topic và nội dung tin nhận |
+| `Led` | `D26` (`GPIO26`) | Đèn LED sáng `500 ms`, tắt `500 ms` lặp lại; in trạng thái `LED ON/OFF` ra Serial |
+| `Button` | `D27` (`INPUT_PULLUP`), `D26` | Nhấn nút nối `D27` xuống `GND`: Serial in `PRESSED` và LED sáng; nhả nút: `RELEASED` và LED tắt |
+| `Buzzer` | `D25` (`GPIO25`) | Còi báo động kêu `300 ms`, nghỉ `2000 ms` |
+| `Motor` | `D33` (`GPIO33`) | Motor rung chạy `400 ms`, nghỉ khoảng `3 giây` giữa hai chu kỳ |
+| `Wifi` | Không cần thêm dây | Thử kết nối Wi-Fi, in địa chỉ IP nhận được hoặc báo timeout sau 20 giây |
+| `Mqtt` | Không cần thêm dây | Kết nối tới MQTT broker, gửi trạng thái `ONLINE` và in các bản tin nhận được |
 
-Rút USB trước khi thay dây. Đấu theo tài liệu: LED nối tiếp 330 ohm; nút D27 xuống
-GND; buzzer/motor qua transistor với điện trở base khoảng 1 kohm, motor có diode.
-Xác định đúng B/C/E và nguồn của từng tải trước khi cấp điện. Người dùng cung
-cấp thông số motor **5 V**, chữ trên transistor là **`2N2222 / A331`**; nguồn
-cấp thực tế, dòng tải và pinout đúng linh kiện vẫn cần xác nhận. Không nối
-motor/buzzer trực tiếp vào GPIO. Đầu ra tắt khi khởi động; chỉ bài được chọn
-mới bật tải trong môi trường `test`. `TEST_MODE` không chọn bài tự chạy cho
-firmware `development`.
+> **Lưu ý:** Đấu nối còi và motor qua mạch đệm transistor + điện trở cực Base `~1 kΩ` (motor có gắn song song diode chống ngược dòng `1N4007`) theo đúng hướng dẫn tại [hardware/README.md](../../hardware/README.md). Hằng số `TEST_MODE` chỉ có tác dụng khi nạp bằng cờ `-e test`, không ảnh hưởng tới bản chạy chính `-e development`.
 
-## Mục 6.3 — lắp và test motor rung
+---
 
-Vị trí dưới đây dùng **nửa A–E của breadboard 30 hàng**, giữ nguyên buzzer ở F–J.
-Đường GND tại hàng transistor được đưa trực tiếp tới **A5** trong lượt chỉnh;
-A5/C5/D5 cùng nhóm điện. Bảng ghi chức năng mong muốn tại từng hàng, **không
-xác nhận thứ tự chân transistor chỉ từ chữ `2N2222 A331`**:
+## 2. Cấu hình mạng và nạp Firmware vận hành chính (`-e development`)
 
-| Phần mạch | Vị trí |
-|---|---|
-| Transistor 2 | Ba chân tại C5/C6/C7; cần xác nhận đúng E=C5, B=C6, C=C7 theo pinout của linh kiện |
-| GND driver | GND ESP32 → A5; cực âm nguồn motor cùng GND. D5 → thanh GND cũng tương đương nếu đã nối chung GND thật |
-| Ba điện trở 330 Ω mới | D6–D8, E8–E9, B9–B10 |
-| Thay cả chuỗi điện trở nếu dùng 1 kΩ | Một điện trở A6–A10; không dùng đồng thời với chuỗi ba điện trở |
-| Dây điều khiển | D33 ESP32 → A10 |
-| Motor | Dây đỏ → C12, dây đen → B7 qua đầu nối chắc chắn |
-| Diode 1N4007 | Đầu có vạch bạc → D12, đầu không vạch → D7 |
-| Nguồn motor 5 V riêng, đủ dòng (phương án tham chiếu) | Cực dương → A12, cực âm → GND chung với ESP32; nguồn thực tế còn cần xác nhận |
-
-Nguồn motor tách cực dương khỏi VIN/3V3 và dải nguồn buzzer. Chưa đo dòng tải
-hoặc xác nhận pinout thì chưa chốt nguồn/mạch demo. Dây cầu chia cùng một nguồn
-phải nối **+ với +, − với −**; không nối thanh đang có VIN sang thanh đang có GND.
-Hai thanh khác bên thường không nối điện sẵn. Xem [mô tả nguồn, vị trí dây và
-LED thử](../../hardware/README.md) trước khi phục hồi nhánh motor.
-
-Để nguồn motor ngắt khi Upload. Trong `include/config.h`, chọn:
-
-```cpp
-constexpr TestMode TEST_MODE = TestMode::Motor;
-```
-
-Sau khi kiểm tra mạch và nguồn, Build/Upload bằng **`-e test`**, rồi mở Monitor
-**115200 baud**. `src/tests/main.cpp` in `[MOTOR] Before ON`, `[MOTOR] ON` và
-`[MOTOR] OFF`. GPIO LOW 500 ms trước mỗi lần ON, HIGH 400 ms, rồi LOW 2500 ms;
-hai lần ON cách nhau khoảng 3 giây nghỉ. Đây là bài tự lặp, chỉ bật nguồn motor
-khi đã sẵn sàng kiểm thử; không dùng thay firmware `development` nhận lệnh web.
-
-**Tháo dây nối tạm E7–E5**, giữ dây âm motor tại B7; không chuyển sang B5.
-Những đường nối đó bỏ qua transistor và có thể làm motor chạy liên tục ngoài
-lệnh. Phép thử LED ở GPIO33 đã được người dùng xác nhận nháy rồi tắt; người dùng
-cũng báo motor có rung sau lượt chỉnh, nhưng cần kiểm tra lại bật/tắt đúng lệnh,
-nguồn và trạng thái mạch trước khi nghiệm thu. Cách đấu và tháo bộ LED thử được
-ghi tại [tài liệu phần cứng](../../hardware/README.md); không tháo nhầm LED chính GPIO26.
-
-## Kết nối để demo với Backend
-
-Firmware chính nằm trong `src/app/`, môi trường PlatformIO **development**. Các bài thử tải ở trên thuộc `src/tests/`, chỉ chạy khi chọn môi trường **test**; không dùng chúng thay firmware demo.
-
-1. Kiểm tra mạch/nguồn và [bảng phần cứng](../../hardware/README.md) trước khi nạp/bật tải.
-2. Copy `include/network_config.example.h` thành `include/network_config.h`.
-3. Điền Wi-Fi 2,4 GHz, IP LAN laptop, MQTT port **1884**, username/password đã cấp cho Alert Node. Broker dự án bắt buộc xác thực.
-4. `DEVICE_CODE` trong `include/config.h` phải khớp thiết bị đã đăng ký và provision. File credential được Git bỏ qua.
+1. Sao chép file mẫu `include/network_config.example.h` thành `include/network_config.h` (file này nằm trong `.gitignore` để bảo mật thông tin mạng).
+2. Điền tên/mật khẩu Wi-Fi 2.4 GHz, địa chỉ IP LAN của máy tính chạy Mosquitto broker, cổng **`1884`**, cùng `mqtt_username` và `mqtt_password` đã cấp riêng cho thiết bị trên giao diện Admin.
+3. Đảm bảo `DEVICE_CODE` trong `include/config.h` khớp với mã thiết bị đã đăng ký (ví dụ `alert-01`).
+4. Biên dịch, nạp chương trình và mở Serial Monitor theo dõi:
 
 ```powershell
-$taskPio = "$env:USERPROFILE\.platformio\penv\Scripts\pio.exe"
-& $taskPio device list
-& $taskPio run -d firmware/esp32-alert-node -e development
-# Thay COM7 bằng cổng USB-SERIAL CH340/USB-Serial hiện có; không chọn Bluetooth.
-$taskPort = 'COM7'
-# Chỉ upload sau khi xác nhận mạch, ngắt nguồn tải và đóng Serial Monitor:
-& $taskPio run -d firmware/esp32-alert-node -e development -t upload --upload-port $taskPort
-& $taskPio device monitor -d firmware/esp32-alert-node --port $taskPort --baud 115200
+$pio = "$env:USERPROFILE\.platformio\penv\Scripts\pio.exe"
+& $pio device list
+& $pio run -d firmware/esp32-alert-node -e development
+
+# Thay COM7 bằng cổng USB-Serial thực tế hiển thị trong danh sách thiết bị
+$port = "COM7"
+& $pio run -d firmware/esp32-alert-node -e development -t upload --upload-port $port
+& $pio device monitor -d firmware/esp32-alert-node --port $port --baud 115200
 ```
 
-Đoạn PowerShell dùng vị trí PlatformIO thường gặp khi cài qua VS Code trên
-Windows. Nếu đã có `pio` trong PATH, có thể dùng `pio` thay `& $taskPio`; hệ điều
-hành khác dùng `pio` tại môi trường đã cài. **COM7 chỉ là ví dụ từng được nhận**;
-đổi cáp/cổng USB có thể đổi số COM. Đổi cáp không đổi chương trình trên ESP32.
-Nếu không thấy USB–Serial trong `device list`, kiểm tra USB/cáp/driver trước,
-không nạp lại firmware chỉ vì cổng COM cũ không tồn tại.
+*(Nếu đã cấu hình `pio` sẵn trong biến môi trường `PATH`, có thể gọi trực tiếp `pio` thay cho `& $pio`).*
 
-Firmware gửi heartbeat mỗi 5 giây; nhận command/config, trả ACK; tự reconnect và đăng ký lại topic. Lệnh có TTL/kiểm tra giờ, chống thực thi trùng request_id; cấu hình có revision, lưu NVS và phản hồi APPLIED/REJECTED. Firmware hỏi NTP ở host broker trong LAN trước nguồn Internet dự phòng.
+### Cơ chế hoạt động của Firmware chính
+- **Heartbeat & Tự phục hồi:** Gửi gói tin trạng thái định kỳ mỗi **5 giây** kèm phiên bản firmware/phần cứng; tự động kết nối lại Wi-Fi/MQTT và đăng ký lại các topic khi mạng khôi phục.
+- **Xử lý lệnh an toàn:** Kiểm tra thời hạn hiệu lực lệnh (`TTL` / `expires_at_ms`) dựa trên đồng hồ NTP nội bộ, lưu nhật ký 16 `request_id` gần nhất vào bộ nhớ NVS để chống chạy lặp lệnh trùng, điều khiển đóng/ngắt tải không chặn vòng lặp (`non-blocking`) và gửi `ACK` (`ACCEPTED` → `COMPLETED` / `FAILED`).
+- **Lưu trữ cấu hình bền vững:** Nhận cấu hình nhịp bật/tắt 3 mức qua `config/update`, kiểm tra `revision`, ghi vào Flash **NVS** để giữ nguyên sau khi mất điện và phản hồi `APPLIED` / `REJECTED`.
 
-Gửi lệnh bằng React hoặc API Backend để có kiểm tra quyền và lịch sử. MQTT consumer chạy sẵn trong Backend, không mở thêm script consumer/publisher cũ. Xem [luồng command/config](flow.md), [10 bước demo](../../README.md#4-demo-theo-mục-84-của-đề-bài).
+Xem chi tiết luồng bản tin tại [flow.md](flow.md).
 
-Khi cần thử từng linh kiện độc lập, chọn TestMode trong `include/config.h` rồi dùng `-e test` ở cả Build và Upload. Mạch của nhóm chưa được nghiệm thu chỉ từ kết quả biên dịch; không tự suy nguồn tải hay chân transistor từ GPIO.
+---
+
+## 3. Hỗ trợ cập nhật Firmware từ xa (OTA)
+
+- Bản `development` đóng vai trò firmware nền (`0.4.0`), `ota-release` tương ứng bản `0.4.1`, và `ota-demo-043` dùng để đóng gói bản `0.4.3` phục vụ trình diễn nâng cấp qua mạng.
+- Chức năng OTA sử dụng file cấu hình tin cậy cục bộ `include/ota_trust.h` (chứa khóa công khai RSA-2048 để xác minh chữ ký manifest, chứng chỉ CA và địa chỉ HTTPS tải firmware). Nếu chưa tạo `ota_trust.h`, tính năng OTA tự động vô hiệu hóa nhưng các luồng nhận lệnh/cấu hình thường ngày vẫn chạy bình thường.
+- Quy trình tạo khóa ký, đóng gói file `.bin` + `.manifest.json` và thực hiện cập nhật trên giao diện Web được trình bày đầy đủ tại [docs/firmware-ota.md](../../docs/firmware-ota.md).
